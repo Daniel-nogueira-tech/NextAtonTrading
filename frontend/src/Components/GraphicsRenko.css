@@ -1,0 +1,134 @@
+:root {
+  --renko-bg-start: #111318;
+  --renko-bg-middle: #171b22;
+  --renko-bg-end: #0b0e11;
+  --renko-panel: #131722;
+  --renko-panel-soft: rgba(19, 23, 34, 0.86);
+  --renko-up: #22AB94;
+  --renko-down: #F23645;
+  --renko-glass-bg: rgba(0, 0, 0, 0.103); /*rgba(19, 23, 34, 0.78);*/
+  --renko-glass-border: rgba(120, 144, 156, 0.205);
+  --renko-text: #d1d4dc;
+  --renko-muted-text: #787b86;
+  --renko-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+}
+
+.graphics-renko {
+  width: 100%;
+  height: 100vh;
+  min-height: 100%;
+  background: linear-gradient(135deg, var(--renko-bg-start), var(--renko-bg-middle), var(--renko-bg-end));
+  color: var(--renko-text);
+  animation: renkoFadeInUp 520ms ease-out both;
+}
+
+.graphics-renko__card {
+  height: 100%;
+  padding: 22px;
+  border: 1px solid var(--renko-glass-border);
+  border-radius: 8px;
+  background: var(--renko-glass-bg);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--renko-shadow);
+}
+
+.graphics-renko__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.graphics-renko__eyebrow {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--renko-muted-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.graphics-renko__header h2 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2vw, 1.9rem);
+  font-weight: 800;
+  letter-spacing: 0;
+  color: var(--renko-text);
+}
+
+.graphics-renko__status {
+  flex: 0 0 auto;
+  padding: 9px 12px;
+  border: 1px solid rgba(139, 0, 253, 0.342);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(14, 14, 14, 0.39), rgba(153, 0, 255, 0.082));
+  color: var(--renko-text);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.graphics-renko__chart {
+  position: relative;
+  width: 100%;
+  height: 75%;
+  overflow: hidden;
+  border: 1px solid rgba(120, 144, 156, 0.16);
+  border-radius: 8px;
+}
+
+.graphics-renko__chart canvas {
+  width: 100%;
+}
+
+.graphics-renko__empty {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--renko-muted-text);
+  font-size: 0.95rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+@keyframes renkoFadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 720px) {
+  .graphics-renko {
+    padding: 14px;
+  }
+
+  .graphics-renko__card {
+    min-height: 460px;
+    padding: 16px;
+  }
+
+  .graphics-renko__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .graphics-renko__status {
+    width: fit-content;
+  }
+
+  .graphics-renko__chart {
+    height: 360px;
+  }
+}
