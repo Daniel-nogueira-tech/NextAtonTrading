@@ -51,4 +51,3 @@ def format_raw_data(raw_data):
         formatted_data.append(data)
 
     return formatted_data
-print(format_raw_data(get_klines("BTCUSDT", "1h"))[0])

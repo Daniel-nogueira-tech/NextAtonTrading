@@ -1,13 +1,16 @@
 from utils.klines import get_klines, format_raw_data
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
+from controllers.symbols_controller import get_stored_symbols
+
 
 
 # Função para calcular o ATR móvel
-def calculate_atr_wilder(period=182):
+def calculate_atr_wilder(symbol, interval="1h", period=182):
     if period is None or period <= 0:
         raise ValueError("period deve ser um número inteiro positivo")
     
-    raw_data = get_klines("BTCUSDT", "1h", 2000)
+    raw_data = get_klines(symbol, interval, 2000)
     data = sorted(format_raw_data(raw_data), key=lambda x: x["Tempo"])
 
     trs = []
@@ -37,21 +40,49 @@ def calculate_atr_wilder(period=182):
     return atrs
 
 
+def calculate_atr_wilder_from_data(data, period=182):
+    if period is None or period <= 0:
+        raise ValueError("period deve ser um número inteiro positivo")
+
+    sorted_data = sorted(data, key=lambda x: x["Tempo"])
+
+    if len(sorted_data) <= period:
+        raise ValueError("Dados insuficientes para calcular ATR.")
+
+    trs = []
+
+    for i in range(1, len(sorted_data)):
+        high = float(sorted_data[i]["Maximo"])
+        low = float(sorted_data[i]["Minimo"])
+        prev_close = float(sorted_data[i - 1]["Fechamento"])
+
+        tr = max(
+            high - low,
+            abs(high - prev_close),
+            abs(low - prev_close)
+        )
+        trs.append(tr)
+
+    atrs = []
+    first_atr = sum(trs[:period]) / period
+    atrs.append(first_atr)
+
+    for i in range(period, len(trs)):
+        atr = (atrs[-1] * (period - 1) + trs[i]) / period
+        atrs.append(atr)
+
+    return atrs
+
+
 
 # Função principal para obter as clarificações de tendência usando ATR
-def trend_clarifications_atr(symbol, time, mode):
-
-    #  Recupera do banco (só pra confirmar ou usar daqui pra frente)
-    symbol = "BTCUSDT"  # ou outro símbolo que queira usar
+def _trend_clarifications_atr_single(symbol, time, mode):
+    print(f"Calculating trend clarifications for {symbol} with time {time} and mode {mode}")
     #  Busca os klines na Binance
-    time = "1h"
-
     try:
         if mode == "simulation":
-            # 🔁 Limpa os dados antigos da tabela antes de salvar os novos
-  
             # 🔁 Pega os dados do banco
-            raw_data = get_data_klines(symbol, time)
+            raw_data = get_klines(symbol, time)
             print(f"✅ raw_data carregado: {len(raw_data) if raw_data else 0} registros")
             
             # Se não houver dados, tenta fazer download automaticamente
@@ -83,8 +114,8 @@ def trend_clarifications_atr(symbol, time, mode):
             data = format_raw_data(raw_data)
 
     except Exception as e:
-        print(f"❌ Erro ao buscar klines: {str(e)}")
-        raise Exception(f"Erro ao buscar klines: {str(e)}")
+        print(f"❌ Erro ao buscar klines de {symbol}: {str(e)}")
+        raise Exception(f"Erro ao buscar klines de {symbol}: {str(e)}")
 
     # Extrai preços de fechamento e tempos
     closes = [item["Fechamento"] for item in data]
@@ -92,8 +123,9 @@ def trend_clarifications_atr(symbol, time, mode):
     
     print(f"✅ closes: {len(closes)}, timestamps: {len(timestamps)}")
 
-    # Calcula o ATR suavizado
-    atrs = calculate_atr_wilder(period=182)
+    # Calcula o ATR suavizado usando os candles já carregados.
+    # Isso evita uma segunda chamada à Binance para o mesmo ativo.
+    atrs = calculate_atr_wilder_from_data(data, period=182)
     print(f"✅ ATRs calculados: {len(atrs) if atrs else 0}")
     
     if not atrs:
@@ -148,8 +180,6 @@ def trend_clarifications_atr(symbol, time, mode):
     last_pivot_rally_sec_low_temp = None
     last_pivot_rally_sec_high = None
     last_pivot_rally_sec_high_temp = None
-
-   
 
     # Primeiro ponto é sempre um Rally Natural Inicial
     movements.append(
@@ -1210,4 +1240,46 @@ def trend_clarifications_atr(symbol, time, mode):
      
     # devolve também confirmações para o frontend
     return movements 
+
+
+def trend_clarifications_atr(symbols, time="1h", mode="real"):
+    default_symbols = get_stored_symbols()
+
+    if symbols is None or symbols == "":
+        symbols_to_process = default_symbols
+    elif isinstance(symbols, str):
+        symbols_to_process = [
+            symbol.strip().upper()
+            for symbol in symbols.split(",")
+            if symbol.strip()
+        ]
+    else:
+        symbols_to_process = [
+            str(symbol).strip().upper()
+            for symbol in symbols
+            if str(symbol).strip()
+        ]
+
+    if not symbols_to_process:
+        raise ValueError("Informe pelo menos um símbolo válido.")
+
+    def classify_symbol(index_symbol):
+        index, symbol = index_symbol
+        movements = _trend_clarifications_atr_single(symbol, time, mode)
+        return {
+            "index": index,
+            "symbol": symbol,
+            "movements": movements,
+        }
+
+    max_workers = min(len(symbols_to_process), 4)
+
+    if max_workers == 1:
+        results = [classify_symbol((0, symbols_to_process[0]))]
+    else:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            results = list(executor.map(classify_symbol, enumerate(symbols_to_process)))
+
+    return results
+
 

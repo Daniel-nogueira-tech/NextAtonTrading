@@ -1,6 +1,8 @@
 import pandas as pd
 from datetime import datetime
-from utils.klines import get_klines, format_raw_data
+from concurrent.futures import ThreadPoolExecutor
+from utils.klines import get_klines
+from controllers.symbols_controller import get_stored_symbols
 
 
 
@@ -26,7 +28,7 @@ def calculate_vppr(klines):
 
 
 
-def get_vppr(symbol, modo=None, time=None):
+def _get_vppr_single(symbol, modo="real", time="1h"):
 
     try:
         if modo == "simulation":
@@ -67,3 +69,51 @@ def get_vppr(symbol, modo=None, time=None):
         )
 
     return result
+
+
+def get_vppr(symbols=None, symbol=None, modo="real", time="1h"):
+    default_symbols = get_stored_symbols()
+
+    if modo not in ["real", "simulation"]:
+        raise ValueError("modo deve ser 'real' ou 'simulation'")
+
+    symbols_input = symbols if symbols is not None else symbol
+
+    if symbols_input is None or symbols_input == "":
+        symbols_to_process = default_symbols
+    elif isinstance(symbols_input, str):
+        symbols_to_process = [
+            item.strip().upper()
+            for item in symbols_input.split(",")
+            if item.strip()
+        ]
+    else:
+        symbols_to_process = [
+            str(item).strip().upper()
+            for item in symbols_input
+            if str(item).strip()
+        ]
+
+    if not symbols_to_process:
+        raise ValueError("Informe pelo menos um símbolo válido.")
+
+    def calculate_symbol(index_symbol):
+        index, current_symbol = index_symbol
+        result = _get_vppr_single(
+            symbol=current_symbol,
+            modo=modo,
+            time=time,
+        )
+        return {
+            "index": index,
+            "symbol": current_symbol,
+            "result": result,
+        }
+
+    max_workers = min(len(symbols_to_process), 4)
+
+    if max_workers == 1:
+        return [calculate_symbol((0, symbols_to_process[0]))]
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        return list(executor.map(calculate_symbol, enumerate(symbols_to_process)))

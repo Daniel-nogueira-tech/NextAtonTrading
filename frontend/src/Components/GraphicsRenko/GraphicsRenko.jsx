@@ -1,7 +1,7 @@
 
 import React from 'react'
 import './GraphicsRenko.css'
-import { ContextGraphics } from '../ContextGraphics/ContextGraphics.jsx'
+import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx'
 import { CandlestickSeries, ColorType, CrosshairMode, createChart } from 'lightweight-charts'
 
 const UP_COLOR = '#22AB94'
@@ -15,14 +15,15 @@ const normalizeTrend = (trend) => {
 const parseChartTime = (closeTime, fallbackIndex) => {
   if (typeof closeTime !== 'string') return fallbackIndex + 1
 
+
   const timestamp = Date.parse(closeTime.replace(' ', 'T'))
   if (Number.isNaN(timestamp)) return fallbackIndex + 1
 
   return Math.floor(timestamp / 1000)
 }
 
-const buildRenkoCandles = (trend) => {
-  const points = normalizeTrend(trend)
+const buildRenkoCandles = (movements) => {
+  const points = normalizeTrend(movements)
     .map((point, index) => ({
       ...point,
       closePrice: Number(point?.closePrice),
@@ -57,9 +58,21 @@ const buildRenkoCandles = (trend) => {
 }
 
 const GraphicsRenko = () => {
-  const { trend } = React.useContext(ContextGraphics)
+  const { trend, activeSymbol } = React.useContext(ContextGraphics)
   const chartContainerRef = React.useRef(null)
-  const renkoCandles = React.useMemo(() => buildRenkoCandles(trend), [trend])
+
+// seleciona o ativo que está ativo
+  const selectedMarket = React.useMemo(() => {
+    if (!trend || !activeSymbol) return null
+  return trend.find(
+    item => item.symbol === activeSymbol
+  )
+}, [trend, activeSymbol])
+
+
+  const renkoCandles = React.useMemo(() => buildRenkoCandles(
+    selectedMarket?.movements || []
+  ), [selectedMarket])
 
   React.useEffect(() => {
     if (!chartContainerRef.current) return
@@ -144,6 +157,8 @@ const GraphicsRenko = () => {
     }
   }, [renkoCandles])
 
+  
+
   return (
     <section className="graphics-renko">
       <div className="graphics-renko__card">
@@ -160,7 +175,7 @@ const GraphicsRenko = () => {
         <div className="graphics-renko__chart" ref={chartContainerRef}>
           {renkoCandles.length === 0 && (
             <div className="graphics-renko__empty">
-              Aguardando movimentos suficientes para formar os blocos.
+              Waiting for enough movement to form the blocks.
             </div>
           )}
         </div>

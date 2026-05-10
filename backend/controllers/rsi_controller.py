@@ -1,7 +1,8 @@
-from turtle import pd
 import pandas as pd
 from datetime import datetime
-from utils.klines import get_klines, format_raw_data
+from concurrent.futures import ThreadPoolExecutor
+from utils.klines import get_klines
+from controllers.symbols_controller import get_stored_symbols
 
 
 # Função para calcular o RSI
@@ -18,8 +19,8 @@ def calculate_rsi(closes, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# Função principal para obter o RSI
-def get_rsi(symbol ="BTCUSDT", period=14, media_period=6, mode="real"):
+# Função principal para obter o RSI de um ativo
+def _get_rsi_single(symbol="BTCUSDT", period=14, media_period=6, mode="real"):
     if period is None or period <= 0:
         raise ValueError("period deve ser um número inteiro positivo")
     if symbol is None or not isinstance(symbol, str):
@@ -64,5 +65,58 @@ def get_rsi(symbol ="BTCUSDT", period=14, media_period=6, mode="real"):
         )
 
     return result
+
+
+def get_rsi(symbols=None, symbol=None, period=14, media_period=6, mode="real"):
+    default_symbols = get_stored_symbols()
+
+    if period is None or period <= 0:
+        raise ValueError("period deve ser um número inteiro positivo")
+    if media_period is None or media_period <= 0:
+        raise ValueError("media_period deve ser um número inteiro positivo")
+    if mode not in ["real", "simulation"]:
+        raise ValueError("mode deve ser 'real' ou 'simulation'")
+
+    symbols_input = symbols if symbols is not None else symbol
+
+    if symbols_input is None or symbols_input == "":
+        symbols_to_process = default_symbols
+    elif isinstance(symbols_input, str):
+        symbols_to_process = [
+            item.strip().upper()
+            for item in symbols_input.split(",")
+            if item.strip()
+        ]
+    else:
+        symbols_to_process = [
+            str(item).strip().upper()
+            for item in symbols_input
+            if str(item).strip()
+        ]
+
+    if not symbols_to_process:
+        raise ValueError("Informe pelo menos um símbolo válido.")
+
+    def calculate_symbol(index_symbol):
+        index, current_symbol = index_symbol
+        result = _get_rsi_single(
+            symbol=current_symbol,
+            period=period,
+            media_period=media_period,
+            mode=mode,
+        )
+        return {
+            "index": index,
+            "symbol": current_symbol,
+            "result": result,
+        }
+
+    max_workers = min(len(symbols_to_process), 4)
+
+    if max_workers == 1:
+        return [calculate_symbol((0, symbols_to_process[0]))]
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        return list(executor.map(calculate_symbol, enumerate(symbols_to_process)))
 
 #print("RSI:", get_rsi(symbol="BTCUSDT", period=14, media_period=6, mode=None, offset=None, limit=None))

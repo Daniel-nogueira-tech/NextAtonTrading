@@ -6,14 +6,19 @@ rsi_bp = Blueprint('rsi', __name__)
 @rsi_bp.route('/api/rsi', methods=['GET', 'POST'])
 def rsi_route():
     try:
-        symbol = request.args.get('symbol', 'BTCUSDT')
+        symbols = request.args.getlist('symbols')
+        if len(symbols) == 1 and ',' in symbols[0]:
+            symbols = symbols[0]
+        elif not symbols:
+            symbols = request.args.get('symbol')
+
         period = int(request.args.get('period', 14))
         media_period = int(request.args.get('media_period', 6))
         mode = request.args.get('mode', 'real')
 
         # verificações básicas dos parâmetros
-        if not symbol or not isinstance(symbol, str):
-            raise ValueError("symbol deve ser uma string válida")
+        if symbols is not None and not isinstance(symbols, (str, list)):
+            raise ValueError("symbols deve ser uma string ou uma lista válida")
         if not isinstance(period, int) or period <= 0:
             raise ValueError("period deve ser um inteiro positivo")
         if not isinstance(media_period, int) or media_period <= 0:
@@ -22,7 +27,7 @@ def rsi_route():
             raise ValueError("mode deve ser 'real' ou 'simulation'")    
 
         rsi_data = get_rsi(
-            symbol=symbol,
+            symbols=symbols,
             period=period,
             media_period=media_period,
             mode=mode,
@@ -31,7 +36,7 @@ def rsi_route():
         return jsonify({
             "status": "success",
             "data": rsi_data,
-            "symbol": symbol,
+            "symbols": symbols,
             "period": period,
             "media_period": media_period
         })
