@@ -63,10 +63,17 @@ def delete_symbol(id):
     conn.commit()
     conn.close()
 
-# Função para atualizar o status ativo de um símbolo
-def update_symbol_status(symbol, active):
+# Função para atualizar o status desativando todos os símbolos e ativando apenas o símbolo escolhido
+def set_disabled_symbol(symbol):
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("UPDATE symbols SET active = ? WHERE symbol = ?", (active, symbol.upper()))
+
+    # Desativa todos
+    cursor.execute("UPDATE symbols SET active = 0")
+
+    # Ativa apenas o símbolo escolhido
+    cursor.execute("UPDATE symbols SET active = 1 WHERE symbol = ?", (symbol.upper(),))
+
     conn.commit()
     conn.close()
+

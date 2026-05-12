@@ -5,7 +5,7 @@ import { mockSymbols, searchSymbols, addMockSymbol } from './mockSymbols'
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics'
 
 const NavBar = () => {
-    const { addSymbols, tabs, setTabs, removeSymbol, setActiveSymbol } = React.useContext(ContextGraphics)
+    const { addSymbols, tabs, setTabs, removeSymbol, setActiveSymbol,updateSymbolStatus } = React.useContext(ContextGraphics)
 
 
     const [searchTerm, setSearchTerm] = useState('')
@@ -97,7 +97,10 @@ const NavBar = () => {
         }))
         // pega o primeiro ativo
         const activeTab = updatedTabs.find(tab => tab.active)
-        setActiveSymbol(activeTab.symbol)
+
+        // Atualiza o status do símbolo no backend;
+        updateSymbolStatus(activeTab.symbol) 
+        // Atualiza as abas no frontend
         setTabs(updatedTabs)
     }
 

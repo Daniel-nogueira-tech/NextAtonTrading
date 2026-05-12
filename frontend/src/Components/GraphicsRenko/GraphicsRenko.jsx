@@ -70,6 +70,8 @@ const GraphicsRenko = () => {
 }, [trend, activeSymbol])
 
 
+
+
   const renkoCandles = React.useMemo(() => buildRenkoCandles(
     selectedMarket?.movements || []
   ), [selectedMarket])
@@ -164,11 +166,11 @@ const GraphicsRenko = () => {
       <div className="graphics-renko__card">
         <div className="graphics-renko__header">
           <div>
-            <span className="graphics-renko__eyebrow">Crypto Renko</span>
-            <h3>Fluxo de Tendência</h3>
+            <span className="graphics-renko__eyebrow">Crypto graphics</span>
+            <h3>Trend Flow</h3>
           </div>
           <div className="graphics-renko__status">
-            {renkoCandles.length} blocos
+            {renkoCandles.length} Blocks
           </div>
         </div>
 

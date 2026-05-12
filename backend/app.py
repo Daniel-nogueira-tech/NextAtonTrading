@@ -18,6 +18,7 @@ app.register_blueprint(vppr_bp)
 app.register_blueprint(symbols_bp)
 
 
+
 @app.route('/')
 def home():
     return jsonify({"message": "Backend Flask rodando!"})

@@ -16,18 +16,17 @@
 .graphics-renko {
   width: 100%;
   height: 100vh;
-  min-height: 100%;
   background: linear-gradient(135deg, var(--renko-bg-start), var(--renko-bg-middle), var(--renko-bg-end));
   color: var(--renko-text);
   animation: renkoFadeInUp 520ms ease-out both;
 }
 
 .graphics-renko__card {
-  height: 500px;
+  height: 100vh;
   padding: 22px;
   border: 1px solid var(--renko-glass-border);
   border-radius: 8px;
-  background: var(--renko-glass-bg);
+  background: var(--renko-bg-start);
   backdrop-filter: blur(10px);
   box-shadow: var(--renko-shadow);
 }

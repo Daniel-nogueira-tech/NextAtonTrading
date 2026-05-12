@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from controllers.symbols_controller import get_all_symbols, save_symbols, delete_symbol
+from controllers.symbols_controller import get_all_symbols, save_symbols, delete_symbol,set_disabled_symbol
 
 symbols_bp = Blueprint("symbols", __name__)
 
@@ -30,6 +30,8 @@ def add_symbol_route():
 
         if not symbol:
             raise ValueError("The 'symbol' field is required.")
+        
+        set_disabled_symbol(symbol)  # desativa todos os símbolos e ativa apenas o símbolo escolhido
 
         save_symbols(
             symbol=symbol,
@@ -64,6 +66,29 @@ def remove_symbol_route():
         return jsonify({
             "status": "success",
             "message": f"Symbol '{id}' removed successfully.",
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+        }), 400
+    
+
+# Rota para desativar todos os símbolos e ativar apenas o símbolo escolhido
+@symbols_bp.route("/api/activate-symbol", methods=["POST"])
+def activate_symbol_route():
+    try:
+        data = request.get_json()
+        symbol = data.get("symbol")
+        print(f"Received request to activate symbol: {symbol}")
+        if not symbol:
+            raise ValueError("The 'symbol' field is required.")
+        # Lógica para desativar todos os símbolos e ativar apenas o símbolo escolhido
+        set_disabled_symbol(symbol)
+
+        return jsonify({
+            "status": "success",
+            "message": f"Symbol '{symbol}' activated successfully.",
         })
     except Exception as e:
         return jsonify({

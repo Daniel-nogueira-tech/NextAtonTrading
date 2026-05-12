@@ -9,6 +9,7 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [trend, setTrend] = React.useState(null);
     const [tabs, setTabs] = React.useState([]);
     const [activeSymbol, setActiveSymbol] = React.useState('');
+    console.log(activeSymbol);
 
 
     // Função para enviar os símbolos para o backend
@@ -27,6 +28,7 @@ export const ContextGraphicsProvider = ({ children }) => {
                 name,
                 active
             })
+            trendClassification()
             console.log('Symbol added successfully:', response.data)
         } catch (error) {
             console.error('Error adding symbol:', error)
@@ -38,10 +40,28 @@ export const ContextGraphicsProvider = ({ children }) => {
         try {
             const response = await axios.get(`${urlBackend}/api/get-symbols`)
             const symbols = response.data.data
+
+            // Pega todos os símbolos para tabs
             setTabs(symbols)
+
+            // pegar apenas os símbolos ativos para a barra de navegação
+            const activeSymbols = symbols.filter(s => s.active).map(s => s.symbol)
+            setActiveSymbol(...activeSymbols);
             console.log('Symbols fetched successfully:', response.data)
         } catch (error) {
             console.error('Error fetching symbols:', error)
+        }
+    };
+
+    // Função para atualizar o status de um símbolo no backend
+    const updateSymbolStatus = async (symbol) => {
+        try { 
+            const response = await axios.post(`${urlBackend}/api/activate-symbol`, { symbol: symbol })
+            getSymbols() // Atualiza a lista de símbolos após a atualização do status
+
+            console.log('Symbol status updated successfully:', response.data)
+         }catch (error) {
+            console.error('Error updating symbol status:', error)
         }
     };
 
@@ -69,7 +89,7 @@ export const ContextGraphicsProvider = ({ children }) => {
 
     };
 
-    console.log(activeSymbol);
+ 
     
     // Carrega os dados quando o componente é montado
     React.useEffect(() => {
@@ -97,7 +117,8 @@ export const ContextGraphicsProvider = ({ children }) => {
         setActiveSymbol,
         setTabs,
         addSymbols,
-        removeSymbol
+        removeSymbol,
+        updateSymbolStatus
     }
 
     return (
