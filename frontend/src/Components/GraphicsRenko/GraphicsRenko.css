@@ -6,7 +6,8 @@
   --renko-panel-soft: rgba(19, 23, 34, 0.86);
   --renko-up: #22AB94;
   --renko-down: #F23645;
-  --renko-glass-bg: rgba(0, 0, 0, 0.103); /*rgba(19, 23, 34, 0.78);*/
+  --renko-glass-bg: rgba(0, 0, 0, 0.103);
+  /*rgba(19, 23, 34, 0.78);*/
   --renko-glass-border: rgba(120, 144, 156, 0.205);
   --renko-text: #d1d4dc;
   --renko-muted-text: #787b86;
@@ -15,20 +16,20 @@
 
 .graphics-renko {
   width: 100%;
-  height: 100vh;
   background: linear-gradient(135deg, var(--renko-bg-start), var(--renko-bg-middle), var(--renko-bg-end));
   color: var(--renko-text);
   animation: renkoFadeInUp 520ms ease-out both;
 }
 
 .graphics-renko__card {
-  height: 100vh;
   padding: 22px;
   border: 1px solid var(--renko-glass-border);
   border-radius: 8px;
   background: var(--renko-bg-start);
   backdrop-filter: blur(10px);
   box-shadow: var(--renko-shadow);
+  display: flex;
+  flex-direction: column;
 }
 
 .graphics-renko__header {
@@ -60,9 +61,8 @@
 .graphics-renko__status {
   flex: 0 0 auto;
   padding: 9px 12px;
-  border: 1px solid rgba(139, 0, 253, 0.342);
   border-radius: 8px;
-  background: linear-gradient(135deg, rgba(14, 14, 14, 0.39), rgba(153, 0, 255, 0.082));
+  background: linear-gradient(135deg, rgba(14, 14, 14, 0.39), rgba(99, 99, 99, 0.082));
   color: var(--renko-text);
   font-size: 0.86rem;
   font-weight: 700;
@@ -70,10 +70,73 @@
   white-space: nowrap;
 }
 
+.graphics-renko__indicators {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.graphics-renko__indicator-panel {
+  min-width: 0;
+  min-height: 190px;
+  border: 1px solid rgba(120, 144, 156, 0.18);
+  border-radius: 8px;
+  background: rgba(19, 23, 34, 0.72);
+  overflow: hidden;
+}
+
+.graphics-renko__indicator-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(120, 144, 156, 0.14);
+}
+
+.graphics-renko__indicator-header span {
+  color: var(--renko-text);
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.graphics-renko__indicator-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.graphics-renko__indicator-legend small {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--renko-muted-text);
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.graphics-renko__indicator-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.graphics-renko__indicator-chart {
+  position: relative;
+  width: 100%;
+  height: 148px;
+}
+
 .graphics-renko__chart {
   position: relative;
   width: 100%;
-  height: 75%;
+  flex: 1 1 420px;
+  min-height: 320px;
   overflow: hidden;
   border: 1px solid rgba(120, 144, 156, 0.16);
   border-radius: 8px;
@@ -96,6 +159,103 @@
   pointer-events: none;
 }
 
+.button-simulation {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0);
+  margin: 10px;
+}
+
+.button-simulation button {
+  border-radius: 8px;
+  border: solid 1px rgba(162, 0, 255, 0.178);
+  padding: 8px;
+  background: linear-gradient(135deg, rgba(14, 14, 14, 0.39), rgba(184, 184, 184, 0.082));
+  cursor: pointer;
+  color: #d1d4dc;
+  transition: ease 1s;
+}
+
+.button-simulation button:hover {
+  transform: scale(1.05);
+  background: linear-gradient(135deg, rgba(14, 14, 14, 0.541), rgba(184, 184, 184, 0.233));
+
+}
+
+
+/*DATAS*/
+.card-dates ,.btn{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 10px;
+}
+.p-calendar-w-btn-right .p-inputtext {
+  display: flex;
+  text-align: center;
+  background: rgba(41, 41, 41, 0.103);
+  border: solid 1px #8b5cf6;
+  color: white;
+  padding: 5px;
+  border-radius: 10px 0px 0px 10px;
+}
+
+#calendar-button {
+  border-radius: 50px 0px 0px 0px;
+}
+
+.p-datepicker-prev,
+.p-datepicker-next,
+.p-button {
+  background: rgba(153, 0, 255, 0.692);
+  color: white;
+  border: solid 1px #8a5cf681;
+  border-radius: 5px;
+}
+
+.p-component,
+.p-component * {
+  color: white;
+  background: #915fe704;
+  margin-top: 2px;
+  margin-bottom: 2px;
+  font-size: 12px;
+}
+.download Button{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  padding: 0px 20px 0px 10px;
+  gap: 10px;
+}
+.loaded Button{
+  display: flex;
+  font-size: 15px;
+  padding: 0px 20px 0px 10px;
+  gap: 10px;
+  background-color: #2da722b6;
+}
+
+/*Controles de simulação*/
+.simulation-control{
+  gap: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+}
+
+.simulation-control button{
+  font-size: 20px;
+  color: #8b5cf6;
+}
+
+
 @keyframes renkoFadeInUp {
   from {
     opacity: 0;
@@ -116,6 +276,7 @@
   .graphics-renko__card {
     min-height: 460px;
     padding: 16px;
+    height: auto;
   }
 
   .graphics-renko__header {
@@ -127,7 +288,12 @@
     width: fit-content;
   }
 
+  .graphics-renko__indicators {
+    grid-template-columns: 1fr;
+  }
+
   .graphics-renko__chart {
     height: 360px;
+    flex-basis: 360px;
   }
 }

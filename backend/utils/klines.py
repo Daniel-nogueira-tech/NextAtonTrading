@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 client = Client()
 
 # Função para obter os dados de klines (candlesticks) da Binance
-def get_klines(symbol, interval, total=4000):
+def get_klines(symbol, interval, total=5000):
     all_klines = []
     limit = 1500
     end_time = None
@@ -29,11 +29,7 @@ def get_klines(symbol, interval, total=4000):
         # segurança contra loop infinito
         if len(klines) == 0:
             break
-
     return all_klines[-total:]
-
-#print(all_klines := get_klines("BTCUSDT", "1h"))
-
 
 # Formata os dados brutos para um formato mais legível
 def format_raw_data(raw_data):

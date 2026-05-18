@@ -12,7 +12,7 @@ def get_vppr_route():
         elif not symbols:
             symbols = request.args.get("symbol")
 
-        time = request.args.get("time", "1h")
+        time = request.args.get("time", "5m")
         modo = request.args.get("modo", "real")
 
         if symbols is not None and not isinstance(symbols, (str, list)):

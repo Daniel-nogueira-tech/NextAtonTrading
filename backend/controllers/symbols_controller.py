@@ -2,7 +2,7 @@
 from config_db import conectar
 import uuid
 
-# Função para adcionar um símbolo à tabela de símbolos
+# Função para adicionar um símbolo à tabela de símbolos
 def save_symbols(symbol, name=None, active=True):
     conn = conectar()
     cursor = conn.cursor()
@@ -40,6 +40,7 @@ def get_all_symbols():
         for row in rows
     ]
     return symbols
+
 
 # Função para obter apenas símbolos armazenados
 def get_stored_symbols():

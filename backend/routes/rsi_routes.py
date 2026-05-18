@@ -12,8 +12,8 @@ def rsi_route():
         elif not symbols:
             symbols = request.args.get('symbol')
 
-        period = int(request.args.get('period', 14))
-        media_period = int(request.args.get('media_period', 6))
+        period = int(request.args.get('period', 15))
+        media_period = int(request.args.get('media_period', 15))
         mode = request.args.get('mode', 'real')
 
         # verificações básicas dos parâmetros

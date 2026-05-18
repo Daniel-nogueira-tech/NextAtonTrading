@@ -2,11 +2,12 @@ from utils.klines import get_klines, format_raw_data
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from controllers.symbols_controller import get_stored_symbols
+from controllers.price_data_controller import get_klines_data_simulation
 
 
 
 # Função para calcular o ATR móvel
-def calculate_atr_wilder(symbol, interval="1h", period=182):
+def calculate_atr_wilder(symbol, interval="5m", period=182):
     if period is None or period <= 0:
         raise ValueError("period deve ser um número inteiro positivo")
     
@@ -38,8 +39,6 @@ def calculate_atr_wilder(symbol, interval="1h", period=182):
 
         atrs.append(atr)    
     return atrs
-
-
 def calculate_atr_wilder_from_data(data, period=182):
     if period is None or period <= 0:
         raise ValueError("period deve ser um número inteiro positivo")
@@ -74,44 +73,30 @@ def calculate_atr_wilder_from_data(data, period=182):
     return atrs
 
 
-
 # Função principal para obter as clarificações de tendência usando ATR
-def _trend_clarifications_atr_single(symbol, time, mode):
+def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
     print(f"Calculating trend clarifications for {symbol} with time {time} and mode {mode}")
     #  Busca os klines na Binance
     try:
         if mode == "simulation":
             # 🔁 Pega os dados do banco
-            raw_data = get_klines(symbol, time)
-            print(f"✅ raw_data carregado: {len(raw_data) if raw_data else 0} registros")
-            
-            # Se não houver dados, tenta fazer download automaticamente
-            if not raw_data:
-                print(f"⚠️ Nenhum dado local encontrado para {symbol}. Baixando dados históricos...")
-                try:
-                    download_and_save_klines(
-                        symbol,
-                        intervalo=time,
-                        date_start=None,
-                        date_end=None,
-                        days=365,  # Baixa 365 dias de dados
-                        clean_before=False
-                    )
-                    raw_data = get_klines(symbol, time)
-                    print(f"✅ Dados baixados com sucesso: {len(raw_data) if raw_data else 0} registros")
-                except Exception as download_e:
-                    raise ValueError(f"Não foi possível baixar dados: {str(download_e)}")
+            try:
+                raw_data = get_klines_data_simulation(symbol)
+                print(f"✅ Dados baixados com sucesso: {len(raw_data) if raw_data else 0} registros")
+            except Exception as download_e:
+                raise ValueError(f"Não foi possível baixar dados: {str(download_e)}")
             
             if not raw_data:
                 raise ValueError(f"Nenhum dado encontrado para {symbol} {time}")
             
-            data = format_raw_data(raw_data)
+            data = raw_data
             print(f"✅ dados formatados: {len(data)} candles")
 
         else:
             # 🔁 Pega os dados em tempo real da Binance
-            raw_data = get_klines(symbol, time, total=2000)
+            raw_data = get_klines(symbol, time, total)
             data = format_raw_data(raw_data)
+            print(f"✅ dados formatados: {len(data)} candles")
 
     except Exception as e:
         print(f"❌ Erro ao buscar klines de {symbol}: {str(e)}")
@@ -131,21 +116,18 @@ def _trend_clarifications_atr_single(symbol, time, mode):
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    if time == "1h":
-        verify_time_multiply = 5
-    else:
-        verify_time_multiply = 2
+    verify_time_multiply = 5
 
-    # Define os limites com base no ATR
-
-    atr_mult = round(atrs[-1] * verify_time_multiply)
+    # Define os limites com base no ATR e no multiplicador de tempo
+    atr_mult = atrs[-1] * verify_time_multiply
 
     # Aredonda os valores
-    round_atr = round(atr_mult, 2)
-    confir = round_atr / 2
-    confir_round = round(confir, 2)
-    print(f"✅ ATR multiplicado: {atr_mult}, ATR arredondado: {round_atr}, Confirmação: {confir_round}")
-    limit = round_atr
+    atr = atr_mult
+    confir = atr / 2
+    confir_round = confir
+    print(f"✅ ATR multiplicado: {atr_mult}, ATR arredondado: {atr}, Confirmação: {confir_round}")
+    
+    limit = atr
     confirmar = confir_round
 
     # Inicializa variáveis de controle
@@ -229,6 +211,7 @@ def _trend_clarifications_atr_single(symbol, time, mode):
                     }
                 )
                 added_movement = True
+                #print(f"✅ Tendência de Alta iniciada em {price} no tempo {tempo}")
 
             elif not added_movement and price <= reference_point - limit:
                 # Inicia tendência de baixa
@@ -1242,7 +1225,7 @@ def _trend_clarifications_atr_single(symbol, time, mode):
     return movements 
 
 
-def trend_clarifications_atr(symbols, time="1h", mode="real"):
+def trend_clarifications_atr(symbols, time="5m", mode="real"):
     default_symbols = get_stored_symbols()
 
     if symbols is None or symbols == "":
@@ -1281,5 +1264,4 @@ def trend_clarifications_atr(symbols, time="1h", mode="real"):
             results = list(executor.map(classify_symbol, enumerate(symbols_to_process)))
 
     return results
-
 

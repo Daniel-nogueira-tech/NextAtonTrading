@@ -8,13 +8,13 @@ def get_trend():
 
     try:
         symbols = request.args.getlist('symbols')
-        print(f"Received symbols: {symbols}")
+
         if len(symbols) == 1 and ',' in symbols[0]:
             symbols = symbols[0]
         elif not symbols:
             symbols = request.args.get('symbol')
 
-        time = request.args.get('time', '1h')
+        time = request.args.get('time', '5m')
         mode = request.args.get('mode', 'real')
 
         # Validações básicas dos parâmetros

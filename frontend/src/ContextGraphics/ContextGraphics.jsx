@@ -6,10 +6,17 @@ export const ContextGraphics = React.createContext(null);
 
 export const ContextGraphicsProvider = ({ children }) => {
     const urlBackend = import.meta.env.VITE_BACKEND_URL;
-    const [trend, setTrend] = React.useState(null);
     const [tabs, setTabs] = React.useState([]);
     const [activeSymbol, setActiveSymbol] = React.useState('');
-    console.log(activeSymbol);
+    const [mode, setMode] = React.useState('real');
+    const [download, setDownload] = React.useState(false);
+    const [loading, setLoading] = React.useState(false);
+
+    const [fullPrice, setFullPrice] = React.useState(null)
+    const [trendPrimary, setTrendPrimary] = React.useState(null);
+    const [trend, setTrend] = React.useState(null);
+    const [vppr, setVppr] = React.useState(null);
+    const [rsi, setRsi] = React.useState(null);
 
 
     // Função para enviar os símbolos para o backend
@@ -29,6 +36,8 @@ export const ContextGraphicsProvider = ({ children }) => {
                 active
             })
             trendClassification()
+            getVppr()
+            getRsi()
             console.log('Symbol added successfully:', response.data)
         } catch (error) {
             console.error('Error adding symbol:', error)
@@ -55,12 +64,12 @@ export const ContextGraphicsProvider = ({ children }) => {
 
     // Função para atualizar o status de um símbolo no backend
     const updateSymbolStatus = async (symbol) => {
-        try { 
+        try {
+            setActiveSymbol(symbol)
             const response = await axios.post(`${urlBackend}/api/activate-symbol`, { symbol: symbol })
             getSymbols() // Atualiza a lista de símbolos após a atualização do status
-
             console.log('Symbol status updated successfully:', response.data)
-         }catch (error) {
+        } catch (error) {
             console.error('Error updating symbol status:', error)
         }
     };
@@ -69,56 +78,100 @@ export const ContextGraphicsProvider = ({ children }) => {
     const removeSymbol = async (id) => {
         try {
             const response = await axios.post(`${urlBackend}/api/remove-symbol`, { id: id })
-
             getSymbols() // Atualiza a lista de símbolos após a remoção
         } catch (error) {
             console.error('Error removing symbol:', error)
         }
     };
 
+    const marketData = async () => {
+       try {
+         if (mode === 'real') {
+             // Preço completo
+             const responsePrice = await axios.get(`${urlBackend}/api/price_data`)
+             setFullPrice(responsePrice.data)
+             // Classificação Primária
+             const responseTrendPri = await axios.get(`${urlBackend}/api/trend-primary`)
+             // Classificação Secundária
+             const responseTrend = await axios.get(`${urlBackend}/api/trend`)
+             setTrend(responseTrend.data)
+             // Indicador Vppr
+             const responseVppr = await axios.get(`${urlBackend}/api/vppr`)
+             setVppr(responseVppr.data)
+             // Indicador Rsi
+             const responseRsi = await axios.get(`${urlBackend}/api/rsi`)
+             setRsi(responseRsi.data)
+         } else {
+           
+         }
+       } catch (error) {
+         console("Erro ao carregar dados",erro)
+       }
+    }
 
+    // Envia as datas para baixar dados para simular
+    const dateToSimulation = async (dates) => {
 
-    // Pega a classificação de tendência do backend
-    const trendClassification = async () => {
+        if (mode !== 'simulation' || !dates) {
+            return
+        };
+        const dateStart = dates.dateStart;
+        const dateEnd = dates.dateEnd;
         try {
-            const response = await axios.get(`${urlBackend}/api/trend`)
-            setTrend(response.data)
+            const response = await axios.post(`${urlBackend}/api/simulation`, {
+                "symbol": activeSymbol,
+                "dateStart": dateStart,
+                "dateEnd": dateEnd
+            })
+            console.log(response.data.mensagem);
+            setDownload(false);
+            setLoading(true)
         } catch (error) {
-            console.error('Error fetching trend classification:', error)
+            console.error('Error fetching Simulation:', error)
         }
+    }
 
-    };
 
- 
-    
     // Carrega os dados quando o componente é montado
     React.useEffect(() => {
         async function loadData() {
             try {
                 await Promise.all([
-                    trendClassification(),
-                    getSymbols()
+                    getSymbols(),
+                    marketData()
                 ])
             } catch (error) {
                 console.error('Error loading data:', error)
             }
         }
         loadData()
-    }, [])
-
+    }, []);
 
 
     //Define o valor do contexto a ser fornecido aos componentes filhos
     const contextValue = {
-        trend,
-        setTrend,
+        setMode,
+        mode,
         tabs,
+        setTabs,
+        // Seleção de símbolos
         activeSymbol,
         setActiveSymbol,
-        setTabs,
         addSymbols,
         removeSymbol,
-        updateSymbolStatus
+        updateSymbolStatus,
+        // Indicadores 
+        trend,
+        setTrend,
+        vppr,
+        rsi,
+        // Simulação
+        dateToSimulation,
+        // Carregamento
+        download,
+        setDownload,
+        loading,
+        marketData
     }
 
     return (

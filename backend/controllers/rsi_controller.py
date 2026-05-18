@@ -3,6 +3,8 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from utils.klines import get_klines
 from controllers.symbols_controller import get_stored_symbols
+from controllers.price_data_controller import get_klines_data_simulation
+from controllers.trend_clarifications_controllers import trend_clarifications_atr
 
 
 # Função para calcular o RSI
@@ -20,7 +22,7 @@ def calculate_rsi(closes, period=14):
     return rsi
 
 # Função principal para obter o RSI de um ativo
-def _get_rsi_single(symbol="BTCUSDT", period=14, media_period=6, mode="real"):
+def _get_rsi_single(symbol="BTCUSDT", period=14, media_period=6, mode="real", time = "5m"):
     if period is None or period <= 0:
         raise ValueError("period deve ser um número inteiro positivo")
     if symbol is None or not isinstance(symbol, str):
@@ -30,11 +32,10 @@ def _get_rsi_single(symbol="BTCUSDT", period=14, media_period=6, mode="real"):
     if mode not in ["real", "simulation"]:
         raise ValueError("mode deve ser 'real' ou 'simulation'")
     
-    time = "1h"
 
     try:
         if mode == "simulation":
-            klines = get_klines(symbol, time)
+            klines = get_klines_data_simulation(symbol)
         else:
             klines = get_klines(symbol, time)
     except Exception as e:
@@ -45,8 +46,8 @@ def _get_rsi_single(symbol="BTCUSDT", period=14, media_period=6, mode="real"):
         return []
 
     closes = [float(k[4]) for k in klines]
-    rsi_values = calculate_rsi(closes, period)
-    rsi_ma = rsi_values.rolling(window=media_period).mean()
+    rsi_values = calculate_rsi(closes, period).fillna(0)
+    rsi_ma = rsi_values.rolling(window=media_period).mean().fillna(0)
 
     result = []
 
@@ -67,7 +68,7 @@ def _get_rsi_single(symbol="BTCUSDT", period=14, media_period=6, mode="real"):
     return result
 
 
-def get_rsi(symbols=None, symbol=None, period=14, media_period=6, mode="real"):
+def get_rsi(symbols=None, symbol=None, period=15, media_period=15, mode="real"):
     default_symbols = get_stored_symbols()
 
     if period is None or period <= 0:

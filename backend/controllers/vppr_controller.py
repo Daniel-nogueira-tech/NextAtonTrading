@@ -3,9 +3,10 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from utils.klines import get_klines
 from controllers.symbols_controller import get_stored_symbols
+from controllers.price_data_controller import get_klines_data_simulation
 
 
-
+# Calcula Vppr
 def calculate_vppr(klines):
     vppr_values = []
     vppr_acumulado = 0
@@ -26,15 +27,13 @@ def calculate_vppr(klines):
 
     return vppr_values
 
-
-
-def _get_vppr_single(symbol, modo="real", time="1h"):
+def _get_vppr_single(symbol, modo="real", time="1h",total=5000):
 
     try:
         if modo == "simulation":
-            klines = get_klines(symbol, time)
+            klines = get_klines_data_simulation(symbol)
         else:
-            klines = get_klines(symbol=symbol, interval=time, total=1000)
+            klines = get_klines(symbol=symbol, interval=time, total=total)
     except Exception as e:
         print(f"❌ Erro ao buscar dados: {str(e)}")
         return []
@@ -69,7 +68,6 @@ def _get_vppr_single(symbol, modo="real", time="1h"):
         )
 
     return result
-
 
 def get_vppr(symbols=None, symbol=None, modo="real", time="1h"):
     default_symbols = get_stored_symbols()
