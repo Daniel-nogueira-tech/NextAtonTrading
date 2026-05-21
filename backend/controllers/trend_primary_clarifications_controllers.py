@@ -2,7 +2,7 @@ from utils.klines import get_klines, format_raw_data
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from controllers.symbols_controller import get_stored_symbols
-from controllers.price_data_controller import get_klines_data_simulation
+from controllers.data_to_simulation_controllers import get_klines_data_simulation
 
 
 
@@ -39,6 +39,28 @@ def calculate_atr_wilder(symbol, interval="1h", period=182):
 
         atrs.append(atr)    
     return atrs
+
+# Helpers para normalizar retorno dos dados de simulação e tempo real
+def _format_candle_for_response(kline):
+    if isinstance(kline, dict):
+        return {
+            "tempo": kline["Tempo"],
+            "open": kline["Abertura"],
+            "high": kline["Maximo"],
+            "low": kline["Minimo"],
+            "close": kline["Fechamento"],
+            "volume": kline["Volume"],
+        }
+
+    return {
+        "tempo": datetime.fromtimestamp(kline[0] / 1000).strftime("%Y-%m-%d %H:%M:%S"),
+        "open": kline[1],
+        "high": kline[2],
+        "low": kline[3],
+        "close": kline[4],
+        "volume": kline[5],
+    }
+
 def calculate_atr_wilder_from_data(data, period=182):
     if period is None or period <= 0:
         raise ValueError("period deve ser um número inteiro positivo")
@@ -171,15 +193,8 @@ def _trend_clarifications_atr_single(symbol, time, mode, total=5000):
     )
     
     # Salvar dados completos antes da classificação
-    for r in raw_data:
-        candles.append({
-            "tempo": datetime.fromtimestamp(r[0] / 1000).strftime("%Y-%m-%d %H:%M:%S"),
-            "open": r[1],
-            "high": r[2],
-            "low": r[3],
-            "close": r[4],
-            "volume": r[5]
-        })
+    for r in data:
+        candles.append(_format_candle_for_response(r))
     
     # Salva os dados completos em outra tabela antes de classificar
 

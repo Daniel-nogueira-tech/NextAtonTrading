@@ -1,16 +1,12 @@
-import json
 from utils.klines import get_klines,format_raw_data
-from config_db import conectar
-from datetime import datetime
 from controllers.symbols_controller import get_stored_symbols
 from concurrent.futures import ThreadPoolExecutor
-from models.price_data_models import create_klines_simulation  
+from controllers.data_to_simulation_controllers import get_klines_data_simulation
 
 
 
 # Função para pegar os dados de preço de um ativo, formatar e retornar
-def _get_price_data_single(symbol, mode="real", time="5m", total=5000):
-    print("symbol",symbol)
+def _get_price_data_single(symbol, mode, time="5m", total=5000):
     try:
         if mode == "simulation":
             klines = get_klines_data_simulation(symbol)
@@ -23,17 +19,19 @@ def _get_price_data_single(symbol, mode="real", time="5m", total=5000):
     if not klines:
         return []
     
-    
-   #salvar os dados brutos 
-    formatted_data = format_raw_data(klines)
-    create_klines_simulation(symbol, formatted_data)
+    formatted_data = []
+   # Retorna os dados formatados
+    if mode == "simulation":
+       formatted_data = klines
+    else:
+       formatted_data = format_raw_data(klines)
+
     return formatted_data
     
 
 # Função para pegar os dados de preço dos ativos, formatar e retornar
 def get_price_data(symbol=None, time="5m", mode="real", total=5000):
     default_symbols = get_stored_symbols()
-    print("Mode:", mode)
 
     if mode not in ["real", "simulation"]:
         raise ValueError("mode deve ser 'real' ou 'simulation'")
@@ -78,46 +76,4 @@ def get_price_data(symbol=None, time="5m", mode="real", total=5000):
         ), enumerate(symbols_to_process)))
     return [{"index": index, "symbol": symbol, "prices": result} for (index, symbol), result in zip(enumerate(symbols_to_process), results)]
 
-#--------------------------/Simulação/--------------------------#
 
-# Função para pegar os dados e salvar
-def get_klines_data_simulation(symbol):
-    try:
-        conn = conectar()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT klines 
-            FROM klines_simulation
-            WHERE symbol = ?
-            """,
-            (symbol,)
-        )
-        row = cursor.fetchone()
-        conn.close()
-
-        if not row:
-            return []
-        # Desserializa o JSON armazenado
-        kline_data = json.loads(row[0])
-
-        # Formata os dados
-        kline = format_raw_data(kline_data)
-        return kline
-    
-    except Exception as erro:
-        print(f"❌ Erro ao buscar dados: {str(erro)}")
-
-
-# Função para remover dados de simulação
-def delete_klines_data_simulation():
-    try:
-        conn = conectar()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM klines_simulation")
-    except Exception as erro:
-        print(f"❌ Erro ao deletar klines: {erro}")
-        raise
-    finally:
-        conn.close()
-  

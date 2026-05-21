@@ -1,6 +1,6 @@
 from binance.client import Client
-from models.price_data_models import create_klines_simulation
-from controllers.price_data_controller import delete_klines_data_simulation
+from models.data_to_simulation_models import create_klines_simulation,create_klines_simulation_Primary
+from controllers.data_to_simulation_controllers import delete_klines_data_simulation
 from datetime import datetime, timedelta, timezone
 import time
 import requests
@@ -11,8 +11,6 @@ from utils.klines import format_raw_data
 
 
 client = Client()
-
-
 
 
 # --------------------------------------------------
@@ -73,8 +71,11 @@ def download_and_save_klines(
 ):
     
     if clean_before:
-        delete_klines_data_simulation()
-        print("DELETANDO klines")
+        if intervalo == "5m":
+           delete_klines_data_simulation()
+           print("DELETANDO klines",intervalo)
+        elif intervalo == "1h":
+           print("DELETANDO klines",intervalo)
 
     all_klines = []
 
@@ -156,4 +157,7 @@ def download_and_save_klines(
     # formata os dados
     format_klines = format_raw_data(all_klines)
     #salva os dados
-    create_klines_simulation(symbol, format_klines)
+    if intervalo == "5m":
+        create_klines_simulation(symbol, format_klines)
+    elif intervalo == "1h":
+        create_klines_simulation_Primary(symbol, format_klines)

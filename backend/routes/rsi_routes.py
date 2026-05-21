@@ -14,7 +14,7 @@ def rsi_route():
 
         period = int(request.args.get('period', 15))
         media_period = int(request.args.get('media_period', 15))
-        mode = request.args.get('mode', 'real')
+        mode = request.args.get('mode', '')
 
         # verificações básicas dos parâmetros
         if symbols is not None and not isinstance(symbols, (str, list)):

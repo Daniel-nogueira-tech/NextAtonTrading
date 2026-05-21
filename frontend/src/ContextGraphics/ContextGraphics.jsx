@@ -7,8 +7,8 @@ export const ContextGraphics = React.createContext(null);
 export const ContextGraphicsProvider = ({ children }) => {
     const urlBackend = import.meta.env.VITE_BACKEND_URL;
     const [tabs, setTabs] = React.useState([]);
-    const [activeSymbol, setActiveSymbol] = React.useState('');
-    const [mode, setMode] = React.useState('real');
+    const [activeSymbol, setActiveSymbol] = React.useState(() => { return localStorage.getItem('symbol') || 'BTCUSDT' });
+    const [mode, setMode] = React.useState(() => { return localStorage.getItem('mode') || 'real' });
     const [download, setDownload] = React.useState(false);
     const [loading, setLoading] = React.useState(false);
 
@@ -17,6 +17,16 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [trend, setTrend] = React.useState(null);
     const [vppr, setVppr] = React.useState(null);
     const [rsi, setRsi] = React.useState(null);
+
+   // Salva dados no localStorage
+    React.useEffect(() => {
+        if (activeSymbol) {
+            localStorage.setItem('symbol', activeSymbol);
+        };
+        if (mode) {
+            localStorage.setItem('mode', mode)
+        };
+    }, [activeSymbol, mode]);
 
 
     // Função para enviar os símbolos para o backend
@@ -84,34 +94,52 @@ export const ContextGraphicsProvider = ({ children }) => {
         }
     };
 
+    // Pega os dados de preço e indicadores
     const marketData = async () => {
-       try {
-         if (mode === 'real') {
-             // Preço completo
-             const responsePrice = await axios.get(`${urlBackend}/api/price_data`)
-             setFullPrice(responsePrice.data)
-             // Classificação Primária
-             const responseTrendPri = await axios.get(`${urlBackend}/api/trend-primary`)
-             // Classificação Secundária
-             const responseTrend = await axios.get(`${urlBackend}/api/trend`)
-             setTrend(responseTrend.data)
-             // Indicador Vppr
-             const responseVppr = await axios.get(`${urlBackend}/api/vppr`)
-             setVppr(responseVppr.data)
-             // Indicador Rsi
-             const responseRsi = await axios.get(`${urlBackend}/api/rsi`)
-             setRsi(responseRsi.data)
-         } else {
-           
-         }
-       } catch (error) {
-         console("Erro ao carregar dados",erro)
-       }
-    }
+
+        try {
+            if (mode === 'real') {
+                // Preço completo
+                const responsePrice = await axios.get(`${urlBackend}/api/price_data?mode=${mode}`)
+                setFullPrice(responsePrice.data)
+                // Classificação Primária
+                const responseTrendPri = await axios.get(`${urlBackend}/api/trend-primary?mode=${mode}`)
+                // Classificação Secundária
+                const responseTrend = await axios.get(`${urlBackend}/api/trend?mode=${mode}`)
+                setTrend(responseTrend.data)
+                // Indicador Vppr
+                const responseVppr = await axios.get(`${urlBackend}/api/vppr?mode=${mode}`)
+                setVppr(responseVppr.data)
+                // Indicador Rsi
+                const responseRsi = await axios.get(`${urlBackend}/api/rsi?mode=${mode}`)
+                setRsi(responseRsi.data)
+            } else {
+                // Preço completo para simular
+                const responsePrice = await axios.get(`${urlBackend}/api/price_data?mode=${mode}&symbol=${activeSymbol}`)
+                setFullPrice(responsePrice.data)
+                // Classificação Primária para simular
+                const responseTrendPri = await axios.get(`${urlBackend}/api/trend-primary?mode=${mode}&symbol=${activeSymbol}`)
+                setTrendPrimary(responseTrendPri.data)
+                // Classificação Secundária para simular
+                const responseTrend = await axios.get(`${urlBackend}/api/trend?mode=${mode}&symbol=${activeSymbol}`)
+                setTrend(responseTrend.data)
+                // Indicador Vppr para simular
+                const responseVppr = await axios.get(`${urlBackend}/api/vppr?mode=${mode}&symbol=${activeSymbol}`)
+                setVppr(responseVppr.data)
+                // Indicador Rsi para simular
+                const responseRsi = await axios.get(`${urlBackend}/api/rsi?mode=${mode}&symbol=${activeSymbol}`)
+                setRsi(responseRsi.data)
+            }
+        } catch (error) {
+            console("Erro ao carregar dados", error)
+        }
+    };
+console.log('trendPrimary :',trendPrimary);
+
+
 
     // Envia as datas para baixar dados para simular
     const dateToSimulation = async (dates) => {
-
         if (mode !== 'simulation' || !dates) {
             return
         };
@@ -129,7 +157,7 @@ export const ContextGraphicsProvider = ({ children }) => {
         } catch (error) {
             console.error('Error fetching Simulation:', error)
         }
-    }
+    };
 
 
     // Carrega os dados quando o componente é montado

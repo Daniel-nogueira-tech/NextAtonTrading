@@ -3,7 +3,7 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from utils.klines import get_klines
 from controllers.symbols_controller import get_stored_symbols
-from controllers.price_data_controller import get_klines_data_simulation
+from controllers.data_to_simulation_controllers import get_klines_data_simulation
 
 
 # Calcula Vppr

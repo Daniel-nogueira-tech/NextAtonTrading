@@ -3,11 +3,10 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from utils.klines import get_klines
 from controllers.symbols_controller import get_stored_symbols
-from controllers.price_data_controller import get_klines_data_simulation
-from controllers.trend_clarifications_controllers import trend_clarifications_atr
+from controllers.data_to_simulation_controllers import get_klines_data_simulation
 
 
-# Função para calcular o RSI
+# Funcao para calcular o RSI
 def calculate_rsi(closes, period=14):
     series = pd.Series(closes)
     delta = series.diff()
@@ -21,17 +20,32 @@ def calculate_rsi(closes, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# Função principal para obter o RSI de um ativo
-def _get_rsi_single(symbol="BTCUSDT", period=14, media_period=6, mode="real", time = "5m"):
+# Helpers para normalizar retorno dos dados de simulação e tempo real
+def _get_close(kline):
+    if isinstance(kline, dict):
+        return float(kline["Fechamento"])
+    return float(kline[4])
+def _get_time(kline):
+    if isinstance(kline, dict):
+        if "Tempo" in kline:
+            return kline["Tempo"]
+        timestamp = int(kline["open_time"])
+    else:
+        timestamp = int(kline[0])
+
+    return datetime.fromtimestamp(timestamp / 1000).strftime("%Y-%m-%d %H:%M:%S")
+
+
+# Funcao principal para obter o RSI de um ativo
+def _get_rsi_single(symbol="BTCUSDT", period=14, media_period=6, mode="", time="5m"):
     if period is None or period <= 0:
-        raise ValueError("period deve ser um número inteiro positivo")
+        raise ValueError("period deve ser um numero inteiro positivo")
     if symbol is None or not isinstance(symbol, str):
-        raise ValueError("symbol deve ser uma string válida")
+        raise ValueError("symbol deve ser uma string valida")
     if media_period is None or media_period <= 0:
-        raise ValueError("media_period deve ser um número inteiro positivo")
+        raise ValueError("media_period deve ser um numero inteiro positivo")
     if mode not in ["real", "simulation"]:
         raise ValueError("mode deve ser 'real' ou 'simulation'")
-    
 
     try:
         if mode == "simulation":
@@ -39,27 +53,22 @@ def _get_rsi_single(symbol="BTCUSDT", period=14, media_period=6, mode="real", ti
         else:
             klines = get_klines(symbol, time)
     except Exception as e:
-        print(f"❌ Erro ao buscar dados: {str(e)}")
+        print(f"Erro ao buscar dados: {str(e)}")
         return []
 
     if not klines:
         return []
 
-    closes = [float(k[4]) for k in klines]
+    closes = [_get_close(k) for k in klines]
     rsi_values = calculate_rsi(closes, period).fillna(0)
     rsi_ma = rsi_values.rolling(window=media_period).mean().fillna(0)
 
     result = []
 
     for k, rsi, ma in zip(klines, rsi_values, rsi_ma):
-        timestamp = k[0] if isinstance(k[0], int) else int(k["open_time"])
-        date_str = datetime.fromtimestamp(timestamp / 1000).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
-
         result.append(
             {
-                "time": date_str,
+                "time": _get_time(k),
                 "rsi": round(rsi, 2) if not pd.isna(rsi) else None,
                 "rsi_ma": round(ma, 2) if not pd.isna(ma) else None,
             }
@@ -68,13 +77,13 @@ def _get_rsi_single(symbol="BTCUSDT", period=14, media_period=6, mode="real", ti
     return result
 
 
-def get_rsi(symbols=None, symbol=None, period=15, media_period=15, mode="real"):
+def get_rsi(symbols=None, symbol=None, period=15, media_period=15, mode=""):
     default_symbols = get_stored_symbols()
 
     if period is None or period <= 0:
-        raise ValueError("period deve ser um número inteiro positivo")
+        raise ValueError("period deve ser um numero inteiro positivo")
     if media_period is None or media_period <= 0:
-        raise ValueError("media_period deve ser um número inteiro positivo")
+        raise ValueError("media_period deve ser um numero inteiro positivo")
     if mode not in ["real", "simulation"]:
         raise ValueError("mode deve ser 'real' ou 'simulation'")
 
@@ -96,7 +105,7 @@ def get_rsi(symbols=None, symbol=None, period=15, media_period=15, mode="real"):
         ]
 
     if not symbols_to_process:
-        raise ValueError("Informe pelo menos um símbolo válido.")
+        raise ValueError("Informe pelo menos um simbolo valido.")
 
     def calculate_symbol(index_symbol):
         index, current_symbol = index_symbol
@@ -120,4 +129,5 @@ def get_rsi(symbols=None, symbol=None, period=15, media_period=15, mode="real"):
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         return list(executor.map(calculate_symbol, enumerate(symbols_to_process)))
 
-#print("RSI:", get_rsi(symbol="BTCUSDT", period=14, media_period=6, mode=None, offset=None, limit=None))
+
+# print("RSI:", get_rsi(symbol="BTCUSDT", period=14, media_period=6, mode=None))
