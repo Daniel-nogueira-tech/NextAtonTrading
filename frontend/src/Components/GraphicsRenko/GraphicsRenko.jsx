@@ -6,6 +6,7 @@ import { CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, cre
 import { Calendar } from 'primereact/calendar';
 import { Button } from 'primereact/button';
 import { useEffect } from 'react';
+import MovementTables from '../MovementTables/MovementTables.jsx';
 
 const UP_COLOR = '#22AB94'
 const DOWN_COLOR = '#fc5b5b'
@@ -225,17 +226,15 @@ const IndicatorChart = ({ title, emptyMessage, series }) => {
 }
 
 const GraphicsRenko = () => {
-  const { marketData, trend, activeSymbol, rsi, vppr, setMode, mode, dateToSimulation, download,setDownload,loading } = React.useContext(ContextGraphics)
+  const { marketData, trend, activeSymbol, rsi, vppr, setMode, mode, dateToSimulation, download, setDownload, loading, movementTables, setMovementTables } = React.useContext(ContextGraphics)
   const chartContainerRef = React.useRef(null);
   const [dates, setDates] = React.useState(null);
   const [dateErro, setDateErro] = React.useState(null);
 
-  console.log("trend:",trend);
-  console.log("rsi",rsi);
-  console.log("vppr",vppr);
-  
-  
-  
+  console.log("trend:", trend);
+  console.log("rsi", rsi);
+  console.log("vppr", vppr);
+
   // seleciona o ativo que está ativo
   const selectedMarket = React.useMemo(() => {
     return selectMarketBySymbol(trend, activeSymbol)
@@ -253,6 +252,7 @@ const GraphicsRenko = () => {
     selectedMarket?.movements || []
   ), [selectedMarket])
 
+  // Serie RSI
   const rsiSeries = React.useMemo(() => {
     const rsiData = buildLineData(selectedRsiMarket, 'rsi')
     const rsiMaData = buildLineData(selectedRsiMarket, 'rsi_ma')
@@ -294,6 +294,7 @@ const GraphicsRenko = () => {
     ]
   }, [selectedRsiMarket])
 
+  // Serie VPPR
   const vpprSeries = React.useMemo(() => ([
     {
       name: 'VPPR',
@@ -434,12 +435,25 @@ const GraphicsRenko = () => {
     dateToSimulation(formattedDatesObj)
   }
 
-  useEffect(()=>{
+  // Função para alternar entre Real ime e simulação
+  const buttonSimulation = async () => {
+    setMode(mode === "simulation"
+      ? "real"
+      : "simulation")
+    window.location.reload();
+  };
+
+  useEffect(() => {
     marketData();
-  },[])
+  }, [])
 
   return (
     <section className="graphics-renko">
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        {movementTables &&
+          <MovementTables />
+        }
+      </div>
       <div className="graphics-renko__card">
         <div className="graphics-renko__header">
           <div>
@@ -449,15 +463,17 @@ const GraphicsRenko = () => {
           <div className="graphics-renko__status">
             {renkoCandles.length} Blocks
           </div>
+          <div className='movementTables' id={!movementTables ? 'movementTables' : 'movementTables-Active'}>
+            <button
+              onClick={() => { movementTables ? setMovementTables(false) : setMovementTables(true) }}
+            >Movement Tables</button>
+          </div>
         </div>
 
         <div className="graphics-renko__chart" ref={chartContainerRef}>
-                <div className='button-simulation'>
+          <div className='button-simulation'>
             <button
-              onClick={() => setMode(
-                mode === "simulation"
-                  ? "real"
-                  : "simulation")}
+              onClick={buttonSimulation}
             >
               {mode === "simulation" ? "Simulation" : "Real time"}
             </button>
@@ -481,14 +497,14 @@ const GraphicsRenko = () => {
 
                 {Array.isArray(formattedDates) && formattedDates[1] !== null && !dateErro &&
                   <div className={loading ? 'loaded' : 'download'}>
-                    <Button 
-                    label="⤓" icon="pi pi-check" loading={download} onClick={handleSubmitDate} />
+                    <Button
+                      label="⤓" icon="pi pi-check" loading={download} onClick={handleSubmitDate} />
                   </div>
                 }
               </div>
             }
             {/*-----------------/Botão de controle/-----------------*/}
-            {loading && mode ==="simulation" &&
+            {loading && mode === "simulation" &&
               <div className='simulation-control'>
                 <button>⏯️</button>
                 <button>⏸️</button>

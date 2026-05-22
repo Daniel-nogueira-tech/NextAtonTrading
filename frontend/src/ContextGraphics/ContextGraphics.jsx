@@ -11,14 +11,15 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [mode, setMode] = React.useState(() => { return localStorage.getItem('mode') || 'real' });
     const [download, setDownload] = React.useState(false);
     const [loading, setLoading] = React.useState(false);
+    const [movementTables, setMovementTables] = React.useState(false);
 
-    const [fullPrice, setFullPrice] = React.useState(null)
+    const [fullPrice, setFullPrice] = React.useState(null);
     const [trendPrimary, setTrendPrimary] = React.useState(null);
     const [trend, setTrend] = React.useState(null);
     const [vppr, setVppr] = React.useState(null);
     const [rsi, setRsi] = React.useState(null);
 
-   // Salva dados no localStorage
+    // Salva dados no localStorage
     React.useEffect(() => {
         if (activeSymbol) {
             localStorage.setItem('symbol', activeSymbol);
@@ -45,9 +46,7 @@ export const ContextGraphicsProvider = ({ children }) => {
                 name,
                 active
             })
-            trendClassification()
-            getVppr()
-            getRsi()
+            marketData()
             console.log('Symbol added successfully:', response.data)
         } catch (error) {
             console.error('Error adding symbol:', error)
@@ -94,6 +93,28 @@ export const ContextGraphicsProvider = ({ children }) => {
         }
     };
 
+    // Envia as datas para baixar dados para simular
+    const dateToSimulation = async (dates) => {
+        if (mode !== 'simulation' || !dates) {
+            return
+        };
+        const dateStart = dates.dateStart;
+        const dateEnd = dates.dateEnd;
+        try {
+            const response = await axios.post(`${urlBackend}/api/simulation`, {
+                "symbol": activeSymbol,
+                "dateStart": dateStart,
+                "dateEnd": dateEnd
+            })
+            console.log(response.data.mensagem);
+            setDownload(false);
+            setLoading(true)
+        } catch (error) {
+            console.error('Error fetching Simulation:', error)
+        }
+    };
+
+
     // Pega os dados de preço e indicadores
     const marketData = async () => {
 
@@ -104,6 +125,7 @@ export const ContextGraphicsProvider = ({ children }) => {
                 setFullPrice(responsePrice.data)
                 // Classificação Primária
                 const responseTrendPri = await axios.get(`${urlBackend}/api/trend-primary?mode=${mode}`)
+                setTrendPrimary(responseTrendPri.data)
                 // Classificação Secundária
                 const responseTrend = await axios.get(`${urlBackend}/api/trend?mode=${mode}`)
                 setTrend(responseTrend.data)
@@ -134,30 +156,16 @@ export const ContextGraphicsProvider = ({ children }) => {
             console("Erro ao carregar dados", error)
         }
     };
-console.log('trendPrimary :',trendPrimary);
 
+    // Motor incremental
+    let i = 0;
+    const interval = setInterval(()=>{
+        if (i >= trend.length) return clearInterval(interval);
 
+        marketDataIncremental(trend[i]);
+        i++;
+    },100);
 
-    // Envia as datas para baixar dados para simular
-    const dateToSimulation = async (dates) => {
-        if (mode !== 'simulation' || !dates) {
-            return
-        };
-        const dateStart = dates.dateStart;
-        const dateEnd = dates.dateEnd;
-        try {
-            const response = await axios.post(`${urlBackend}/api/simulation`, {
-                "symbol": activeSymbol,
-                "dateStart": dateStart,
-                "dateEnd": dateEnd
-            })
-            console.log(response.data.mensagem);
-            setDownload(false);
-            setLoading(true)
-        } catch (error) {
-            console.error('Error fetching Simulation:', error)
-        }
-    };
 
 
     // Carrega os dados quando o componente é montado
@@ -199,7 +207,10 @@ console.log('trendPrimary :',trendPrimary);
         download,
         setDownload,
         loading,
-        marketData
+        marketData,
+        // tables de movimento
+        movementTables,
+        setMovementTables
     }
 
     return (
