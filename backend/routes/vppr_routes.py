@@ -13,7 +13,7 @@ def get_vppr_route():
             symbols = request.args.get("symbol")
 
         time = request.args.get("time", "5m")
-        modo = request.args.get("modo", "real")
+        modo = request.args.get("modo") or request.args.get("mode", "real")
 
         if symbols is not None and not isinstance(symbols, (str, list)):
             raise ValueError("symbols deve ser uma string ou uma lista válida")

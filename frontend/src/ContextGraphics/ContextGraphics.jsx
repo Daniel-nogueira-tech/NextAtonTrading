@@ -1,5 +1,6 @@
 import React from 'react'
 import axios from 'axios'
+import { useIncrementalMarketEngine } from '../hooks/useIncrementalMarketEngine.js'
 
 export const ContextGraphics = React.createContext(null);
 
@@ -13,11 +14,27 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [loading, setLoading] = React.useState(false);
     const [movementTables, setMovementTables] = React.useState(false);
 
-    const [fullPrice, setFullPrice] = React.useState(null);
-    const [trendPrimary, setTrendPrimary] = React.useState(null);
-    const [trend, setTrend] = React.useState(null);
-    const [vppr, setVppr] = React.useState(null);
-    const [rsi, setRsi] = React.useState(null);
+    const incrementalEngine = useIncrementalMarketEngine({ initialSpeed: 1 });
+    const {
+        snapshot,
+        status: engineStatus,
+        cursor: engineCursor,
+        maxCursor: engineMaxCursor,
+        speed: engineSpeed,
+        loadSources,
+        play,
+        pause,
+        continue: continueEngine,
+        reset,
+        setSpeed,
+        isRunning,
+    } = incrementalEngine;
+
+    const fullPrice = snapshot.fullPrice;
+    const trendPrimary = snapshot.trendPrimary;
+    const trend = snapshot.trend;
+    const vppr = snapshot.vppr;
+    const rsi = snapshot.rsi;
 
     // Salva dados no localStorage
     React.useEffect(() => {
@@ -73,6 +90,10 @@ export const ContextGraphicsProvider = ({ children }) => {
 
     // Função para atualizar o status de um símbolo no backend
     const updateSymbolStatus = async (symbol) => {
+        if (!symbol) {
+            console.error('Symbol is required to update symbol status.')
+            return
+        }
         try {
             setActiveSymbol(symbol)
             const response = await axios.post(`${urlBackend}/api/activate-symbol`, { symbol: symbol })
@@ -109,6 +130,7 @@ export const ContextGraphicsProvider = ({ children }) => {
             console.log(response.data.mensagem);
             setDownload(false);
             setLoading(true)
+            await marketData()
         } catch (error) {
             console.error('Error fetching Simulation:', error)
         }
@@ -117,55 +139,74 @@ export const ContextGraphicsProvider = ({ children }) => {
 
     // Pega os dados de preço e indicadores
     const marketData = async () => {
+        const requestFeed = async (name, url) => {
+            try {
+                const response = await axios.get(url)
+                return response.data
+            } catch (error) {
+                console.error(`Erro ao carregar ${name}`, error)
+                return null
+            }
+        }
 
         try {
+            let nextSources = null
+
             if (mode === 'real') {
-                // Preço completo
-                const responsePrice = await axios.get(`${urlBackend}/api/price_data?mode=${mode}`)
-                setFullPrice(responsePrice.data)
-                // Classificação Primária
-                const responseTrendPri = await axios.get(`${urlBackend}/api/trend-primary?mode=${mode}`)
-                setTrendPrimary(responseTrendPri.data)
-                // Classificação Secundária
-                const responseTrend = await axios.get(`${urlBackend}/api/trend?mode=${mode}`)
-                setTrend(responseTrend.data)
-                // Indicador Vppr
-                const responseVppr = await axios.get(`${urlBackend}/api/vppr?mode=${mode}`)
-                setVppr(responseVppr.data)
-                // Indicador Rsi
-                const responseRsi = await axios.get(`${urlBackend}/api/rsi?mode=${mode}`)
-                setRsi(responseRsi.data)
+                const [
+                    fullPriceData,
+                    trendPrimaryData,
+                    trendData,
+                    vpprData,
+                    rsiData,
+                ] = await Promise.all([
+                    requestFeed('price_data', `${urlBackend}/api/price_data?mode=${mode}`),
+                    requestFeed('trend-primary', `${urlBackend}/api/trend-primary?mode=${mode}`),
+                    requestFeed('trend', `${urlBackend}/api/trend?mode=${mode}`),
+                    requestFeed('vppr', `${urlBackend}/api/vppr?mode=${mode}`),
+                    requestFeed('rsi', `${urlBackend}/api/rsi?mode=${mode}`),
+                ]);
+
+                nextSources = {
+                    fullPrice: fullPriceData,
+                    trendPrimary: trendPrimaryData,
+                    trend: trendData,
+                    vppr: vpprData,
+                    rsi: rsiData,
+                }
             } else {
-                // Preço completo para simular
-                const responsePrice = await axios.get(`${urlBackend}/api/price_data?mode=${mode}&symbol=${activeSymbol}`)
-                setFullPrice(responsePrice.data)
-                // Classificação Primária para simular
-                const responseTrendPri = await axios.get(`${urlBackend}/api/trend-primary?mode=${mode}&symbol=${activeSymbol}`)
-                setTrendPrimary(responseTrendPri.data)
-                // Classificação Secundária para simular
-                const responseTrend = await axios.get(`${urlBackend}/api/trend?mode=${mode}&symbol=${activeSymbol}`)
-                setTrend(responseTrend.data)
-                // Indicador Vppr para simular
-                const responseVppr = await axios.get(`${urlBackend}/api/vppr?mode=${mode}&symbol=${activeSymbol}`)
-                setVppr(responseVppr.data)
-                // Indicador Rsi para simular
-                const responseRsi = await axios.get(`${urlBackend}/api/rsi?mode=${mode}&symbol=${activeSymbol}`)
-                setRsi(responseRsi.data)
+                const [
+                    fullPriceData,
+                    trendPrimaryData,
+                    trendData,
+                    vpprData,
+                    rsiData,
+                ] = await Promise.all([
+                    requestFeed('price_data', `${urlBackend}/api/price_data?mode=${mode}&symbol=${activeSymbol}`),
+                    requestFeed('trend-primary', `${urlBackend}/api/trend-primary?mode=${mode}&symbol=${activeSymbol}`),
+                    requestFeed('trend', `${urlBackend}/api/trend?mode=${mode}&symbol=${activeSymbol}`),
+                    requestFeed('vppr', `${urlBackend}/api/vppr?mode=${mode}&symbol=${activeSymbol}`),
+                    requestFeed('rsi', `${urlBackend}/api/rsi?mode=${mode}&symbol=${activeSymbol}`),
+                ]);
+
+                nextSources = {
+                    fullPrice: fullPriceData,
+                    trendPrimary: trendPrimaryData,
+                    trend: trendData,
+                    vppr: vpprData,
+                    rsi: rsiData,
+                }
             }
+
+            if (!nextSources?.fullPrice) {
+                throw new Error('price_data não carregou; o motor incremental precisa do fullPrice como relógio principal.')
+            }
+
+            loadSources(nextSources, { autoStart: mode === 'real' });
         } catch (error) {
-            console("Erro ao carregar dados", error)
+            console.error("Erro ao carregar dados", error)
         }
     };
-
-    // Motor incremental
-    let i = 0;
-    const interval = setInterval(()=>{
-        if (i >= trend.length) return clearInterval(interval);
-
-        marketDataIncremental(trend[i]);
-        i++;
-    },100);
-
 
 
     // Carrega os dados quando o componente é montado
@@ -198,9 +239,22 @@ export const ContextGraphicsProvider = ({ children }) => {
         updateSymbolStatus,
         // Indicadores 
         trend,
-        setTrend,
+        trendPrimary,
+        fullPrice,
         vppr,
         rsi,
+        incrementalEngine: {
+            status: engineStatus,
+            cursor: engineCursor,
+            maxCursor: engineMaxCursor,
+            speed: engineSpeed,
+            isRunning,
+            play,
+            pause,
+            continue: continueEngine,
+            reset,
+            setSpeed,
+        },
         // Simulação
         dateToSimulation,
         // Carregamento

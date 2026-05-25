@@ -72,6 +72,7 @@
 #movementTables button{
   background: linear-gradient(135deg, rgba(19, 19, 19, 0.39), rgba(170, 59, 255, 0.404));
   border: 1px solid #474747;
+  cursor: pointer;
 }
 #movementTables-Active button{
   background: linear-gradient(135deg, rgba(170, 59, 255, 0.404 ,rgba(19, 19, 19, 0.39)));
@@ -260,8 +261,12 @@
 }
 
 .simulation-control button{
-  font-size: 20px;
+  font-size: 12px;
   color: #8b5cf6;
+}
+
+.simulation-control button:nth-last-child(-n + 3) {
+  display: none;
 }
 
 

@@ -6,15 +6,44 @@ from controllers.symbols_controller import get_stored_symbols
 from controllers.data_to_simulation_controllers import get_klines_data_simulation
 
 
+def _get_open(kline):
+    if isinstance(kline, dict):
+        return float(kline["Abertura"])
+    return float(kline[1])
+
+
+def _get_close(kline):
+    if isinstance(kline, dict):
+        return float(kline["Fechamento"])
+    return float(kline[4])
+
+
+def _get_volume(kline):
+    if isinstance(kline, dict):
+        return float(kline["Volume"])
+    return float(kline[5])
+
+
+def _get_time(kline):
+    if isinstance(kline, dict):
+        if "Tempo" in kline:
+            return kline["Tempo"]
+        timestamp = int(kline["open_time"])
+    else:
+        timestamp = int(kline[0])
+
+    return datetime.fromtimestamp(timestamp / 1000).strftime("%Y-%m-%d %H:%M:%S")
+
+
 # Calcula Vppr
 def calculate_vppr(klines):
     vppr_values = []
     vppr_acumulado = 0
 
     for i, k in enumerate(klines):
-        open_price = float(k[1])
-        close_price = float(k[4])
-        volume = float(k[5])
+        open_price = _get_open(k)
+        close_price = _get_close(k)
+        volume = _get_volume(k)
 
         delta = close_price - open_price
         vppr_candle = abs(delta) * volume
@@ -27,7 +56,7 @@ def calculate_vppr(klines):
 
     return vppr_values
 
-def _get_vppr_single(symbol, modo="real", time="1h",total=5000):
+def _get_vppr_single(symbol, modo="real", time="5m",total=5000):
 
     try:
         if modo == "simulation":
@@ -51,25 +80,20 @@ def _get_vppr_single(symbol, modo="real", time="1h",total=5000):
     # formatar datas e price
     result = []
     for i, k in enumerate(klines):
-        timestamp = int(k[0])
-        date_vppr = datetime.fromtimestamp(timestamp / 1000).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
-
         result.append(
             {
-                "time": date_vppr,
+                "time": _get_time(k),
                 "vppr": round(vppr_values[i], 2),
                 "vppr_ema": round(vppr_ema.iloc[i], 2),
-                "open": round(float(k[1]), 2),
-                "close": round(float(k[4]), 2),
-                "volume": round(float(k[5]), 2),
+                "open": round(_get_open(k), 2),
+                "close": round(_get_close(k), 2),
+                "volume": round(_get_volume(k), 2),
             }
         )
 
     return result
 
-def get_vppr(symbols=None, symbol=None, modo="real", time="1h"):
+def get_vppr(symbols=None, symbol=None, modo="real", time="5m"):
     default_symbols = get_stored_symbols()
 
     if modo not in ["real", "simulation"]:

@@ -226,14 +226,10 @@ const IndicatorChart = ({ title, emptyMessage, series }) => {
 }
 
 const GraphicsRenko = () => {
-  const { marketData, trend, activeSymbol, rsi, vppr, setMode, mode, dateToSimulation, download, setDownload, loading, movementTables, setMovementTables } = React.useContext(ContextGraphics)
+  const { trend, activeSymbol, rsi, vppr, setMode, mode, dateToSimulation, download, setDownload, loading, movementTables, setMovementTables, incrementalEngine } = React.useContext(ContextGraphics)
   const chartContainerRef = React.useRef(null);
   const [dates, setDates] = React.useState(null);
   const [dateErro, setDateErro] = React.useState(null);
-
-  console.log("trend:", trend);
-  console.log("rsi", rsi);
-  console.log("vppr", vppr);
 
   // seleciona o ativo que está ativo
   const selectedMarket = React.useMemo(() => {
@@ -443,9 +439,8 @@ const GraphicsRenko = () => {
     window.location.reload();
   };
 
-  useEffect(() => {
-    marketData();
-  }, [])
+
+
 
   return (
     <section className="graphics-renko">
@@ -506,6 +501,30 @@ const GraphicsRenko = () => {
             {/*-----------------/Botão de controle/-----------------*/}
             {loading && mode === "simulation" &&
               <div className='simulation-control'>
+                <button
+                  type="button"
+                  onClick={incrementalEngine?.play}
+                  disabled={incrementalEngine?.isRunning}
+                  title="Play"
+                >
+                  Play
+                </button>
+                <button
+                  type="button"
+                  onClick={incrementalEngine?.pause}
+                  disabled={!incrementalEngine?.isRunning}
+                  title="Pause"
+                >
+                  Pause
+                </button>
+                <button
+                  type="button"
+                  onClick={incrementalEngine?.continue}
+                  disabled={incrementalEngine?.isRunning || incrementalEngine?.status === 'completed'}
+                  title="Continue"
+                >
+                  Continue
+                </button>
                 <button>⏯️</button>
                 <button>⏸️</button>
                 <button>▶️</button>
