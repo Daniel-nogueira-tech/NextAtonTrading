@@ -5,11 +5,13 @@ import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx'
 import { CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, createChart } from 'lightweight-charts'
 import { Calendar } from 'primereact/calendar';
 import { Button } from 'primereact/button';
-import { useEffect } from 'react';
 import MovementTables from '../MovementTables/MovementTables.jsx';
 
 const UP_COLOR = '#22AB94'
 const DOWN_COLOR = '#fc5b5b'
+const MIN_ENGINE_SPEED = 100
+const MAX_ENGINE_SPEED = 5000
+const DEFAULT_ENGINE_SPEED = 500
 
 const normalizeTrend = (trend) => {
   if (!trend) return []
@@ -92,6 +94,38 @@ const buildReferenceLineData = (baseData, value) => {
     value,
   }))
 }
+
+const updateSeriesData = (seriesApi, data, metaRef) => {
+  const previous = metaRef.current
+  const nextLength = data.length
+  const nextFirstTime = data[0]?.time ?? null
+  const nextLastTime = data[nextLength - 1]?.time ?? null
+
+  if (
+    !previous ||
+    nextLength === 0 ||
+    nextLength < previous.length ||
+    nextFirstTime !== previous.firstTime
+  ) {
+    seriesApi.setData(data)
+  } else {
+    const startIndex = nextLength === previous.length
+      ? nextLength - 1
+      : Math.max(previous.length - 1, 0)
+
+    for (let index = startIndex; index < nextLength; index += 1) {
+      if (data[index]) {
+        seriesApi.update(data[index])
+      }
+    }
+  }
+
+  metaRef.current = {
+    length: nextLength,
+    firstTime: nextFirstTime,
+    lastTime: nextLastTime,
+  }
+}
 //--------------/Formata datas/--------------
 const formatDate = (date) => {
   if (!date) return null
@@ -131,6 +165,10 @@ const parseFormattedDate = (date) => {
 
 const IndicatorChart = ({ title, emptyMessage, series }) => {
   const containerRef = React.useRef(null)
+  const chartRef = React.useRef(null)
+  const seriesMapRef = React.useRef(new Map())
+  const seriesMetaMapRef = React.useRef(new Map())
+  const hadVisibleSeriesRef = React.useRef(false)
 
   const visibleSeries = React.useMemo(() => {
     return series.filter(item => item.data.length > 0)
@@ -141,7 +179,7 @@ const IndicatorChart = ({ title, emptyMessage, series }) => {
     if (!containerRef.current) return
 
     const container = containerRef.current
-    const chart = createChart(container, {
+    chartRef.current = createChart(container, {
       width: container.clientWidth,
       height: container.clientHeight,
       autoSize: true,
@@ -170,35 +208,55 @@ const IndicatorChart = ({ title, emptyMessage, series }) => {
       },
     })
 
+    return () => {
+      chartRef.current?.remove()
+      chartRef.current = null
+      seriesMapRef.current.clear()
+      seriesMetaMapRef.current.clear()
+    }
+  }, [])
+
+  React.useEffect(() => {
+    const chart = chartRef.current
+    if (!chart) return
+
+    const visibleNames = new Set(visibleSeries.map(item => item.name))
+
+    seriesMapRef.current.forEach((lineSeries, name) => {
+      if (!visibleNames.has(name)) {
+        chart.removeSeries(lineSeries)
+        seriesMapRef.current.delete(name)
+        seriesMetaMapRef.current.delete(name)
+      }
+    })
+
     visibleSeries.forEach((item) => {
-      const lineSeries = chart.addSeries(LineSeries, {
+      let lineSeries = seriesMapRef.current.get(item.name)
+
+      if (!lineSeries) {
+        lineSeries = chart.addSeries(LineSeries, {
+          color: item.color,
+          lineWidth: item.lineWidth ?? 2,
+          lineStyle: item.lineStyle ?? LineStyle.Solid,
+          priceLineVisible: false,
+          lastValueVisible: true,
+        })
+        seriesMapRef.current.set(item.name, lineSeries)
+        seriesMetaMapRef.current.set(item.name, { current: null })
+      }
+
+      lineSeries.applyOptions({
         color: item.color,
         lineWidth: item.lineWidth ?? 2,
         lineStyle: item.lineStyle ?? LineStyle.Solid,
-        priceLineVisible: false,
-        lastValueVisible: true,
       })
-
-      lineSeries.setData(item.data)
+      updateSeriesData(lineSeries, item.data, seriesMetaMapRef.current.get(item.name))
     })
 
-    if (visibleSeries.length > 0) {
+    if (visibleSeries.length > 0 && !hadVisibleSeriesRef.current) {
       chart.timeScale().fitContent()
     }
-
-    const resizeObserver = new ResizeObserver(() => {
-      chart.applyOptions({
-        width: container.clientWidth,
-        height: container.clientHeight,
-      })
-    })
-
-    resizeObserver.observe(container)
-
-    return () => {
-      resizeObserver.disconnect()
-      chart.remove()
-    }
+    hadVisibleSeriesRef.current = visibleSeries.length > 0
   }, [visibleSeries])
 
   return (
@@ -228,6 +286,10 @@ const IndicatorChart = ({ title, emptyMessage, series }) => {
 const GraphicsRenko = () => {
   const { trend, activeSymbol, rsi, vppr, setMode, mode, dateToSimulation, download, setDownload, loading, movementTables, setMovementTables, incrementalEngine } = React.useContext(ContextGraphics)
   const chartContainerRef = React.useRef(null);
+  const chartRef = React.useRef(null);
+  const candlestickSeriesRef = React.useRef(null);
+  const candlestickSeriesMetaRef = React.useRef(null);
+  const hadRenkoCandlesRef = React.useRef(false);
   const [dates, setDates] = React.useState(null);
   const [dateErro, setDateErro] = React.useState(null);
 
@@ -309,7 +371,7 @@ const GraphicsRenko = () => {
     if (!chartContainerRef.current) return
 
     const container = chartContainerRef.current
-    const chart = createChart(container, {
+    chartRef.current = createChart(container, {
       width: container.clientWidth,
       height: container.clientHeight,
       autoSize: true,
@@ -354,7 +416,7 @@ const GraphicsRenko = () => {
 
     })
 
-    const candlestickSeries = chart.addSeries(CandlestickSeries, {
+    candlestickSeriesRef.current = chartRef.current.addSeries(CandlestickSeries, {
       upColor: UP_COLOR,
       downColor: DOWN_COLOR,
       borderUpColor: UP_COLOR,
@@ -368,25 +430,23 @@ const GraphicsRenko = () => {
       },
     })
 
-    candlestickSeries.setData(renkoCandles)
-
-    if (renkoCandles.length > 0) {
-      chart.timeScale().fitContent()
-    }
-
-    const resizeObserver = new ResizeObserver(() => {
-      chart.applyOptions({
-        width: container.clientWidth,
-        height: container.clientHeight,
-      })
-    })
-
-    resizeObserver.observe(container)
-
     return () => {
-      resizeObserver.disconnect()
-      chart.remove()
+      chartRef.current?.remove()
+      chartRef.current = null
+      candlestickSeriesRef.current = null
+      candlestickSeriesMetaRef.current = null
     }
+  }, [])
+
+  React.useEffect(() => {
+    if (!chartRef.current || !candlestickSeriesRef.current) return
+
+    updateSeriesData(candlestickSeriesRef.current, renkoCandles, candlestickSeriesMetaRef)
+
+    if (renkoCandles.length > 0 && !hadRenkoCandlesRef.current) {
+      chartRef.current.timeScale().fitContent()
+    }
+    hadRenkoCandlesRef.current = renkoCandles.length > 0
   }, [renkoCandles])
 
   //-------------------------/Calendário/-------------------------
@@ -438,6 +498,25 @@ const GraphicsRenko = () => {
       : "simulation")
     window.location.reload();
   };
+
+  const increaseSimulationSpeed = () => {
+    const currentSpeed = Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED
+    incrementalEngine?.setSpeed(Math.max(MIN_ENGINE_SPEED, Math.round(currentSpeed / 2)))
+  }
+
+  const decreaseSimulationSpeed = () => {
+    const currentSpeed = Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED
+    incrementalEngine?.setSpeed(Math.min(MAX_ENGINE_SPEED, Math.round(currentSpeed * 2)))
+  }
+
+  const resetSimulation = () => {
+    incrementalEngine?.reset()
+  }
+
+  const speedLabel = React.useMemo(() => {
+    const currentSpeed = Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED
+    return `${currentSpeed}ms`
+  }, [incrementalEngine?.speed])
 
 
 
@@ -499,7 +578,7 @@ const GraphicsRenko = () => {
               </div>
             }
             {/*-----------------/Botão de controle/-----------------*/}
-            {loading && mode === "simulation" &&
+            {!loading && mode === "simulation" &&
               <div className='simulation-control'>
                 <button
                   type="button"
@@ -525,9 +604,42 @@ const GraphicsRenko = () => {
                 >
                   Continue
                 </button>
+                <button
+                  type="button"
+                  onClick={resetSimulation}
+                  title="Reset"
+                >
+                  Reset
+                </button>
+                 <span className='separates-speed'>--</span>
+                <button
+                  type="button"
+                  onClick={decreaseSimulationSpeed}
+                  disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) >= MAX_ENGINE_SPEED}
+                  title="Reduzir velocidade"
+                >
+                  Slower
+                </button>
+                <span className="simulation-control__speed">{speedLabel}</span>
+                <button
+                  type="button"
+                  onClick={increaseSimulationSpeed}
+                  disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) <= MIN_ENGINE_SPEED}
+                  title="Aumentar velocidade"
+                >
+                  Faster
+                </button>
+              </div>
+            }
+            {loading && mode === "simulation" &&
+              <div className='simulation-control'>
                 <button>⏯️</button>
                 <button>⏸️</button>
                 <button>▶️</button>
+                <span className='separates-speed'>--</span>
+                <button>-</button>
+                <button>+</button>
+                <button>🔄</button>
               </div>
             }
           </div>

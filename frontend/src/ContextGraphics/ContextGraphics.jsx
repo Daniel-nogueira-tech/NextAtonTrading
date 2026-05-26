@@ -14,7 +14,7 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [loading, setLoading] = React.useState(false);
     const [movementTables, setMovementTables] = React.useState(false);
 
-    const incrementalEngine = useIncrementalMarketEngine({ initialSpeed: 1 });
+    const incrementalEngine = useIncrementalMarketEngine(mode === 'simulation' ? { initialSpeed: 500 } : { initialSpeed: 10 });
     const {
         snapshot,
         status: engineStatus,

@@ -724,7 +724,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
         elif state == "reacao_secundaria":
             if current_trend == "Alta":
                 if not added_movement and price < bottom:
-                    last_pivot_rally_sec_high_temp = bottom
+                    last_pivot_rally_sec_high_temp = price
                     bottom = price
                     reference_point = price
                     movements.append(
@@ -746,6 +746,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                     # rally secundário
                     state = "rally_secundario"
                     top = price
+                    last_pivot_rally_sec_high = last_pivot_rally_sec_high_temp
                     last_pivot_reaction_sec_low = None
                     reference_point = price
                     movements.append(
@@ -797,29 +798,11 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                             "limite": limit,
                         }
                     )
+                    added_movement = True
                 elif (
                     not added_movement
                     and last_pivot_rally_high is not None
                     and price <= last_pivot_rally_high - confirmar
-                ):
-                    state = "tendencia_baixa"
-                    current_trend = "Baixa"
-                    last_pivot_down = price
-                    bottom = price
-                    reference_point = price
-                    movements.append(
-                        {
-                            "closeTime": tempo,
-                            "closePrice": price,
-                            "tipo": "Tendência Baixa (venda)",
-                            "limite": limit,
-                        }
-                    )
-                    added_movement = True
-                elif (
-                    not added_movement
-                    and last_pivot_rally_sec_high is not None
-                    and price <= last_pivot_rally_sec_high - confirmar
                 ):
                     state = "tendencia_baixa"
                     current_trend = "Baixa"
@@ -840,7 +823,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                 # vindo de tendência de baixa
                 if not added_movement and price > top:
                     top = price
-                    last_pivot_rally_sec_low_temp = top
+                    last_pivot_rally_sec_low_temp = price
                     reference_point = price
                     movements.append(
                         {
@@ -860,6 +843,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                     #  volta ao rally
                     state = "rally_secundario"
                     bottom = price
+                    last_pivot_rally_sec_low = last_pivot_rally_sec_low_temp
                     last_pivot_reaction_sec_high = None
                     current_trend = "Baixa"
                     reference_point = price
@@ -934,25 +918,6 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                     )
                     added_movement = True
 
-                elif (
-                    not added_movement
-                    and last_pivot_rally_sec_low is not None
-                    and price >= last_pivot_rally_sec_low + confirmar
-                ):
-                    state = "tendencia_alta"
-                    current_trend = "Alta"
-                    last_pivot_high = price
-                    top = price
-                    reference_point = price
-                    movements.append(
-                        {
-                            "closeTime": tempo,
-                            "closePrice": price,
-                            "tipo": "Tendência Alta (compra)",
-                            "limite": limit,
-                        }
-                    )
-                    added_movement = True
                     
 
             # ======== Reação secundária ===========
@@ -961,7 +926,6 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                 if not added_movement and price > top:
                     top = price
                     reference_point = price
-                    last_pivot_rally_sec_high = last_pivot_rally_sec_high_temp
                     movements.append(
                         {
                             "closeTime": tempo,
@@ -1093,7 +1057,6 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                 # vindo de tendência de baixa
                 if not added_movement and price < bottom:
                     bottom = price
-                    last_pivot_rally_sec_low = last_pivot_rally_sec_low_temp
                     reference_point = price
                     movements.append(
                         {
