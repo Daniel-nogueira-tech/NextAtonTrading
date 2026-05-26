@@ -520,7 +520,6 @@ const GraphicsRenko = () => {
 
 
 
-
   return (
     <section className="graphics-renko">
       <div style={{ display: "flex", justifyContent: "center" }}>
@@ -618,7 +617,7 @@ const GraphicsRenko = () => {
                   disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) >= MAX_ENGINE_SPEED}
                   title="Reduzir velocidade"
                 >
-                  Slower
+                  Slower -
                 </button>
                 <span className="simulation-control__speed">{speedLabel}</span>
                 <button
@@ -627,7 +626,7 @@ const GraphicsRenko = () => {
                   disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) <= MIN_ENGINE_SPEED}
                   title="Aumentar velocidade"
                 >
-                  Faster
+                  Faster +
                 </button>
               </div>
             }

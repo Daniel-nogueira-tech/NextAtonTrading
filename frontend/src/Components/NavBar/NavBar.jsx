@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useContext } from 'react'
 import './NavBar.css'
 import { mockSymbols, searchSymbols, addMockSymbol } from './mockSymbols'
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics'
+import { Link } from 'react-router-dom'
 
 const NavBar = () => {
     const { addSymbols, tabs, setTabs, removeSymbol, setActiveSymbol,updateSymbolStatus } = React.useContext(ContextGraphics)
@@ -223,6 +224,7 @@ const NavBar = () => {
                 </div>
 
                 {/* Info do usuário */}
+                <Link to="/OperatingPanel" className="navbar__user-link">
                 <div className="navbar__user">
                     <div className="navbar__user-avatar">👤</div>
                     <div className="navbar__user-info">
@@ -230,6 +232,7 @@ const NavBar = () => {
                         <span className="navbar__user-status">Online</span>
                     </div>
                 </div>
+                </Link>
             </div>
 
             {/* Abas */}

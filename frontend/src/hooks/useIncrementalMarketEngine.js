@@ -10,6 +10,8 @@ const DEFAULT_FEEDS = {
 
 const ARRAY_KEYS = ['movements', 'result', 'prices', 'data']
 const TIME_KEYS = ['Tempo', 'time', 'closeTime', 'openTime', 'open_time']
+const DEFAULT_SNAPSHOT_WINDOW = 1200
+const MIN_TIMER_SPEED = 100
 
 const normalizeCollection = (payload) => {
   if (!payload) return []
@@ -64,7 +66,15 @@ const getSymbolClockMap = (fullPrice, cursor) => {
   }, {})
 }
 
-const sliceSeriesByTime = (series, currentTime) => {
+const limitWindow = (series, maxSnapshotPoints) => {
+  if (!Array.isArray(series) || series.length <= maxSnapshotPoints) {
+    return series
+  }
+
+  return series.slice(series.length - maxSnapshotPoints)
+}
+
+const sliceSeriesByTime = (series, currentTime, maxSnapshotPoints) => {
   if (currentTime == null) return []
 
   let end = 0
@@ -79,10 +89,10 @@ const sliceSeriesByTime = (series, currentTime) => {
     end += 1
   }
 
-  return series.slice(0, end)
+  return limitWindow(series.slice(0, end), maxSnapshotPoints)
 }
 
-const sliceFeed = (payload, cursor, clockMap, isFullPrice = false) => {
+const sliceFeed = (payload, cursor, clockMap, maxSnapshotPoints, isFullPrice = false) => {
   if (!payload) return null
 
   return normalizeCollection(payload).map((item) => {
@@ -93,7 +103,7 @@ const sliceFeed = (payload, cursor, clockMap, isFullPrice = false) => {
     if (isFullPrice) {
       return {
         ...item,
-        [seriesKey]: item[seriesKey].slice(0, cursor),
+        [seriesKey]: limitWindow(item[seriesKey].slice(0, cursor), maxSnapshotPoints),
       }
     }
 
@@ -101,12 +111,12 @@ const sliceFeed = (payload, cursor, clockMap, isFullPrice = false) => {
 
     return {
       ...item,
-      [seriesKey]: sliceSeriesByTime(item[seriesKey], currentTime),
+      [seriesKey]: sliceSeriesByTime(item[seriesKey], currentTime, maxSnapshotPoints),
     }
   })
 }
 
-const buildSnapshot = (sources, cursor) => {
+const buildSnapshot = (sources, cursor, maxSnapshotPoints) => {
   const clockMap = getSymbolClockMap(sources.fullPrice, cursor)
 
   return Object.keys(DEFAULT_FEEDS).reduce((snapshot, feedName) => {
@@ -114,6 +124,7 @@ const buildSnapshot = (sources, cursor) => {
       sources[feedName],
       cursor,
       clockMap,
+      maxSnapshotPoints,
       feedName === 'fullPrice'
     )
     return snapshot
@@ -126,14 +137,17 @@ const getMaxCursor = (sources) => {
   }, 0)
 }
 
-export const useIncrementalMarketEngine = ({ initialSpeed = 120 } = {}) => {
+export const useIncrementalMarketEngine = ({
+  initialSpeed = 120,
+  maxSnapshotPoints = DEFAULT_SNAPSHOT_WINDOW,
+} = {}) => {
   const sourcesRef = React.useRef(DEFAULT_FEEDS)
   const cursorRef = React.useRef(0)
   const maxCursorRef = React.useRef(0)
   const timerRef = React.useRef(null)
   const speedRef = React.useRef(initialSpeed)
 
-  const [snapshot, setSnapshot] = React.useState(() => buildSnapshot(DEFAULT_FEEDS, 0))
+  const [snapshot, setSnapshot] = React.useState(() => buildSnapshot(DEFAULT_FEEDS, 0, maxSnapshotPoints))
   const [status, setStatus] = React.useState('idle')
   const [cursor, setCursor] = React.useState(0)
   const [maxCursor, setMaxCursor] = React.useState(0)
@@ -149,8 +163,8 @@ export const useIncrementalMarketEngine = ({ initialSpeed = 120 } = {}) => {
   const publishCursor = React.useCallback((nextCursor) => {
     cursorRef.current = nextCursor
     setCursor(nextCursor)
-    setSnapshot(buildSnapshot(sourcesRef.current, nextCursor))
-  }, [])
+    setSnapshot(buildSnapshot(sourcesRef.current, nextCursor, maxSnapshotPoints))
+  }, [maxSnapshotPoints])
 
   const pause = React.useCallback(() => {
     stopTimer()
@@ -211,7 +225,7 @@ export const useIncrementalMarketEngine = ({ initialSpeed = 120 } = {}) => {
   const setSpeed = React.useCallback((nextSpeed) => {
     const parsedSpeed = Number(nextSpeed)
     const normalizedSpeed = Number.isFinite(parsedSpeed)
-      ? Math.max(16, parsedSpeed)
+      ? Math.max(MIN_TIMER_SPEED, parsedSpeed)
       : initialSpeed
 
     speedRef.current = normalizedSpeed
