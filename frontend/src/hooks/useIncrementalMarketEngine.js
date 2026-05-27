@@ -51,6 +51,81 @@ const getPriceSeries = (item) => {
   return seriesKey ? item[seriesKey] : []
 }
 
+const getSeriesPointKey = (point, index) => {
+  const timeValue = getTimeValue(point)
+  return timeValue != null ? `time:${timeValue}` : `index:${index}`
+}
+
+const mergeSeries = (currentSeries = [], nextSeries = []) => {
+  const mergedMap = new Map()
+
+  currentSeries.forEach((point, index) => {
+    mergedMap.set(getSeriesPointKey(point, index), point)
+  })
+
+  nextSeries.forEach((point, index) => {
+    mergedMap.set(getSeriesPointKey(point, index), point)
+  })
+
+  return Array.from(mergedMap.values()).sort((a, b) => {
+    const timeA = getTimeValue(a)
+    const timeB = getTimeValue(b)
+
+    if (timeA == null || timeB == null) return 0
+    return timeA - timeB
+  })
+}
+
+const getItemKey = (item, index) => {
+  return item?.symbol || `index:${index}`
+}
+
+const mergeFeed = (currentPayload, nextPayload) => {
+  if (!nextPayload) return currentPayload ?? null
+
+  const currentCollection = normalizeCollection(currentPayload)
+  const nextCollection = normalizeCollection(nextPayload)
+  const mergedMap = new Map()
+
+  currentCollection.forEach((item, index) => {
+    mergedMap.set(getItemKey(item, index), item)
+  })
+
+  nextCollection.forEach((nextItem, index) => {
+    const itemKey = getItemKey(nextItem, index)
+    const currentItem = mergedMap.get(itemKey)
+
+    if (!currentItem) {
+      mergedMap.set(itemKey, nextItem)
+      return
+    }
+
+    const currentSeriesKey = getItemSeriesKey(currentItem)
+    const nextSeriesKey = getItemSeriesKey(nextItem)
+    const seriesKey = nextSeriesKey || currentSeriesKey
+
+    if (!seriesKey) {
+      mergedMap.set(itemKey, { ...currentItem, ...nextItem })
+      return
+    }
+
+    mergedMap.set(itemKey, {
+      ...currentItem,
+      ...nextItem,
+      [seriesKey]: mergeSeries(currentItem[seriesKey], nextItem[seriesKey]),
+    })
+  })
+
+  return Array.from(mergedMap.values())
+}
+
+const mergeSources = (currentSources, nextSources) => {
+  return Object.keys(DEFAULT_FEEDS).reduce((merged, feedName) => {
+    merged[feedName] = mergeFeed(currentSources[feedName], nextSources?.[feedName])
+    return merged
+  }, {})
+}
+
 const getSymbolClockMap = (fullPrice, cursor) => {
   return normalizeCollection(fullPrice).reduce((clockMap, item) => {
     const seriesKey = getItemSeriesKey(item)
@@ -222,6 +297,34 @@ export const useIncrementalMarketEngine = ({
     }
   }, [play, publishCursor, stopTimer])
 
+  const updateSources = React.useCallback((nextSources, options = {}) => {
+    const wasRunning = timerRef.current != null || status === 'running'
+    const wasCompleted = status === 'completed'
+
+    sourcesRef.current = mergeSources(sourcesRef.current, nextSources)
+
+    const nextMaxCursor = getMaxCursor(sourcesRef.current)
+    maxCursorRef.current = nextMaxCursor
+    setMaxCursor(nextMaxCursor)
+    publishCursor(Math.min(cursorRef.current, nextMaxCursor))
+
+    if (nextMaxCursor <= 0) {
+      setStatus('idle')
+      return
+    }
+
+    if (wasCompleted && cursorRef.current < nextMaxCursor) {
+      setStatus('ready')
+    }
+
+    if (options.autoContinue && (wasRunning || wasCompleted)) {
+      setStatus('running')
+      if (!timerRef.current) {
+        timerRef.current = setInterval(tick, speedRef.current)
+      }
+    }
+  }, [publishCursor, status, tick])
+
   const setSpeed = React.useCallback((nextSpeed) => {
     const parsedSpeed = Number(nextSpeed)
     const normalizedSpeed = Number.isFinite(parsedSpeed)
@@ -249,6 +352,7 @@ export const useIncrementalMarketEngine = ({
     maxCursor,
     speed,
     loadSources,
+    updateSources,
     play,
     pause,
     continue: play,

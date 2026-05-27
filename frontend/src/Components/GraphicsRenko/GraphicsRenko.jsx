@@ -24,11 +24,16 @@ const normalizeMarketCollection = (payload) => {
   return Array.isArray(collection) ? collection : [collection]
 }
 
+const normalizeSymbol = (symbol) => {
+  return String(symbol || '').trim().toUpperCase()
+}
+
 const selectMarketBySymbol = (payload, activeSymbol) => {
-  if (!activeSymbol) return null
+  const selectedSymbol = normalizeSymbol(activeSymbol)
+  if (!selectedSymbol) return null
 
   return normalizeMarketCollection(payload).find(
-    item => item?.symbol === activeSymbol
+    item => normalizeSymbol(item?.symbol) === selectedSymbol
   ) ?? null
 }
 
@@ -95,27 +100,67 @@ const buildReferenceLineData = (baseData, value) => {
   }))
 }
 
+const getChartTimeKey = (time) => {
+  if (time == null) return null
+
+  if (typeof time === 'object') {
+    return `${time.year}-${time.month}-${time.day}`
+  }
+
+  return Number(time)
+}
+
+const sortAndDeduplicateSeriesData = (data) => {
+  const pointMap = new Map()
+
+  data.forEach((point) => {
+    const timeKey = getChartTimeKey(point?.time)
+
+    if (timeKey != null) {
+      pointMap.set(timeKey, point)
+    }
+  })
+
+  return Array.from(pointMap.values()).sort((a, b) => {
+    const timeA = getChartTimeKey(a.time)
+    const timeB = getChartTimeKey(b.time)
+
+    if (typeof timeA === 'number' && typeof timeB === 'number') {
+      return timeA - timeB
+    }
+
+    return String(timeA).localeCompare(String(timeB))
+  })
+}
+
 const updateSeriesData = (seriesApi, data, metaRef) => {
+  const nextData = sortAndDeduplicateSeriesData(data)
   const previous = metaRef.current
-  const nextLength = data.length
-  const nextFirstTime = data[0]?.time ?? null
-  const nextLastTime = data[nextLength - 1]?.time ?? null
+  const nextLength = nextData.length
+  const nextFirstTime = getChartTimeKey(nextData[0]?.time)
+  const nextLastTime = getChartTimeKey(nextData[nextLength - 1]?.time)
 
   if (
     !previous ||
     nextLength === 0 ||
     nextLength < previous.length ||
-    nextFirstTime !== previous.firstTime
+    nextFirstTime !== previous.firstTime ||
+    nextLastTime < previous.lastTime
   ) {
-    seriesApi.setData(data)
+    seriesApi.setData(nextData)
+  } else if (nextLength === previous.length) {
+    if (nextLastTime === previous.lastTime && nextData[nextLength - 1]) {
+      seriesApi.update(nextData[nextLength - 1])
+    } else {
+      seriesApi.setData(nextData)
+    }
   } else {
-    const startIndex = nextLength === previous.length
-      ? nextLength - 1
-      : Math.max(previous.length - 1, 0)
+    for (let index = previous.length; index < nextLength; index += 1) {
+      const point = nextData[index]
+      const pointTime = getChartTimeKey(point?.time)
 
-    for (let index = startIndex; index < nextLength; index += 1) {
-      if (data[index]) {
-        seriesApi.update(data[index])
+      if (point && pointTime > previous.lastTime) {
+        seriesApi.update(point)
       }
     }
   }
@@ -163,12 +208,13 @@ const parseFormattedDate = (date) => {
   return new Date(year, month - 1, day)
 }
 
-const IndicatorChart = ({ title, emptyMessage, series }) => {
+const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
   const containerRef = React.useRef(null)
   const chartRef = React.useRef(null)
   const seriesMapRef = React.useRef(new Map())
   const seriesMetaMapRef = React.useRef(new Map())
   const hadVisibleSeriesRef = React.useRef(false)
+  const lastResetKeyRef = React.useRef(resetKey)
 
   const visibleSeries = React.useMemo(() => {
     return series.filter(item => item.data.length > 0)
@@ -220,6 +266,17 @@ const IndicatorChart = ({ title, emptyMessage, series }) => {
     const chart = chartRef.current
     if (!chart) return
 
+    if (lastResetKeyRef.current !== resetKey) {
+      seriesMapRef.current.forEach((lineSeries) => {
+        chart.removeSeries(lineSeries)
+      })
+
+      seriesMapRef.current.clear()
+      seriesMetaMapRef.current.clear()
+      hadVisibleSeriesRef.current = false
+      lastResetKeyRef.current = resetKey
+    }
+
     const visibleNames = new Set(visibleSeries.map(item => item.name))
 
     seriesMapRef.current.forEach((lineSeries, name) => {
@@ -257,7 +314,7 @@ const IndicatorChart = ({ title, emptyMessage, series }) => {
       chart.timeScale().fitContent()
     }
     hadVisibleSeriesRef.current = visibleSeries.length > 0
-  }, [visibleSeries])
+  }, [visibleSeries, resetKey])
 
   return (
     <div className="graphics-renko__indicator-panel">
@@ -290,6 +347,7 @@ const GraphicsRenko = () => {
   const candlestickSeriesRef = React.useRef(null);
   const candlestickSeriesMetaRef = React.useRef(null);
   const hadRenkoCandlesRef = React.useRef(false);
+  const lastChartSymbolRef = React.useRef(activeSymbol);
   const [dates, setDates] = React.useState(null);
   const [dateErro, setDateErro] = React.useState(null);
 
@@ -441,13 +499,20 @@ const GraphicsRenko = () => {
   React.useEffect(() => {
     if (!chartRef.current || !candlestickSeriesRef.current) return
 
+    if (lastChartSymbolRef.current !== activeSymbol) {
+      candlestickSeriesRef.current.setData([])
+      candlestickSeriesMetaRef.current = null
+      hadRenkoCandlesRef.current = false
+      lastChartSymbolRef.current = activeSymbol
+    }
+
     updateSeriesData(candlestickSeriesRef.current, renkoCandles, candlestickSeriesMetaRef)
 
     if (renkoCandles.length > 0 && !hadRenkoCandlesRef.current) {
       chartRef.current.timeScale().fitContent()
     }
     hadRenkoCandlesRef.current = renkoCandles.length > 0
-  }, [renkoCandles])
+  }, [renkoCandles, activeSymbol])
 
   //-------------------------/Calendário/-------------------------
   // Função para formatar quando precisar salvar ou mostrar
@@ -654,11 +719,13 @@ const GraphicsRenko = () => {
             title="AMRSI (arithmetic mean of Relative Strength Index)"
             series={rsiSeries}
             emptyMessage="No RSI history available for this asset."
+            resetKey={activeSymbol}
           />
           <IndicatorChart
             title="VPPR (Volume Price Pressure Ratio)"
             series={vpprSeries}
             emptyMessage="No VPPR history available for this asset."
+            resetKey={activeSymbol}
           />
         </aside>
       </div>

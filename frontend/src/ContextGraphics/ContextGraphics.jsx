@@ -4,6 +4,18 @@ import { useIncrementalMarketEngine } from '../hooks/useIncrementalMarketEngine.
 
 export const ContextGraphics = React.createContext(null);
 
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
+
+const getNextFiveMinuteBoundaryDelay = () => {
+    const now = new Date();
+    const nextBoundary = new Date(now);
+
+    nextBoundary.setSeconds(0, 0);
+    nextBoundary.setMinutes(Math.floor(now.getMinutes() / 5) * 5 + 5);
+
+    return Math.max(1000, nextBoundary.getTime() - now.getTime());
+}
+
 
 export const ContextGraphicsProvider = ({ children }) => {
     const urlBackend = import.meta.env.VITE_BACKEND_URL;
@@ -15,7 +27,7 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [movementTables, setMovementTables] = React.useState(false);
 
     const incrementalEngine = useIncrementalMarketEngine({
-        initialSpeed: mode === 'simulation' ? 500 : 100,
+        initialSpeed: mode === 'simulation' ? 500 : 50,
         maxSnapshotPoints: 1200,
     });
     const {
@@ -25,6 +37,7 @@ export const ContextGraphicsProvider = ({ children }) => {
         maxCursor: engineMaxCursor,
         speed: engineSpeed,
         loadSources,
+        updateSources,
         play,
         pause,
         continue: continueEngine,
@@ -141,7 +154,7 @@ export const ContextGraphicsProvider = ({ children }) => {
 
 
     // Pega os dados de preço e indicadores
-    const marketData = async () => {
+    const marketData = async ({ preserveEngine = false } = {}) => {
         const requestFeed = async (name, url) => {
             try {
                 const response = await axios.get(url)
@@ -204,11 +217,29 @@ export const ContextGraphicsProvider = ({ children }) => {
                 throw new Error('price_data não carregou; o motor incremental precisa do fullPrice como relógio principal.')
             }
 
-            loadSources(nextSources, { autoStart: mode === 'real' });
+            if (preserveEngine) {
+                updateSources(nextSources, { autoContinue: mode === 'real' });
+            } else {
+                loadSources(nextSources, { autoStart: mode === 'real' });
+            }
         } catch (error) {
             console.error("Erro ao carregar dados", error)
         }
     };
+
+    // Função para atualizar os dados a cada 5 minutos no modo real
+    const refreshMarketData = async ({ preserveEngine = false } = {}) => {
+        if (mode !== 'real') return
+
+        try {
+            await Promise.all([
+                getSymbols(),
+                marketData({ preserveEngine })
+            ])
+        } catch (error) {
+            console.error('Error refreshing data:', error)
+        }
+    }
 
 
     // Carrega os dados quando o componente é montado
@@ -225,6 +256,31 @@ export const ContextGraphicsProvider = ({ children }) => {
         }
         loadData()
     }, []);
+
+    
+    // Configura o refresh automático dos dados a cada 5 minutos no modo real
+    React.useEffect(() => {
+        if (mode !== 'real') return undefined
+
+        let refreshTimeout = null;
+        let cancelled = false;
+
+        const scheduleNextRefresh = () => {
+            refreshTimeout = setTimeout(async () => {
+                if (cancelled) return;
+
+                await refreshMarketData({ preserveEngine: true });
+                scheduleNextRefresh();
+            }, getNextFiveMinuteBoundaryDelay());
+        }
+
+        scheduleNextRefresh();
+
+        return () => {
+            cancelled = true;
+            clearTimeout(refreshTimeout);
+        }
+    }, [mode]);
 
 
     //Define o valor do contexto a ser fornecido aos componentes filhos
@@ -256,6 +312,7 @@ export const ContextGraphicsProvider = ({ children }) => {
             continue: continueEngine,
             reset,
             setSpeed,
+            updateSources,
         },
         // Simulação
         dateToSimulation,
