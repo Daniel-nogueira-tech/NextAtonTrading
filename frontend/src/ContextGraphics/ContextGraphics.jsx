@@ -4,8 +4,7 @@ import { useIncrementalMarketEngine } from '../hooks/useIncrementalMarketEngine.
 
 export const ContextGraphics = React.createContext(null);
 
-const FIVE_MINUTES_MS = 5 * 60 * 1000;
-
+// Helper para calcular o delay até o próximo limite de 5 minutos
 const getNextFiveMinuteBoundaryDelay = () => {
     const now = new Date();
     const nextBoundary = new Date(now);
@@ -25,9 +24,10 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [download, setDownload] = React.useState(false);
     const [loading, setLoading] = React.useState(false);
     const [movementTables, setMovementTables] = React.useState(false);
+    const [fullSources, setFullSources] = React.useState(null);
 
     const incrementalEngine = useIncrementalMarketEngine({
-        initialSpeed: mode === 'simulation' ? 500 : 50,
+        initialSpeed: mode === 'simulation' ? 500 : 100,
         maxSnapshotPoints: 1200,
     });
     const {
@@ -217,8 +217,13 @@ export const ContextGraphicsProvider = ({ children }) => {
                 throw new Error('price_data não carregou; o motor incremental precisa do fullPrice como relógio principal.')
             }
 
+            setFullSources(nextSources);
+
             if (preserveEngine) {
-                updateSources(nextSources, { autoContinue: mode === 'real' });
+                updateSources(nextSources, {
+                    autoContinue: mode === 'real',
+                    followLatest: mode === 'real',
+                });
             } else {
                 loadSources(nextSources, { autoStart: mode === 'real' });
             }
@@ -260,7 +265,8 @@ export const ContextGraphicsProvider = ({ children }) => {
     
     // Configura o refresh automático dos dados a cada 5 minutos no modo real
     React.useEffect(() => {
-        if (mode !== 'real') return undefined
+        if (mode !== 'real') return undefined;
+        if (incrementalEngine.status === 'loading') return undefined; // Evita configurar o refresh enquanto os dados estão carregando
 
         let refreshTimeout = null;
         let cancelled = false;
@@ -297,10 +303,15 @@ export const ContextGraphicsProvider = ({ children }) => {
         updateSymbolStatus,
         // Indicadores 
         trend,
+        fullTrend: fullSources?.trend ?? trend,
         trendPrimary,
+        fullTrendPrimary: fullSources?.trendPrimary ?? trendPrimary,
         fullPrice,
+        fullPriceComplete: fullSources?.fullPrice ?? fullPrice,
         vppr,
+        fullVppr: fullSources?.vppr ?? vppr,
         rsi,
+        fullRsi: fullSources?.rsi ?? rsi,
         incrementalEngine: {
             status: engineStatus,
             cursor: engineCursor,

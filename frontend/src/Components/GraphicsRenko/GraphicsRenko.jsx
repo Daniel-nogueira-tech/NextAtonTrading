@@ -6,6 +6,7 @@ import { CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, cre
 import { Calendar } from 'primereact/calendar';
 import { Button } from 'primereact/button';
 import MovementTables from '../MovementTables/MovementTables.jsx';
+import { useOperatingData } from '../OperatingPanel/operatingData.js';
 
 const UP_COLOR = '#22AB94'
 const DOWN_COLOR = '#fc5b5b'
@@ -37,14 +38,23 @@ const selectMarketBySymbol = (payload, activeSymbol) => {
   ) ?? null
 }
 
+//--------------/Formata datas/--------------
 const parseChartTime = (closeTime, fallbackIndex) => {
   if (typeof closeTime !== 'string') return fallbackIndex + 1
 
+  // Remove espaços e garante formato ISO
+  const cleanTime = closeTime.replace(' ', 'T')
+  const date = new Date(cleanTime)
 
-  const timestamp = Date.parse(closeTime.replace(' ', 'T'))
-  if (Number.isNaN(timestamp)) return fallbackIndex + 1
+  if (Number.isNaN(date.getTime())) return fallbackIndex + 1
 
-  return Math.floor(timestamp / 1000)
+  // Ajusta para UTC-3 (Brasília) sem alterar a hora exibida
+  // Se a data já está em UTC, subtrai 3 horas
+  const brasiliaOffset = +3 // UTC+3
+  const utcTimestamp = date.getTime()
+  const brasiliaTimestamp = utcTimestamp - (brasiliaOffset * 60 * 60 * 1000)
+
+  return Math.floor(brasiliaTimestamp / 1000)
 }
 
 const buildRenkoCandles = (movements) => {
@@ -171,6 +181,7 @@ const updateSeriesData = (seriesApi, data, metaRef) => {
     lastTime: nextLastTime,
   }
 }
+
 //--------------/Formata datas/--------------
 const formatDate = (date) => {
   if (!date) return null
@@ -350,6 +361,10 @@ const GraphicsRenko = () => {
   const lastChartSymbolRef = React.useRef(activeSymbol);
   const [dates, setDates] = React.useState(null);
   const [dateErro, setDateErro] = React.useState(null);
+
+  const { retestPointsState } = useOperatingData(trend);
+  console.log(retestPointsState);
+
 
   // seleciona o ativo que está ativo
   const selectedMarket = React.useMemo(() => {
@@ -636,30 +651,58 @@ const GraphicsRenko = () => {
                 {Array.isArray(formattedDates) && formattedDates[1] !== null && !dateErro &&
                   <div className={loading ? 'loaded' : 'download'}>
                     <Button
-                      label="⤓" icon="pi pi-check" loading={download} onClick={handleSubmitDate} />
+                      label="⤓" icon="pi pi-check" loading={download} onClick={!loading ? handleSubmitDate : null}
+                      disabled={loading}
+                    />
                   </div>
                 }
               </div>
             }
+
             {/*-----------------/Botão de controle/-----------------*/}
-            {!loading && mode === "simulation" &&
+            {!incrementalEngine.isRunning ? (
+              <button
+                type="button"
+                onClick={incrementalEngine?.play}
+                disabled={incrementalEngine?.isRunning}
+                title="Play"
+              >
+                Play
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={incrementalEngine?.pause}
+                disabled={!incrementalEngine?.isRunning}
+                title="Pause"
+              >
+                Pause
+              </button>
+            )}
+            {loading && mode === "simulation" &&
+
               <div className='simulation-control'>
-                <button
-                  type="button"
-                  onClick={incrementalEngine?.play}
-                  disabled={incrementalEngine?.isRunning}
-                  title="Play"
-                >
-                  Play
-                </button>
-                <button
-                  type="button"
-                  onClick={incrementalEngine?.pause}
-                  disabled={!incrementalEngine?.isRunning}
-                  title="Pause"
-                >
-                  Pause
-                </button>
+
+                {!incrementalEngine.isRunning ? (
+                  <button
+                    type="button"
+                    onClick={incrementalEngine?.play}
+                    disabled={incrementalEngine?.isRunning}
+                    title="Play"
+                  >
+                    Play
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={incrementalEngine?.pause}
+                    disabled={!incrementalEngine?.isRunning}
+                    title="Pause"
+                  >
+                    Pause
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={incrementalEngine?.continue}
@@ -675,7 +718,7 @@ const GraphicsRenko = () => {
                 >
                   Reset
                 </button>
-                 <span className='separates-speed'>--</span>
+                <span className='separates-speed'>--</span>
                 <button
                   type="button"
                   onClick={decreaseSimulationSpeed}
@@ -695,15 +738,9 @@ const GraphicsRenko = () => {
                 </button>
               </div>
             }
-            {loading && mode === "simulation" &&
+            {!loading && mode === "simulation" &&
               <div className='simulation-control'>
-                <button>⏯️</button>
-                <button>⏸️</button>
-                <button>▶️</button>
-                <span className='separates-speed'>--</span>
-                <button>-</button>
-                <button>+</button>
-                <button>🔄</button>
+                Please select another asset or download the date range.
               </div>
             }
           </div>
@@ -712,6 +749,7 @@ const GraphicsRenko = () => {
               Waiting for enough movement to form the blocks.
             </div>
           )}
+
         </div>
 
         <aside className="graphics-renko__indicators" aria-label="Graficos dos indicadores do ativo selecionado">

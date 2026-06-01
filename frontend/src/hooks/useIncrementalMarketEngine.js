@@ -221,12 +221,27 @@ export const useIncrementalMarketEngine = ({
   const maxCursorRef = React.useRef(0)
   const timerRef = React.useRef(null)
   const speedRef = React.useRef(initialSpeed)
+  const statusRef = React.useRef('idle')
 
   const [snapshot, setSnapshot] = React.useState(() => buildSnapshot(DEFAULT_FEEDS, 0, maxSnapshotPoints))
   const [status, setStatus] = React.useState('idle')
   const [cursor, setCursor] = React.useState(0)
   const [maxCursor, setMaxCursor] = React.useState(0)
   const [speed, setSpeedState] = React.useState(initialSpeed)
+
+  const setEngineStatus = React.useCallback((nextStatus) => {
+    if (typeof nextStatus === 'function') {
+      setStatus((currentStatus) => {
+        const resolvedStatus = nextStatus(currentStatus)
+        statusRef.current = resolvedStatus
+        return resolvedStatus
+      })
+      return
+    }
+
+    statusRef.current = nextStatus
+    setStatus(nextStatus)
+  }, [])
 
   const stopTimer = React.useCallback(() => {
     if (timerRef.current) {
@@ -243,8 +258,8 @@ export const useIncrementalMarketEngine = ({
 
   const pause = React.useCallback(() => {
     stopTimer()
-    setStatus(current => current === 'completed' ? current : 'paused')
-  }, [stopTimer])
+    setEngineStatus(current => current === 'completed' ? current : 'paused')
+  }, [setEngineStatus, stopTimer])
 
   const tick = React.useCallback(() => {
     const nextCursor = Math.min(cursorRef.current + 1, maxCursorRef.current)
@@ -252,15 +267,15 @@ export const useIncrementalMarketEngine = ({
 
     if (nextCursor >= maxCursorRef.current) {
       stopTimer()
-      setStatus('completed')
+      setEngineStatus('completed')
     }
-  }, [publishCursor, stopTimer])
+  }, [publishCursor, setEngineStatus, stopTimer])
 
   const play = React.useCallback(() => {
     stopTimer()
 
     if (maxCursorRef.current <= 0) {
-      setStatus('idle')
+      setEngineStatus('idle')
       return
     }
 
@@ -268,15 +283,15 @@ export const useIncrementalMarketEngine = ({
       publishCursor(0)
     }
 
-    setStatus('running')
+    setEngineStatus('running')
     timerRef.current = setInterval(tick, speedRef.current)
-  }, [publishCursor, stopTimer, tick])
+  }, [publishCursor, setEngineStatus, stopTimer, tick])
 
   const reset = React.useCallback(() => {
     stopTimer()
     publishCursor(0)
-    setStatus('idle')
-  }, [publishCursor, stopTimer])
+    setEngineStatus('idle')
+  }, [publishCursor, setEngineStatus, stopTimer])
 
   const loadSources = React.useCallback((nextSources, options = {}) => {
     stopTimer()
@@ -290,40 +305,48 @@ export const useIncrementalMarketEngine = ({
     maxCursorRef.current = nextMaxCursor
     setMaxCursor(nextMaxCursor)
     publishCursor(0)
-    setStatus(nextMaxCursor > 0 ? 'ready' : 'idle')
+    setEngineStatus(nextMaxCursor > 0 ? 'ready' : 'idle')
 
     if (options.autoStart && nextMaxCursor > 0) {
       setTimeout(play, 0)
     }
-  }, [play, publishCursor, stopTimer])
+  }, [play, publishCursor, setEngineStatus, stopTimer])
 
   const updateSources = React.useCallback((nextSources, options = {}) => {
-    const wasRunning = timerRef.current != null || status === 'running'
-    const wasCompleted = status === 'completed'
+    const previousMaxCursor = maxCursorRef.current
+    const previousCursor = cursorRef.current
+    const wasFollowingLatest = previousMaxCursor > 0 && previousCursor >= previousMaxCursor
+    const wasRunning = timerRef.current != null || statusRef.current === 'running'
+    const wasCompleted = statusRef.current === 'completed'
 
     sourcesRef.current = mergeSources(sourcesRef.current, nextSources)
 
     const nextMaxCursor = getMaxCursor(sourcesRef.current)
     maxCursorRef.current = nextMaxCursor
     setMaxCursor(nextMaxCursor)
-    publishCursor(Math.min(cursorRef.current, nextMaxCursor))
+
+    const nextCursor = options.followLatest && wasFollowingLatest
+      ? nextMaxCursor
+      : Math.min(cursorRef.current, nextMaxCursor)
+
+    publishCursor(nextCursor)
 
     if (nextMaxCursor <= 0) {
-      setStatus('idle')
+      setEngineStatus('idle')
       return
     }
 
-    if (wasCompleted && cursorRef.current < nextMaxCursor) {
-      setStatus('ready')
+    if (wasCompleted && nextCursor < nextMaxCursor) {
+      setEngineStatus('ready')
     }
 
     if (options.autoContinue && (wasRunning || wasCompleted)) {
-      setStatus('running')
+      setEngineStatus('running')
       if (!timerRef.current) {
         timerRef.current = setInterval(tick, speedRef.current)
       }
     }
-  }, [publishCursor, status, tick])
+  }, [publishCursor, setEngineStatus, tick])
 
   const setSpeed = React.useCallback((nextSpeed) => {
     const parsedSpeed = Number(nextSpeed)
@@ -336,10 +359,10 @@ export const useIncrementalMarketEngine = ({
 
     if (timerRef.current) {
       stopTimer()
-      setStatus('running')
+      setEngineStatus('running')
       timerRef.current = setInterval(tick, normalizedSpeed)
     }
-  }, [initialSpeed, stopTimer, tick])
+  }, [initialSpeed, setEngineStatus, stopTimer, tick])
 
   React.useEffect(() => {
     return () => stopTimer()
