@@ -1,4 +1,3 @@
-// operatingData.js
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 // Função para normalizar os dados de tendência, 
@@ -31,9 +30,8 @@ const normalizeTrendGroups = (trend) => {
 
 // Algoritimo de operações 
 // Estado para armazenar o último topo anterior
-export const useOperatingData = (trend) => {
-  const [retestPointsState, setRetestPointsState] = useState([]);
-
+export const useOperatingDataPrymary = (trendPrimary) => {
+  const [retestPointsStatePrimary , setRetestPointsStatePrimary] = useState([]);
 
   // variaveis para evitar reprocessamento
   const lastTrendRetestIdRef = useRef(null);
@@ -52,7 +50,7 @@ export const useOperatingData = (trend) => {
   const symbolStateRef = useRef({}); // estado isolado por símbolo
 
   // Normaliza os dados de tendência para garantir um formato consistente
-  const trendGroups = useMemo(() => normalizeTrendGroups(trend), [trend]);
+  const trendGroups = useMemo(() => normalizeTrendGroups(trendPrimary), [trendPrimary]);
 
 
   useEffect(() => {
@@ -116,30 +114,57 @@ export const useOperatingData = (trend) => {
           ? points
           : [{ name: "symbol", value: symbol }, ...points];
 
+        // Função de normalização melhorada com arredondamento a 4 casas decimais (não 8)
+        // para evitar problemas de precisão
         const normalizeOperationValue = (value) => {
           const numberValue = Number(value);
 
           if (Number.isFinite(numberValue)) {
-            return numberValue.toFixed(8);
+            // Arredondar para 4 casas decimais para evitar variações mínimas
+            return Math.round(numberValue * 10000) / 10000;
           }
 
           return String(value || "").trim();
         };
 
-        // Gerar um ID único para a operação com base no símbolo, tipo, lado e valores relevantes
+        // Gerar um ID único com mais informações para evitar duplicatas
         const operationType = operation.find(item => item?.name === "type");
         const operationSide = operation.find(item => item?.name === "buy" || item?.name === "sell");
         const operationStop = operation.find(item => item?.name === "stop");
+        const operationTime = operation.find(item => item?.name === "time");
+        
+        // ID inclui: símbolo + tipo + lado + preço de entrada + preço de stop + tempo
+        // Isso garante que a mesma operação no mesmo tempo não seja duplicada
         const operationId = [
           symbol,
           operationType?.value,
           operationSide?.name,
           normalizeOperationValue(operationSide?.value),
           normalizeOperationValue(operationStop?.value),
+          operationTime?.value, // Incluir tempo para garantir unicidade
         ].join("|");
 
         const symbolHistory = nextRetestHistory[symbol] || [];
-        const alreadyExists = symbolHistory.some(item => item.id === operationId);
+        
+        // Verificação melhorada: checa se já existe uma operação praticamente idêntica
+        const alreadyExists = symbolHistory.some(item => {
+          // Comparar IDs exatos para evitar duplicatas perfeitas
+          if (item.id === operationId) return true;
+          
+          // Comparação secundária: mesmo tipo, lado, e valores aproximados
+          const existingOp = item.operation;
+          const existingType = existingOp.find(i => i?.name === "type");
+          const existingSide = existingOp.find(i => i?.name === "buy" || i?.name === "sell");
+          const existingEntry = existingOp.find(i => i?.name === "buy" || i?.name === "sell");
+          const existingStop = existingOp.find(i => i?.name === "stop");
+          
+          const isSameType = existingType?.value === operationType?.value;
+          const isSameSide = existingSide?.name === operationSide?.name;
+          const isSameEntry = normalizeOperationValue(existingEntry?.value) === normalizeOperationValue(operationSide?.value);
+          const isSameStop = normalizeOperationValue(existingStop?.value) === normalizeOperationValue(operationStop?.value);
+          
+          return isSameType && isSameSide && isSameEntry && isSameStop;
+        });
 
         if (!alreadyExists) {
           nextRetestHistory[symbol] = [
@@ -149,6 +174,11 @@ export const useOperatingData = (trend) => {
               operation,
             },
           ];
+          // Debug: log de nova operação adicionada
+          console.log(`✅ Operação adicionada [${symbol}]: ${operationType?.value} - ${operationSide?.name} @ ${normalizeOperationValue(operationSide?.value)}`);
+        } else {
+          // Debug: log de duplicata evitada
+          console.log(`🚫 Duplicata evitada [${symbol}]: ${operationType?.value} - ${operationSide?.name} @ ${normalizeOperationValue(operationSide?.value)}`);
         }
       };
 
@@ -232,7 +262,6 @@ export const useOperatingData = (trend) => {
               limite: movement.limite,
               index: i
             };
-            setRetestPoints([]) // reseta os pontos
             break;
           };
           // Quando já encontrou uma reação natural, procura o último fundo de baixa
@@ -244,7 +273,6 @@ export const useOperatingData = (trend) => {
               limite: movement.limite,
               index: i
             };
-            setRetestPoints([]) // reseta os pontos
             break;
           }
         };
@@ -291,7 +319,6 @@ export const useOperatingData = (trend) => {
               limite: movement.limite,
               index: i
             };
-            setRetestPoints([]) // reseta os pontos
             break;
           };
           // encontrar Rally secundário
@@ -303,7 +330,6 @@ export const useOperatingData = (trend) => {
               limite: movement.limite,
               index: i
             };
-            setRetestPoints([]) // reseta os pontos
             encontrouRallySecundaria = true;
             continue;
           };
@@ -390,7 +416,6 @@ export const useOperatingData = (trend) => {
               limite: movement.limite,
               index: i
             };
-            setRetestPoints([])
             break;
           }
         }
@@ -987,104 +1012,16 @@ export const useOperatingData = (trend) => {
       };
     });
     retestHistoryRef.current = nextRetestHistory;
-    setRetestPointsState(
-      Object.entries(nextRetestHistory).map(([symbol, history]) => ({
-        symbol,
-        operations: history.map(item => item.operation),
-      }))
-    );
+    
+    // Log detalhado de operações para debug
+    const operationsArray = Object.entries(nextRetestHistory).map(([symbol, history]) => ({
+      symbol,
+      operations: history.map(item => item.operation),
+    }));
+    
+    setRetestPointsStatePrimary(operationsArray);
   },
     [trendGroups]);
-  console.log("COMPRA OU VENDA >>", retestPointsState);
-  return { retestPointsState };
+  console.log("📊 Operações por símbolo primary:",retestPointsStatePrimary);
+  return { retestPointsStatePrimary  };
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// dados de exemplo para teste
-export const mockStats = {
-  winRate: 60.5,
-  totalOperations: 142,
-  totalWins: 97,
-  totalLosses: 45,
-  netProfit: 3200.50,
-  netProfitPercent: 32.0,
-  averageWin: 125.00,
-  averageLoss: 68.00,
-  payoffRatio: 1.84,
-  profitFactor: 1.65,
-  expectedValue: 48.74,
-  maxDrawdown: 4.8,
-  maxConsecutiveWins: 8,
-  maxConsecutiveLosses: 4,
-  averageHoldingTime: "42m",
-};
-
-export const mockProbabilityDistribution = [
-  { range: "<-2%", count: 5, percentage: 3.5 },
-  { range: "-2% a -1%", count: 12, percentage: 8.4 },
-  { range: "-1% a 0%", count: 28, percentage: 19.7 },
-  { range: "0% a 1%", count: 45, percentage: 31.7 },
-  { range: "1% a 2%", count: 37, percentage: 26.0 },
-  { range: ">2%", count: 15, percentage: 10.7 },
-];
-
-export const mockCapitalEvolution = [
-  { time: '2026-05-01', value: 10000 },
-  { time: '2026-05-02', value: 10250 },
-  { time: '2026-05-03', value: 10120 },
-  { time: '2026-05-06', value: 10450 },
-  { time: '2026-05-07', value: 10800 },
-  { time: '2026-05-08', value: 10650 },
-  { time: '2026-05-09', value: 11100 },
-  { time: '2026-05-12', value: 11400 },
-  { time: '2026-05-13', value: 11250 },
-  { time: '2026-05-14', value: 11950 },
-  { time: '2026-05-15', value: 12300 },
-  { time: '2026-05-16', value: 12100 },
-  { time: '2026-05-19', value: 12650 },
-  { time: '2026-05-20', value: 13200 },
-];
-
-export const mockLastOperations = [
-  [
-    { name: "symbol", value: "BTCUSDT" },
-    { name: "pivo", value: 124.50 },
-    { name: "time", value: "2026-05-20 14:35:00" },
-    { name: "buy", value: 124.65 },
-    { name: "stop", value: 123.10 },
-    { name: "type", value: "pivotBreak-buy" }
-  ],
-  [
-    { name: "symbol", value: "ETHUSDT" },
-    { name: "pivo", value: 3110.00 },
-    { name: "time", value: "2026-05-20 15:10:00" },
-    { name: "buy", value: 3115.50 },
-    { name: "stop", value: 3080.00 },
-    { name: "type", value: "pivotBreak-buy" }
-  ],
-];

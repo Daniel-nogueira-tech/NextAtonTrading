@@ -6,7 +6,8 @@ import { CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, cre
 import { Calendar } from 'primereact/calendar';
 import { Button } from 'primereact/button';
 import MovementTables from '../MovementTables/MovementTables.jsx';
-import { useOperatingData } from '../OperatingPanel/operatingData.js';
+import { useOperatingData } from '../OperatingData/operatingData.js';
+import { useOperatingDataPrymary } from '../OperationDataPrimary/operationDataPrimary.js';
 
 const UP_COLOR = '#22AB94'
 const DOWN_COLOR = '#fc5b5b'
@@ -352,7 +353,7 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
 }
 
 const GraphicsRenko = () => {
-  const { trend, activeSymbol, rsi, vppr, setMode, mode, dateToSimulation, download, setDownload, loading, movementTables, setMovementTables, incrementalEngine } = React.useContext(ContextGraphics)
+  const { trend, trendPrimary, activeSymbol, rsi, vppr, setMode, mode, dateToSimulation, download, setDownload, loading, movementTables, setMovementTables, incrementalEngine } = React.useContext(ContextGraphics)
   const chartContainerRef = React.useRef(null);
   const chartRef = React.useRef(null);
   const candlestickSeriesRef = React.useRef(null);
@@ -363,8 +364,10 @@ const GraphicsRenko = () => {
   const [dateErro, setDateErro] = React.useState(null);
 
   const { retestPointsState } = useOperatingData(trend);
-  console.log(retestPointsState);
+  const { retestPointsStatePrimary } = useOperatingDataPrymary(trendPrimary);
 
+  console.log(">>>",trend);
+  
 
   // seleciona o ativo que está ativo
   const selectedMarket = React.useMemo(() => {

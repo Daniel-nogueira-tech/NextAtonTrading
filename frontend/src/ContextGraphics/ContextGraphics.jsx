@@ -27,7 +27,7 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [fullSources, setFullSources] = React.useState(null);
 
     const incrementalEngine = useIncrementalMarketEngine({
-        initialSpeed: mode === 'simulation' ? 500 : 100,
+        initialSpeed: mode === 'simulation' ? 500 : 50,
         maxSnapshotPoints: 1200,
     });
     const {

@@ -96,7 +96,7 @@ def calculate_atr_wilder_from_data(data, period=182):
 
 
 # Função principal para obter as clarificações de tendência usando ATR
-def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
+def _trend_clarifications_atr_single(symbol, time, mode , total = 2000):
     print(f"Calculating trend clarifications for {symbol} with time {time} and mode {mode}")
     #  Busca os klines na Binance
     try:
@@ -138,7 +138,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    verify_time_multiply = 5
+    verify_time_multiply = 4
 
     # Define os limites com base no ATR e no multiplicador de tempo
     atr_mult = atrs[-1] * verify_time_multiply
