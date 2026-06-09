@@ -6,8 +6,10 @@ import { CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, cre
 import { Calendar } from 'primereact/calendar';
 import { Button } from 'primereact/button';
 import MovementTables from '../MovementTables/MovementTables.jsx';
-import { useOperatingData } from '../OperatingData/operatingData.js';
-import { useOperatingDataPrymary } from '../OperationDataPrimary/operationDataPrimary.js';
+import { useOperatingData } from '../../OperatingData/operatingData.js';
+import { useOperatingDataPrymary } from '../../OperationDataPrimary/operationDataPrimary.js';
+import {  useVpprData } from '../../OperationDataVppr/operationDataVppr.js';
+
 
 const UP_COLOR = '#22AB94'
 const DOWN_COLOR = '#fc5b5b'
@@ -365,9 +367,8 @@ const GraphicsRenko = () => {
 
   const { retestPointsState } = useOperatingData(trend);
   const { retestPointsStatePrimary } = useOperatingDataPrymary(trendPrimary);
+  const { vpprData } = useVpprData(vppr);
 
-  console.log(">>>",trend);
-  
 
   // seleciona o ativo que está ativo
   const selectedMarket = React.useMemo(() => {
@@ -682,7 +683,7 @@ const GraphicsRenko = () => {
                 Pause
               </button>
             )}
-            {loading && mode === "simulation" &&
+            {!loading && mode === "simulation" &&
 
               <div className='simulation-control'>
 

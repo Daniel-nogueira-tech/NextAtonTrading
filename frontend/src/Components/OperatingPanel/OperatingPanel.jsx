@@ -7,7 +7,7 @@ import {
   mockProbabilityDistribution,
   mockCapitalEvolution,
   mockLastOperations
-} from '../OperatingData/operatingData.js';
+} from '../../OperatingData/operatingData.js';
 
 import './OperatingPanel.css';
 

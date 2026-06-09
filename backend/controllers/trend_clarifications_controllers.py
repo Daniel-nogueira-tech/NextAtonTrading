@@ -137,7 +137,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    verify_time_multiply = 5
+    verify_time_multiply = 3
 
     # Define os limites com base no ATR e no multiplicador de tempo
     atr_mult = atrs[-1] * verify_time_multiply

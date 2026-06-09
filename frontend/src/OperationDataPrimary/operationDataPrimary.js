@@ -174,8 +174,7 @@ export const useOperatingDataPrymary = (trendPrimary) => {
               operation,
             },
           ];
-          // Debug: log de nova operação adicionada
-          console.log(`✅ Operação adicionada [${symbol}]: ${operationType?.value} - ${operationSide?.name} @ ${normalizeOperationValue(operationSide?.value)}`);
+         
         } else {
           // Debug: log de duplicata evitada
           console.log(`🚫 Duplicata evitada [${symbol}]: ${operationType?.value} - ${operationSide?.name} @ ${normalizeOperationValue(operationSide?.value)}`);
@@ -1022,6 +1021,5 @@ export const useOperatingDataPrymary = (trendPrimary) => {
     setRetestPointsStatePrimary(operationsArray);
   },
     [trendGroups]);
-  console.log("📊 Operações por símbolo primary:",retestPointsStatePrimary);
   return { retestPointsStatePrimary  };
 }

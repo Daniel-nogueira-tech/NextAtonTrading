@@ -80,7 +80,6 @@ export const ContextGraphicsProvider = ({ children }) => {
                 active
             })
             marketData()
-            console.log('Symbol added successfully:', response.data)
         } catch (error) {
             console.error('Error adding symbol:', error)
         }
@@ -98,7 +97,6 @@ export const ContextGraphicsProvider = ({ children }) => {
             // pegar apenas os símbolos ativos para a barra de navegação
             const activeSymbols = symbols.filter(s => s.active).map(s => s.symbol)
             setActiveSymbol(...activeSymbols);
-            console.log('Symbols fetched successfully:', response.data)
         } catch (error) {
             console.error('Error fetching symbols:', error)
         }
@@ -114,7 +112,6 @@ export const ContextGraphicsProvider = ({ children }) => {
             setActiveSymbol(symbol)
             const response = await axios.post(`${urlBackend}/api/activate-symbol`, { symbol: symbol })
             getSymbols() // Atualiza a lista de símbolos após a atualização do status
-            console.log('Symbol status updated successfully:', response.data)
         } catch (error) {
             console.error('Error updating symbol status:', error)
         }
@@ -143,7 +140,6 @@ export const ContextGraphicsProvider = ({ children }) => {
                 "dateStart": dateStart,
                 "dateEnd": dateEnd
             })
-            console.log(response.data.mensagem);
             setDownload(false);
             setLoading(true)
             await marketData()

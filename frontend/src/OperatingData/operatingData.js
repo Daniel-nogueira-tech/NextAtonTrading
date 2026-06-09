@@ -133,7 +133,7 @@ export const useOperatingData = (trend) => {
         const operationSide = operation.find(item => item?.name === "buy" || item?.name === "sell");
         const operationStop = operation.find(item => item?.name === "stop");
         const operationTime = operation.find(item => item?.name === "time");
-        
+
         // ID inclui: símbolo + tipo + lado + preço de entrada + preço de stop + tempo
         // Isso garante que a mesma operação no mesmo tempo não seja duplicada
         const operationId = [
@@ -146,24 +146,24 @@ export const useOperatingData = (trend) => {
         ].join("|");
 
         const symbolHistory = nextRetestHistory[symbol] || [];
-        
+
         // Verificação melhorada: checa se já existe uma operação praticamente idêntica
         const alreadyExists = symbolHistory.some(item => {
           // Comparar IDs exatos para evitar duplicatas perfeitas
           if (item.id === operationId) return true;
-          
+
           // Comparação secundária: mesmo tipo, lado, e valores aproximados
           const existingOp = item.operation;
           const existingType = existingOp.find(i => i?.name === "type");
           const existingSide = existingOp.find(i => i?.name === "buy" || i?.name === "sell");
           const existingEntry = existingOp.find(i => i?.name === "buy" || i?.name === "sell");
           const existingStop = existingOp.find(i => i?.name === "stop");
-          
+
           const isSameType = existingType?.value === operationType?.value;
           const isSameSide = existingSide?.name === operationSide?.name;
           const isSameEntry = normalizeOperationValue(existingEntry?.value) === normalizeOperationValue(operationSide?.value);
           const isSameStop = normalizeOperationValue(existingStop?.value) === normalizeOperationValue(operationStop?.value);
-          
+
           return isSameType && isSameSide && isSameEntry && isSameStop;
         });
 
@@ -175,8 +175,6 @@ export const useOperatingData = (trend) => {
               operation,
             },
           ];
-          // Debug: log de nova operação adicionada
-          console.log(`✅ Operação adicionada [${symbol}]: ${operationType?.value} - ${operationSide?.name} @ ${normalizeOperationValue(operationSide?.value)}`);
         } else {
           // Debug: log de duplicata evitada
           console.log(`🚫 Duplicata evitada [${symbol}]: ${operationType?.value} - ${operationSide?.name} @ ${normalizeOperationValue(operationSide?.value)}`);
@@ -582,7 +580,7 @@ export const useOperatingData = (trend) => {
        * ////////////////////////////////////////////////////////////////////////////////
        ------------------------------------------------------------------------------------*/
 
- 
+
       /**-------------------------------------------------------------------------------
        *           Verifica se o pivô é repetido e iguinora se for repetido
        ---------------------------------------------------------------------------------*/
@@ -625,7 +623,7 @@ export const useOperatingData = (trend) => {
           pivotBreak.closePrice !== state.enteringTheTrendUpdate.closePrice ||
           pivotBreak.index !== state.enteringTheTrendUpdate.index;
         if (isNewTrend) {
-          state.enteringTheTrendUpdate =pivotBreak;
+          state.enteringTheTrendUpdate = pivotBreak;
         } else {
           console.log("enteringTheTrendUpdate-ignorando repetição");
         };
@@ -1013,22 +1011,21 @@ export const useOperatingData = (trend) => {
       };
     });
     retestHistoryRef.current = nextRetestHistory;
-    
+
     // Log detalhado de operações para debug
     const operationsArray = Object.entries(nextRetestHistory).map(([symbol, history]) => ({
       symbol,
       operations: history.map(item => item.operation),
     }));
-    
+
     setRetestPointsState(operationsArray);
-  },
-    [trendGroups]);
-  console.log("📊 Operações por símbolo:",retestPointsState);
+  }, [trendGroups]);
+  console.log("📊 Operações por símbolo:", retestPointsState);
   return { retestPointsState };
 }
 
 
-
+// ============================ /Indicador vppr/ ============================ //
 
 
 
