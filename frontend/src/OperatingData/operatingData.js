@@ -177,7 +177,7 @@ export const useOperatingData = (trend) => {
           ];
         } else {
           // Debug: log de duplicata evitada
-          console.log(`🚫 Duplicata evitada [${symbol}]: ${operationType?.value} - ${operationSide?.name} @ ${normalizeOperationValue(operationSide?.value)}`);
+          //console.log(`🚫 Duplicata evitada [${symbol}]: ${operationType?.value} - ${operationSide?.name} @ ${normalizeOperationValue(operationSide?.value)}`);
         }
       };
 
@@ -1020,7 +1020,7 @@ export const useOperatingData = (trend) => {
 
     setRetestPointsState(operationsArray);
   }, [trendGroups]);
-  console.log("📊 Operações por símbolo:", retestPointsState);
+
   return { retestPointsState };
 }
 

@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-// Função para normalizar dados de Vppr (mantida)
 const normalizeVpprData = (vppr) => {
     if (!vppr) return [];
-
     const collection = vppr?.data ?? vppr;
     const groups = Array.isArray(collection) ? collection : [collection];
 
@@ -38,29 +36,23 @@ export const useVpprData = (vppr) => {
         vpprGroups.forEach(({ symbol, result }) => {
             if (!result?.length) return;
 
-            // 🔥 CORREÇÃO 1: Usar newItems e atualizar timestamp
             const lastTime = lastTimestampRef.current[symbol] || 0;
             const newItems = result.filter(item => new Date(item.time).getTime() > lastTime);
 
             if (newItems.length === 0) return;
 
-            // Atualiza o último timestamp processado
-            const lastNewItemTime = newItems[newItems.length - 1].time;
-            lastTimestampRef.current[symbol] = new Date(lastNewItemTime).getTime();
+            const latestTime = Math.max(...newItems.map(item => new Date(item.time).getTime()));
+            lastTimestampRef.current[symbol] = latestTime;
 
-            // Inicializa estado por símbolo
             if (!symbolsStateRef.current[symbol]) {
                 symbolsStateRef.current[symbol] = {
                     lastSignalState: null,
                     lastVppr: null,
-                    currentSignalState: null,
-                    trendUp: false,
-                    trendDown: false,
+                    vpprHistory: [],        // Guarda últimos 8 valores para análise
                 };
             }
             const state = symbolsStateRef.current[symbol];
 
-            // 🔥 CORREÇÃO 2: Usar newItems em vez de result
             newItems.forEach((item) => {
                 if (!item?.time || typeof item.vppr === 'undefined' || typeof item.vppr_ema === 'undefined') return;
 
@@ -69,84 +61,94 @@ export const useVpprData = (vppr) => {
 
                 if (!Number.isFinite(vppr) || !Number.isFinite(vpprEma)) return;
 
-                // ====================== BANDAS ======================
-                const percentage = Math.abs(vpprEma) * 0.05;
+                // Atualiza histórico local dos últimos 8 valores
+                state.vpprHistory.push({ vppr, time: item.time, vpprEma });
+                if (state.vpprHistory.length > 8) state.vpprHistory.shift();
+
+                // ====================== BANDAS DE TENDÊNCIA ======================
+                const percentage = Math.abs(vpprEma) * 0.08;
                 const bandTop = vpprEma + percentage;
                 const bandBottom = vpprEma - percentage;
 
-                // ====================== DETERMINAÇÃO DO ESTADO ATUAL ======================
-                vppr > 0 ? state.trendUp = true : state.trendDown = true;
+                let currentTrend = null;
+                if (vppr > bandTop) currentTrend = 'TREND_BUY';
+                else if (vppr < bandBottom) currentTrend = 'TREND_SELL';
 
-                if (vppr > bandTop) {
-                    state.currentSignalState = 'TREND_BUY';
-                    state.trendDown = false;
-                } else if (vppr < bandBottom) {
-                    state.currentSignalState = 'TREND_SELL';
-                    state.trendUp = false;
+                // ====================== DETECÇÃO DE ACUMULAÇÃO ======================
+                let accumulationSignal = null;
+
+                if (state.vpprHistory.length >= 7) {
+                    const recent = state.vpprHistory.slice(-7);
+                    const values = recent.map(x => x.vppr);
+
+                    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+                    const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / values.length;
+                    const stdDev = Math.sqrt(variance);
+
+                    const slope = (values[values.length - 1] - values[0]) / (values.length - 1); // tendência simples
+
+                    const volatilityThreshold = Math.abs(mean) * 0.08; // 8% da média
+
+                    // Acumulação = baixa volatilidade + movimento lateral fraco
+                    if (stdDev < volatilityThreshold && Math.abs(slope) < volatilityThreshold * 0.5) {
+                        const direction = slope > 0 ? 'BULLISH' : 'BEARISH';
+                        accumulationSignal = `Accumulation ${direction}`;
+                    }
                 }
 
+                // ====================== GERAÇÃO DE SINAIS ======================
+                const signalsToAdd = [];
 
-                // ====================== GERAÇÃO DE SINAL ======================
-                const shouldGenerateSignal =
-                    state.currentSignalState !== null &&
-                    state.currentSignalState !== state.lastSignalState;
+                // Sinal de Tendência
+                if (currentTrend && currentTrend !== state.lastSignalState) {
+                    signalsToAdd.push({
+                        type: currentTrend === 'TREND_BUY' ? 'Trend Buy' : 'Trend Sell',
+                        side: currentTrend === 'TREND_BUY' ? 'buy' : 'sell',
+                        value: vppr
+                    });
+                }
 
-                if (shouldGenerateSignal) {
-                    let signalType = '';
-                    let signalSide = '';
+                // Sinal de Acumulação
+                if (accumulationSignal && accumulationSignal !== state.lastSignalState) {
+                    signalsToAdd.push({
+                        type: accumulationSignal,
+                        side: accumulationSignal.includes('BULLISH') ? 'buy' : 'sell',
+                        value: vppr
+                    });
+                }
 
-                    switch (state.currentSignalState) {
-                        case 'TREND_BUY':
-                            signalType = 'Trend Buy';
-                            signalSide = 'buy';
-                            break;
-                        case 'TREND_SELL':
-                            signalType = 'Trend Sell';
-                            signalSide = 'sell';
-                            break;
-                    }
+                signalsToAdd.forEach(({ type, side, value }) => {
+                    const signalId = `${symbol}|${type}|${item.time}`;
 
-                    // Verifica se o último sinal já é do mesmo tipo
-                    const lastSignalsForSymbol = nextVpprHistory[symbol];
-                    let lastType = null;
-                    if (lastSignalsForSymbol && lastSignalsForSymbol.length > 0) {
-                        const lastSignalObj = lastSignalsForSymbol[lastSignalsForSymbol.length - 1];
-                        const typeField = lastSignalObj.signals.find(s => s.name === 'type');
-                        lastType = typeField ? typeField.value : null;
-                    }
+                    if (!nextVpprHistory[symbol]) nextVpprHistory[symbol] = [];
 
-                    // Só adiciona se for um tipo diferente do último
-                    if (lastType !== signalType) {
-                        console.log(`🚀 SINAL GERADO [${symbol}]: ${signalType} | VPPR: ${vppr.toFixed(4)} | EMA: ${vpprEma.toFixed(4)}`);
+                    if (!nextVpprHistory[symbol].some(s => s.id === signalId)) {
+              //          console.log(`🚀 SINAL VPPR [${symbol}]: ${type} | VPPR: ${vppr.toFixed(2)}`);
 
-                        const signalId = `${symbol}|${signalType}|${item.time}`;
+                        nextVpprHistory[symbol].push({
+                            id: signalId,
+                            signals: [
+                                { name: "type", value: type },
+                                { name: side, value: value },
+                                { name: "time", value: item.time },
+                                { name: "vppr", value: vppr },
+                                { name: "vppr_ema", value: vpprEma },
+                            ]
+                        });
 
-                        if (!nextVpprHistory[symbol]) nextVpprHistory[symbol] = [];
-
-                        const alreadyExists = nextVpprHistory[symbol].some(s => s.id === signalId);
-
-                        if (!alreadyExists) {
-                            nextVpprHistory[symbol].push({
-                                id: signalId,
-                                signals: [
-                                    { name: "type", value: signalType },
-                                    { name: signalSide, value: vppr },
-                                    { name: "time", value: item.time },
-                                    { name: "vppr", value: vppr },
-                                    { name: "vppr_ema", value: vpprEma },
-                                ]
-                            });
+                        // Limite de 30 sinais
+                        if (nextVpprHistory[symbol].length > 30) {
+                            nextVpprHistory[symbol] = nextVpprHistory[symbol].slice(-30);
                         }
-
-                        state.lastSignalState = state.currentSignalState;
                     }
-                }
+
+                    state.lastSignalState = type;
+                });
 
                 state.lastVppr = vppr;
             });
         });
 
-        // Atualiza histórico e estado
         vpprHistoryRef.current = nextVpprHistory;
 
         const signalsArray = Object.entries(nextVpprHistory).map(([symbol, signals]) => ({
@@ -155,10 +157,12 @@ export const useVpprData = (vppr) => {
         }));
 
         setVpprData(signalsArray);
-        console.log("vpprData :", vpprData);
 
+        
 
     }, [vpprGroups]);
 
     return { vpprData };
 };
+
+

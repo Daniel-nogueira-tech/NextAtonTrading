@@ -6,9 +6,11 @@ import { CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, cre
 import { Calendar } from 'primereact/calendar';
 import { Button } from 'primereact/button';
 import MovementTables from '../MovementTables/MovementTables.jsx';
-import { useOperatingData } from '../../OperatingData/operatingData.js';
-import { useOperatingDataPrymary } from '../../OperationDataPrimary/operationDataPrimary.js';
-import {  useVpprData } from '../../OperationDataVppr/operationDataVppr.js';
+
+import { useOperatingData } from '../../OperatingData/OperatingData.js';
+import { useOperatingDataPrymary } from '../../OperationDataPrimary/OperationDataPrimary.js';
+import { useVpprData } from '../../OperationDataVppr/OperationDataVppr.js';
+import { useAmrsiData } from '../../OperationDataAmrsi/OperationDataAmrsi.js';
 
 
 const UP_COLOR = '#22AB94'
@@ -368,6 +370,9 @@ const GraphicsRenko = () => {
   const { retestPointsState } = useOperatingData(trend);
   const { retestPointsStatePrimary } = useOperatingDataPrymary(trendPrimary);
   const { vpprData } = useVpprData(vppr);
+  const { amrsiData } = useAmrsiData(rsi);
+ 
+  
 
 
   // seleciona o ativo que está ativo
