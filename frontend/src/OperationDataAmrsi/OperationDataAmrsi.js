@@ -1,4 +1,6 @@
+import { useContext } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ContextGraphics } from '../ContextGraphics/ContextGraphics';
 
 const normalizeAmrsiData = (rsi) => {
     if (!rsi) return [];
@@ -21,7 +23,7 @@ const normalizeAmrsiData = (rsi) => {
 };
 
 export const useAmrsiData = (rsi) => {
-    const [amrsiData, setAmrsiData] = useState([]);
+    const {amrsiData, setAmrsiData} = useContext(ContextGraphics)
 
     const amrsiHistoryRef = useRef({});
     const symbolsStateRef = useRef({});

@@ -1,10 +1,16 @@
 // useOperatingInputs.js
+import { ContextGraphics } from '../ContextGraphics/ContextGraphics';
+import { useEffect, useContext } from 'react';
 
-import { useVpprData } from '../../OperationDataVppr/OperationDataVppr.js';
 
-
-export const useOperatingInputs = ({vppr}) => {
+export const useOperatingInputs = () => {
+    const { retestPointsState, retestPointsStatePrimary, amrsiData, vpprData } = useContext(ContextGraphics)
     // ====================== HOOKS DOS INDICADORES ======================
-     const { vpprData } = useVpprData(vppr);
+    useEffect(() => {
+        console.log(retestPointsState);
+        console.log(retestPointsStatePrimary);
+        console.log(amrsiData);
+        console.log(vpprData);
 
-};
+    }, [])
+};  

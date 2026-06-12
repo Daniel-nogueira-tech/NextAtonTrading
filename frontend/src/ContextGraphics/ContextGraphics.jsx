@@ -26,12 +26,19 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [movementTables, setMovementTables] = React.useState(false);
     const [fullSources, setFullSources] = React.useState(null);
 
+    // Indicadores para operações
+    const [vpprData, setVpprData] = React.useState([]);
+    const [retestPointsStatePrimary, setRetestPointsStatePrimary] = React.useState([]);
+    const [retestPointsState, setRetestPointsState] = React.useState([]);
+    const [amrsiData, setAmrsiData] = React.useState([]);
+
+
     const incrementalEngine = useIncrementalMarketEngine({
         initialSpeed: mode === 'simulation' ? 500 : 50,
         maxSnapshotPoints: 1200,
     });
     const {
-        snapshot,
+        snapshot, 
         status: engineStatus,
         cursor: engineCursor,
         maxCursor: engineMaxCursor,
@@ -258,7 +265,7 @@ export const ContextGraphicsProvider = ({ children }) => {
         loadData()
     }, []);
 
-    
+
     // Configura o refresh automático dos dados a cada 5 minutos no modo real
     React.useEffect(() => {
         if (mode !== 'real') return undefined;
@@ -291,13 +298,15 @@ export const ContextGraphicsProvider = ({ children }) => {
         mode,
         tabs,
         setTabs,
+
         // Seleção de símbolos
         activeSymbol,
         setActiveSymbol,
         addSymbols,
         removeSymbol,
         updateSymbolStatus,
-        // Indicadores 
+
+        // Indicadores simulação
         trend,
         fullTrend: fullSources?.trend ?? trend,
         trendPrimary,
@@ -330,7 +339,21 @@ export const ContextGraphicsProvider = ({ children }) => {
         marketData,
         // tables de movimento
         movementTables,
-        setMovementTables
+        setMovementTables,
+
+        // Indicadores para operações
+        // vppr
+        vpprData,
+        setVpprData,
+        // Classificação primária
+        retestPointsStatePrimary,
+        setRetestPointsStatePrimary,
+        // classificação secundaria
+        retestPointsState,
+        setRetestPointsState,
+        // Amrsi
+        amrsiData,
+        setAmrsiData
     }
 
     return (

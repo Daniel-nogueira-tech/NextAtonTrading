@@ -1,5 +1,7 @@
 // operatingData.js
+import { useContext } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { ContextGraphics } from '../ContextGraphics/ContextGraphics'
 
 // Função para normalizar os dados de tendência, 
 // garantindo que seja sempre um array de grupos de movimentos especificados por símbolo
@@ -32,7 +34,7 @@ const normalizeTrendGroups = (trend) => {
 // Algoritimo de operações 
 // Estado para armazenar o último topo anterior
 export const useOperatingData = (trend) => {
-  const [retestPointsState, setRetestPointsState] = useState([]);
+  const {retestPointsState,setRetestPointsState} = useContext(ContextGraphics)
 
   // variaveis para evitar reprocessamento
   const lastTrendRetestIdRef = useRef(null);

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { ContextGraphics } from '../ContextGraphics/ContextGraphics';
 
 const normalizeVpprData = (vppr) => {
     if (!vppr) return [];
@@ -20,7 +21,7 @@ const normalizeVpprData = (vppr) => {
 };
 
 export const useVpprData = (vppr) => {
-    const [vpprData, setVpprData] = useState([]);
+    const { vpprData, setVpprData } = useContext(ContextGraphics)
 
     const vpprHistoryRef = useRef({});
     const symbolsStateRef = useRef({});
@@ -123,7 +124,7 @@ export const useVpprData = (vppr) => {
                     if (!nextVpprHistory[symbol]) nextVpprHistory[symbol] = [];
 
                     if (!nextVpprHistory[symbol].some(s => s.id === signalId)) {
-              //          console.log(`🚀 SINAL VPPR [${symbol}]: ${type} | VPPR: ${vppr.toFixed(2)}`);
+                        //          console.log(`🚀 SINAL VPPR [${symbol}]: ${type} | VPPR: ${vppr.toFixed(2)}`);
 
                         nextVpprHistory[symbol].push({
                             id: signalId,
@@ -158,7 +159,7 @@ export const useVpprData = (vppr) => {
 
         setVpprData(signalsArray);
 
-        
+
 
     }, [vpprGroups]);
 
