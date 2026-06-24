@@ -15,8 +15,6 @@ const OperatingPanel = () => {
   const { trend, fullTrend } = React.useContext(ContextGraphics);
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
-  
-  const { retestPointsState } = useOperatingData(trend);
 
   // Helper para extrair valor
   const getOpValue = (opArray, key) => {
@@ -75,8 +73,8 @@ const OperatingPanel = () => {
 
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({ 
-          width: chartContainerRef.current.clientWidth 
+        chartRef.current.applyOptions({
+          width: chartContainerRef.current.clientWidth
         });
       }
     };
@@ -97,9 +95,30 @@ const OperatingPanel = () => {
         <p>Performance analysis and quantitative execution metrics.</p>
       </header>
 
-      {/* Stats Grid (mantido igual) */}
+      {/* Grid Principal - Cards de Métricas */}
       <div className="op-stats-grid">
-        {/* ... seus cards de métricas ... */}
+        <div className="op-card">
+          <span className="op-card-title">Taxa de Acerto</span>
+          <div className="op-card-value purple">{mockStats.winRate}%</div>
+          <div className="op-progress-bar-wrapper">
+            <div className="op-progress-bar-fill" style={{ width: `${mockStats.winRate}%` }}></div>
+          </div>
+        </div>
+
+        <div className="op-card">
+          <span className="op-card-title">Total de Operações</span>
+          <div className="op-card-value">{mockStats.totalOperations}</div>
+        </div>
+
+        <div className="op-card">
+          <span className="op-card-title win">Acertos (Wins)</span>
+          <div className="op-card-value green">{mockStats.totalWins}</div>
+        </div>
+
+        <div className="op-card">
+          <span className="op-card-title loss">Erros (Losses)</span>
+          <div className="op-card-value red">{mockStats.totalLosses}</div>
+        </div>
       </div>
 
       {/* Gráficos */}
@@ -137,7 +156,7 @@ const OperatingPanel = () => {
       <div className="op-chart-card">
         <div style={{ marginBottom: '16px' }}>
           <h3 className="op-chart-title">
-            Latest Modulated Operations 
+            Latest Modulated Operations
             <span style={{ fontSize: '0.9rem', color: '#888', marginLeft: '12px' }}>
               ({tableOperations.length} operations)
             </span>
@@ -162,8 +181,8 @@ const OperatingPanel = () => {
                 const type = getOpValue(operation, 'type');
                 const time = getOpValue(operation, 'time');
                 const pivo = getOpValue(operation, 'pivot') || getOpValue(operation, 'pivo');
-                const buy = getOpValue(operation, 'buy' ) || getOpValue(operation, 'buyExit');
-                const sell = getOpValue(operation, 'sell' ) || getOpValue(operation, 'sellExit');
+                const buy = getOpValue(operation, 'buy') || getOpValue(operation, 'buyExit');
+                const sell = getOpValue(operation, 'sell') || getOpValue(operation, 'sellExit');
                 const stop = getOpValue(operation, 'stop');
 
                 const entry = buy !== 'N/A' ? buy : sell;

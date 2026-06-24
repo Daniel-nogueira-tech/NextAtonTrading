@@ -6,7 +6,7 @@ import { ContextGraphics } from '../../ContextGraphics/ContextGraphics'
 import { Link } from 'react-router-dom'
 
 const NavBar = () => {
-    const { addSymbols, tabs, setTabs, removeSymbol, setActiveSymbol,updateSymbolStatus } = React.useContext(ContextGraphics)
+    const { addSymbols, tabs, setTabs, removeSymbol, setActiveSymbol, updateSymbolStatus } = React.useContext(ContextGraphics)
 
 
     const [searchTerm, setSearchTerm] = useState('')
@@ -16,6 +16,8 @@ const NavBar = () => {
     const [newSymbolName, setNewSymbolName] = useState('')
     const searchRef = useRef(null)
     const inputRef = useRef(null)
+
+
 
     // Filtra símbolos baseado no termo de busca
     useEffect(() => {
@@ -100,7 +102,7 @@ const NavBar = () => {
         const activeTab = updatedTabs.find(tab => tab.active)
 
         // Atualiza o status do símbolo no backend;
-        updateSymbolStatus(activeTab.symbol) 
+        updateSymbolStatus(activeTab.symbol)
         // Atualiza as abas no frontend
         setTabs(updatedTabs)
     }
@@ -225,13 +227,13 @@ const NavBar = () => {
 
                 {/* Info do usuário */}
                 <Link to="/OperatingPanel" className="navbar__user-link">
-                <div className="navbar__user">
-                    <div className="navbar__user-avatar">👤</div>
-                    <div className="navbar__user-info">
-                        <span className="navbar__user-name">Trader Pro</span>
-                        <span className="navbar__user-status">Online</span>
+                    <div className="navbar__user">
+                        <div className="navbar__user-avatar">👤</div>
+                        <div className="navbar__user-info">
+                            <span className="navbar__user-name">Trader Pro</span>
+                            <span className="navbar__user-status">Online</span>
+                        </div>
                     </div>
-                </div>
                 </Link>
             </div>
 

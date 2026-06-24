@@ -3,7 +3,7 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from utils.klines import get_klines
 from controllers.symbols_controller import get_stored_symbols
-from controllers.data_to_simulation_controllers import get_klines_data_simulation
+from controllers.data_to_simulation_controllers import get_klines_data_simulation_primary
 
 
 # Funcao para calcular o RSI
@@ -49,7 +49,7 @@ def _get_rsi_single(symbol="BTCUSDT", period=14, media_period=6, mode="", time="
 
     try:
         if mode == "simulation":
-            klines = get_klines_data_simulation(symbol)
+            klines = get_klines_data_simulation_primary(symbol)
         else:
             klines = get_klines(symbol, time)
     except Exception as e:

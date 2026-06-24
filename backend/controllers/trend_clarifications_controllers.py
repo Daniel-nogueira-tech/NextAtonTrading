@@ -11,7 +11,7 @@ def calculate_atr_wilder(symbol, interval="5m", period=182):
     if period is None or period <= 0:
         raise ValueError("period deve ser um número inteiro positivo")
     
-    raw_data = get_klines(symbol, interval, 2000)
+    raw_data = get_klines(symbol, interval, 5000)
     data = sorted(format_raw_data(raw_data), key=lambda x: x["Tempo"])
 
     trs = []
@@ -137,7 +137,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    verify_time_multiply = 3
+    verify_time_multiply = 6
 
     # Define os limites com base no ATR e no multiplicador de tempo
     atr_mult = atrs[-1] * verify_time_multiply

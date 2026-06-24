@@ -1,7 +1,7 @@
 from utils.klines import get_klines,format_raw_data
 from controllers.symbols_controller import get_stored_symbols
 from concurrent.futures import ThreadPoolExecutor
-from controllers.data_to_simulation_controllers import get_klines_data_simulation
+from controllers.data_to_simulation_controllers import get_klines_data_simulation_primary
 
 
 
@@ -9,7 +9,7 @@ from controllers.data_to_simulation_controllers import get_klines_data_simulatio
 def _get_price_data_single(symbol, mode, time="5m", total=5000):
     try:
         if mode == "simulation":
-            klines = get_klines_data_simulation(symbol)
+            klines = get_klines_data_simulation_primary(symbol)
         else:
             klines = get_klines(symbol=symbol, interval=time, total=total)
     except Exception as e:

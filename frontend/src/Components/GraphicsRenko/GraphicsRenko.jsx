@@ -8,9 +8,10 @@ import { Button } from 'primereact/button';
 import MovementTables from '../MovementTables/MovementTables.jsx';
 
 import { useOperatingData } from '../../OperatingData/OperatingData.js';
-import { useOperatingDataPrymary } from '../../OperationDataPrimary/OperationDataPrimary.js';
+import { useOperatingDataPrimary } from '../../OperationDataPrimary/OperationDataPrimary.js';
 import { useVpprData } from '../../OperationDataVppr/OperationDataVppr.js';
 import { useAmrsiData } from '../../OperationDataAmrsi/OperationDataAmrsi.js';
+import { useOperatingInputs } from '../../OperatingInputs/OperatingInputs.js';
 
 
 const UP_COLOR = '#22AB94'
@@ -367,12 +368,13 @@ const GraphicsRenko = () => {
   const [dates, setDates] = React.useState(null);
   const [dateErro, setDateErro] = React.useState(null);
 
+  //===================/ Chama os hooks /===================//
   const { retestPointsState } = useOperatingData(trend);
-  const { retestPointsStatePrimary } = useOperatingDataPrymary(trendPrimary);
+  const { retestPointsStatePrimary } = useOperatingDataPrimary(trendPrimary);
   const { vpprData } = useVpprData(vppr);
   const { amrsiData } = useAmrsiData(rsi);
- 
-  
+  useOperatingInputs();
+  //===================//===================//
 
 
   // seleciona o ativo que está ativo

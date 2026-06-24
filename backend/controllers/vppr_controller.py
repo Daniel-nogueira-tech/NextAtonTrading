@@ -3,7 +3,7 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from utils.klines import get_klines
 from controllers.symbols_controller import get_stored_symbols
-from controllers.data_to_simulation_controllers import get_klines_data_simulation
+from controllers.data_to_simulation_controllers import get_klines_data_simulation_primary
 
 
 def _get_open(kline):
@@ -60,7 +60,7 @@ def _get_vppr_single(symbol, modo="real", time="5m",total=5000):
 
     try:
         if modo == "simulation":
-            klines = get_klines_data_simulation(symbol)
+            klines = get_klines_data_simulation_primary(symbol)
         else:
             klines = get_klines(symbol=symbol, interval=time, total=total)
     except Exception as e:
@@ -75,7 +75,7 @@ def _get_vppr_single(symbol, modo="real", time="5m",total=5000):
     # transforma em Series
     vppr_series = pd.Series(vppr_values)
     # EMA do VPPR
-    vppr_ema = vppr_series.ewm(span=288, adjust=False).mean() # calcula média móvel exponencial com período de 288 (1 dia para gráficos de 5m)
+    vppr_ema = vppr_series.ewm(span=200, adjust=False).mean() # calcula média móvel exponencial com período de 288 (1 dia para gráficos de 5m)
 
     # formatar datas e price
     result = []

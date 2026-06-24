@@ -2,7 +2,7 @@ from utils.klines import get_klines, format_raw_data
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from controllers.symbols_controller import get_stored_symbols
-from controllers.data_to_simulation_controllers import get_klines_data_simulation
+from controllers.data_to_simulation_controllers import get_klines_data_simulation_primary
 
 
 
@@ -11,7 +11,7 @@ def calculate_atr_wilder(symbol, interval="1h", period=182):
     if period is None or period <= 0:
         raise ValueError("period deve ser um número inteiro positivo")
     
-    raw_data = get_klines(symbol, interval, 2000)
+    raw_data = get_klines(symbol, interval, 5000)
     data = sorted(format_raw_data(raw_data), key=lambda x: x["Tempo"])
 
     trs = []
@@ -96,14 +96,14 @@ def calculate_atr_wilder_from_data(data, period=182):
 
 
 # Função principal para obter as clarificações de tendência usando ATR
-def _trend_clarifications_atr_single(symbol, time, mode , total = 2000):
+def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
     print(f"Calculating trend clarifications for {symbol} with time {time} and mode {mode}")
     #  Busca os klines na Binance
     try:
         if mode == "simulation":
             # 🔁 Pega os dados do banco
             try:
-                raw_data = get_klines_data_simulation(symbol)
+                raw_data = get_klines_data_simulation_primary(symbol)
                 print(f"✅ Dados baixados com sucesso: {len(raw_data) if raw_data else 0} registros")
             except Exception as download_e:
                 raise ValueError(f"Não foi possível baixar dados: {str(download_e)}")

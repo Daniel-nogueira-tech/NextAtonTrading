@@ -8,7 +8,10 @@ const normalizeVpprData = (vppr) => {
 
     return groups.flatMap((group, index) => {
         if (Array.isArray(group)) {
-            return [{ symbol: `SYMBOL_${index + 1}`, result: group }];
+            return [{
+                symbol: `SYMBOL_${index + 1}`,
+                result: group
+            }];
         }
         if (Array.isArray(group?.result)) {
             return [{
@@ -67,7 +70,7 @@ export const useVpprData = (vppr) => {
                 if (state.vpprHistory.length > 8) state.vpprHistory.shift();
 
                 // ====================== BANDAS DE TENDÊNCIA ======================
-                const percentage = Math.abs(vpprEma) * 0.08;
+                const percentage = Math.abs(vpprEma) * 0.04;
                 const bandTop = vpprEma + percentage;
                 const bandBottom = vpprEma - percentage;
 
@@ -105,6 +108,7 @@ export const useVpprData = (vppr) => {
                     signalsToAdd.push({
                         type: currentTrend === 'TREND_BUY' ? 'Trend Buy' : 'Trend Sell',
                         side: currentTrend === 'TREND_BUY' ? 'buy' : 'sell',
+                        trend: currentTrend === 'TREND_BUY' ? 'buy' : 'sell',
                         value: vppr
                     });
                 }
@@ -114,11 +118,12 @@ export const useVpprData = (vppr) => {
                     signalsToAdd.push({
                         type: accumulationSignal,
                         side: accumulationSignal.includes('BULLISH') ? 'buy' : 'sell',
+                        trend: currentTrend === 'TREND_BUY' ? 'buy' : 'sell',
                         value: vppr
                     });
                 }
 
-                signalsToAdd.forEach(({ type, side, value }) => {
+                signalsToAdd.forEach(({ type, side, trend, value }) => {
                     const signalId = `${symbol}|${type}|${item.time}`;
 
                     if (!nextVpprHistory[symbol]) nextVpprHistory[symbol] = [];
@@ -130,7 +135,8 @@ export const useVpprData = (vppr) => {
                             id: signalId,
                             signals: [
                                 { name: "type", value: type },
-                                { name: side, value: value },
+                                { name: "trend", value: trend },
+                                { name: "side", value: side},
                                 { name: "time", value: item.time },
                                 { name: "vppr", value: vppr },
                                 { name: "vppr_ema", value: vpprEma },
@@ -158,8 +164,6 @@ export const useVpprData = (vppr) => {
         }));
 
         setVpprData(signalsArray);
-
-
 
     }, [vpprGroups]);
 
