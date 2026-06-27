@@ -60,11 +60,11 @@
 
 .graphics-renko__status,.movementTables button {
   flex: 0 0 auto;
-  padding: 9px 12px;
+  padding: 5px 8px;
   border-radius: 8px;
   background: linear-gradient(135deg, rgba(39, 39, 39, 0.582), rgba(170, 59, 255, 0.082));
   color: var(--renko-text);
-  font-size: 0.86rem;
+  font-size: 0.7rem;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -200,6 +200,22 @@
   background: linear-gradient(135deg, rgba(14, 14, 14, 0.541), rgba(184, 184, 184, 0.233));
 
 }
+.button-graphic{
+  position: absolute;
+  top: 6%;
+}
+.button-graphic button{
+ background-color: #8a5cf646;
+ border: 1px solid #8662db;
+ color: white;
+ padding: 5px;
+ border-radius: 4px;
+ cursor: pointer;
+ transition: 0.5s ease;
+}
+.button-graphic button:hover{
+  background-color: #8662db;
+}
 
 
 /*DATAS*/
@@ -323,4 +339,8 @@
     height: 360px;
     flex-basis: 360px;
   }
+  .button-graphic{
+  position: absolute;
+  top: 10%;
+}
 }

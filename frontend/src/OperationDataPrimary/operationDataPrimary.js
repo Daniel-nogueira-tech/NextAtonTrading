@@ -925,7 +925,7 @@ export const useOperatingDataPrimary = (trend) => {
       if (TrendPivot && naturalRally && canExecuteRallyRef.current && executeTrendRally.current ||
         executeEntrieRally.current || executeTrendRally.current || executeEntrieRallyReverse.current) {
         const limite = TrendPivot.limite;
-        const tolerance = limite / 3;
+        const tolerance = limite / 10;
         const high = TrendPivot.closePrice + tolerance;
         const low = TrendPivot.closePrice - tolerance;
         const sellExit = TrendPivot.closePrice - limite / 2;
@@ -1023,7 +1023,7 @@ export const useOperatingDataPrimary = (trend) => {
       // ===============================
       if (pivoRallySec && rallySecundaria && canExecuteRallySecRef.current && executeEntrieRallySec.current) {
         const limite = pivoRallySec.limite;
-        const tolerance = limite / 3;
+        const tolerance = limite / 10;
         const highExit = pivoRallySec.closePrice + tolerance;
         const lowExit = pivoRallySec.closePrice - tolerance;
         const sellExit = pivoRallySec.closePrice - limite / 2;
@@ -1121,12 +1121,11 @@ export const useOperatingDataPrimary = (trend) => {
       // ===============================
       if (rallySecExit && rallySecundaria && canExecuteRallySecRef.current && executeEntrieRallySec2.current) {
         const limite = rallySecExit.limite;
-        const tolerance = limite / 3;
+        const tolerance = limite / 8;
         const highExit = rallySecExit.closePrice + tolerance;
         const lowExit = rallySecExit.closePrice - tolerance;
         const sellExit = rallySecExit.closePrice - limite / 2;
         const buyExit = rallySecExit.closePrice + limite / 2;
-
 
         const eventId = buildEventId(rallySecExit, rallySecundaria);
         if (eventId && state.lastRallyExitId !== eventId) {

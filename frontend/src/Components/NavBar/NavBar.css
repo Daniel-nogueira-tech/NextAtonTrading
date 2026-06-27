@@ -25,11 +25,12 @@
   top: 0;
   z-index: 100;
 }
-.navbar__logo-text span{
-    background: white;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+
+.navbar__logo-text span {
+  background: white;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* Header */
@@ -162,6 +163,7 @@
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -336,6 +338,12 @@
   color: var(--gray-200);
 }
 
+.navbar__user-link {
+  text-decoration: none;
+  color: inherit;
+  /* mantém a cor do texto herdada */
+}
+
 .navbar__user-status {
   font-size: 0.7rem;
   color: var(--success);
@@ -482,27 +490,55 @@
   background: var(--primary-purple);
 }
 
+/*Botão para mostra ou ocultar barra de ativos*/
+.icon-arrow {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  left: 0;
+  bottom: 0%;
+  z-index: 1;
+  font-size: 15px;
+  border-radius: 4px;
+  margin-left: 5px;
+}
+
+.pi-angle-double-down,
+.pi-angle-double-up {
+  background-color: #7948c941;
+  transition: 0.8s ease;
+}
+
+.pi-angle-double-down:hover,
+.pi-angle-double-up:hover {
+  transform: scale(1.1);
+  background-color: #6a3cb3b2;
+}
+
+
+
 /* Responsividade */
 @media (max-width: 768px) {
   .navbar__header {
     flex-wrap: wrap;
     gap: 1rem;
   }
-  
+
   .navbar__search-container {
     order: 3;
     max-width: 100%;
     margin: 0;
   }
-  
+
   .navbar__user-info {
     display: none;
   }
-  
+
   .navbar__tab {
     min-width: 100px;
   }
-  
+
   .navbar__tab-name {
     display: none;
   }

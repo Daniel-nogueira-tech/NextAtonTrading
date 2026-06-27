@@ -55,7 +55,7 @@ const normalizeItem = (item, keys) => {
 export const useOperatingInputs = () => {
     const { retestPointsState, retestPointsStatePrimary, amrsiData, vpprData, fullPrice } = useContext(ContextGraphics);
 
-    
+
     // ====================== HOOKS DOS INDICADORES ======================
     const trend = useMemo(
         () => normalizeCollection(retestPointsState, "TREND", ["type", "time", "buy", "sell", "stop"], "operations"),
@@ -124,8 +124,10 @@ export const useOperatingInputs = () => {
             const lastAmrsi = lastAmrsiArray[lastAmrsiArray.length - 1];
             const lastVppr = lastVpprArray[lastVpprArray.length - 1];
             const lastPrice = lastPriceArray[lastPriceArray.length - 1];
-
+           
+            console.log('lastTrend:',lastTrend);
             
+          
             // Verifica se os dados necessários existem
             if (!lastTrend || !lastTrendPrimary || !lastPrice) {
                 return;
@@ -133,7 +135,7 @@ export const useOperatingInputs = () => {
 
             let signal = null;
 
-            // Tipos para entrada
+            //🟣 Tipos para entrada
             const TYPE_BUY = ["ENTRY_BUY_TREND", "ENTRY_BUY_RALLY", "ENTRY_BUY_RALLY_SEC"];
             const TYPE_SELL = ["ENTRY_SELL_TREND", "ENTRY_SELL_RALLY", "ENTRY_SELL_RALLY_SEC"];
 
@@ -157,11 +159,11 @@ export const useOperatingInputs = () => {
             console.log(`📊 [${symbol}] Flag Executada:`, flagsBySymbol[symbol].inputExecuted);
             console.log(`📊 [${symbol}] Buy esperado:`, lastTrend?.buy);
             console.log(`📊 [${symbol}] Sell esperado:`, lastTrend?.sell);
-            console.log(`vppr:`, lastTrend);
-            //console.log('trend', trend);
+            // console.log(`vppr:`, lastTrend);
+            // console.log('trend', trend);
 
 
-            // Reseta flag de entrada
+            //🔘 Reseta flag de entrada
             if (flagsBySymbol[symbol].inputExecuted && RESET_FLAG.includes(lastTrend?.type)) {
                 flagsBySymbol[symbol].inputExecuted = false;
                 console.log("Flag resetada");
@@ -169,9 +171,9 @@ export const useOperatingInputs = () => {
             };
 
 
-            // Entrada de compra
+            //🟢 Entrada de compra
             if (!flagsBySymbol[symbol].inputExecuted && TYPE_BUY.includes(lastTrendPrimary?.type)) {
-                if (TYPE_BUY.includes(lastTrend?.type) && lastPrice.Fechamento >= lastTrend?.buy ) {
+                if (TYPE_BUY.includes(lastTrend?.type) && lastPrice.Fechamento >= lastTrend?.buy && lastVppr.trend === 'buy') {
                     signal = {
                         symbol,
                         action: "BUY",
@@ -184,9 +186,9 @@ export const useOperatingInputs = () => {
                     console.log("inputExecuted>", flagsBySymbol[symbol].inputExecuted);
                 }
             }
-            // Entrada de venda
+            //🔴 Entrada de venda
             else if (!flagsBySymbol[symbol].inputExecuted && TYPE_SELL.includes(lastTrendPrimary?.type)) {
-                if (TYPE_SELL.includes(lastTrend?.type) && lastPrice.Fechamento <= lastTrend?.sell) {
+                if (TYPE_SELL.includes(lastTrend?.type) && lastPrice.Fechamento <= lastTrend?.sell && lastVppr.trend === 'sell') {
                     signal = {
                         symbol,
                         action: "SELL",
@@ -200,7 +202,7 @@ export const useOperatingInputs = () => {
             };
 
 
-            // Saída de operações de compra
+            //🟩 Saída de operações de compra
             if (TYPE_BUY_EXIT.includes(lastTrend?.type) && flagsBySymbol[symbol].upwardTrendCurrent) {
                 if (lastPrice.Fechamento <= lastTrend.sell) {
                     signal = {
@@ -213,7 +215,7 @@ export const useOperatingInputs = () => {
                     flagsBySymbol[symbol].upwardTrendCurrent = false;
                 }
             }
-            // Saída de operações de venda
+            //🟥 Saída de operações de venda
             else if (TYPE_SELL_EXIT.includes(lastTrend?.type) && flagsBySymbol[symbol].downwardTrendCurrent) {
                 if (lastPrice.Fechamento >= lastTrend.buy) {
                     signal = {
@@ -226,6 +228,11 @@ export const useOperatingInputs = () => {
                     flagsBySymbol[symbol].downwardTrendCurrent = false;
                 }
             }
+
+            //🔹Parcial das operações Compra
+
+            //🔸Parcial das operações de venda
+
 
             if (signal) {
                 signalsBySymbol[symbol] = signal

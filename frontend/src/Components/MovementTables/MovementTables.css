@@ -28,7 +28,7 @@
     box-shadow: var(--movement-shadow);
     color: var(--movement-text);
     animation: fadeIns 520ms ease;
-    margin-top: 70px;
+    margin-top: 74px;
 }
 
 .table-container {
@@ -188,7 +188,6 @@
 @media (max-width: 760px) {
     .graphics-main {
         width: calc(100% - 20px);
-        margin-top: 24px;
         padding: 10px;
     }
 

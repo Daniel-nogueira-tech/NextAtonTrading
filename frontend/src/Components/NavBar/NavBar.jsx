@@ -4,18 +4,22 @@ import './NavBar.css'
 import { mockSymbols, searchSymbols, addMockSymbol } from './mockSymbols'
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics'
 import { Link } from 'react-router-dom'
+import 'primeicons/primeicons.css';
+
 
 const NavBar = () => {
     const { addSymbols, tabs, setTabs, removeSymbol, setActiveSymbol, updateSymbolStatus } = React.useContext(ContextGraphics)
 
 
-    const [searchTerm, setSearchTerm] = useState('')
-    const [searchResults, setSearchResults] = useState([])
-    const [showDropdown, setShowDropdown] = useState(false)
-    const [isAddingNew, setIsAddingNew] = useState(false)
-    const [newSymbolName, setNewSymbolName] = useState('')
-    const searchRef = useRef(null)
-    const inputRef = useRef(null)
+    const [searchTerm, setSearchTerm] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [showDropdown, setShowDropdown] = useState(false);
+    const [isAddingNew, setIsAddingNew] = useState(false);
+    const [newSymbolName, setNewSymbolName] = useState('');
+    const searchRef = useRef(null);
+    const inputRef = useRef(null);
+
+    const [isOpen, setIsOpen] = useState(true);
 
 
 
@@ -34,7 +38,7 @@ const NavBar = () => {
             setShowDropdown(false)
         }
 
-    }, [searchTerm, tabs])
+    }, [searchTerm, tabs]);
 
     // Fecha dropdown ao clicar fora
     useEffect(() => {
@@ -46,7 +50,7 @@ const NavBar = () => {
         }
         document.addEventListener('mousedown', handleClickOutside)
         return () => document.removeEventListener('mousedown', handleClickOutside)
-    }, [])
+    }, []);
 
     // Adicionar nova aba
     const addTab = (symbol, name) => {
@@ -66,7 +70,7 @@ const NavBar = () => {
         setSearchTerm('')
         setShowDropdown(false)
         setIsAddingNew(false)
-    }
+    };
 
     // Fechar aba
     const closeTab = (tabId, e) => {
@@ -89,7 +93,7 @@ const NavBar = () => {
             newTabs[0].active = true
         }
         setTabs(newTabs)
-    }
+    };
 
 
     // Mudar aba ativa
@@ -105,7 +109,7 @@ const NavBar = () => {
         updateSymbolStatus(activeTab.symbol)
         // Atualiza as abas no frontend
         setTabs(updatedTabs)
-    }
+    };
 
     // Adicionar novo símbolo customizado
     const handleAddCustomSymbol = () => {
@@ -114,19 +118,19 @@ const NavBar = () => {
             addTab(newSymbol.symbol, newSymbol.name)
             setNewSymbolName('')
         }
-    }
+    };
 
     // Selecionar símbolo dos resultados
     const selectSymbol = (symbol) => {
         addTab(symbol.symbol, symbol.name)
-    }
+    };
 
     return (
         <div className="navbar">
             {/* Barra superior */}
             <div className="navbar__header">
                 <div className="navbar__logo">
-                    <div className="navbar__logo-icon">📊</div>
+                    <div className="navbar__logo-icon"><img src="/aton.ico" alt="" style={{ width: '50px', height: '50px' }} /></div>
                     <h3 className="navbar__logo-text">NextAton<span>Trading</span></h3>
                     <span className="navbar__badge">PRO</span>
                 </div>
@@ -239,41 +243,51 @@ const NavBar = () => {
 
             {/* Abas */}
             <div className="navbar__tabs">
-                <div className="navbar__tabs-container">
-                    {tabs.map((tab) => (
-                        <div
-                            key={tab.id}
-                            className={`navbar__tab ${tab.active ? 'navbar__tab--active' : ''}`}
-                            onClick={() => changeTab(tab.id)}
-                        >
-                            <div className="navbar__tab-content">
-                                <div className="navbar__tab-icon">
-                                    {tab.symbol.charAt(0)}
-                                </div>
-                                <div className="navbar__tab-info">
-                                    <span className="navbar__tab-symbol">{tab.symbol}</span>
-                                    <span className="navbar__tab-name">{tab.name}</span>
-                                </div>
-                                <button
-                                    className="navbar__tab-close"
-                                    onClick={(e) => closeTab(tab.id, e)}
-                                    title="Fechar aba"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                            {tab.active && <div className="navbar__tab-indicator" />}
-                        </div>
-                    ))}
-
-                    {/* Indicador de mais abas */}
-                    {tabs.length > 4 && (
-                        <div className="navbar__tabs-more">
-                            <span>📌</span>
-                            <span className="navbar__tabs-count">+{tabs.length - 4}</span>
-                        </div>
-                    )}
+                {/**Botão para ocultar seleção de ativos */}
+                <div className='icon-arrow'>
+                    <i className={!isOpen ? 'pi pi-angle-double-down' : 'pi pi-angle-double-up'}
+                        style={{ color: 'white', borderRadius: '5px', padding: '5px' }}
+                        onClick={() => setIsOpen(!isOpen)}
+                    >
+                    </i>
                 </div>
+
+                {isOpen &&
+                    <div className="navbar__tabs-container">
+                        {tabs.map((tab) => (
+                            <div
+                                key={tab.id}
+                                className={`navbar__tab ${tab.active ? 'navbar__tab--active' : ''}`}
+                                onClick={() => changeTab(tab.id)}
+                            >
+                                <div className="navbar__tab-content">
+                                    <div className="navbar__tab-icon">
+                                        {tab.symbol.charAt(0)}
+                                    </div>
+                                    <div className="navbar__tab-info">
+                                        <span className="navbar__tab-symbol">{tab.symbol}</span>
+                                        <span className="navbar__tab-name">{tab.name}</span>
+                                    </div>
+                                    <button
+                                        className="navbar__tab-close"
+                                        onClick={(e) => closeTab(tab.id, e)}
+                                        title="Fechar aba"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                                {tab.active && <div className="navbar__tab-indicator" />}
+                            </div>
+                        ))}
+
+                        {/* Indicador de mais abas */}
+                        {tabs.length > 4 && (
+                            <div className="navbar__tabs-more">
+                                <span>📌</span>
+                                <span className="navbar__tabs-count">+{tabs.length - 4}</span>
+                            </div>
+                        )}
+                    </div>}
             </div>
         </div>
     )

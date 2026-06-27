@@ -6,13 +6,13 @@ import {
   mockStats,
   mockProbabilityDistribution,
   mockCapitalEvolution,
-  mockLastOperations
+  mockLastOperations,
 } from '../../OperatingData/operatingData.js';
 
 import './OperatingPanel.css';
 
 const OperatingPanel = () => {
-  const { trend, fullTrend } = React.useContext(ContextGraphics);
+  const { trend, fullTrend, retestPointsState } = React.useContext(ContextGraphics);
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
 

@@ -7,11 +7,12 @@ import { ContextGraphicsProvider } from './ContextGraphics/ContextGraphics.jsx'
 
 createRoot(document.getElementById('root')).render(
 
-  <ContextGraphicsProvider>
-    <HashRouter>
-      <StrictMode>
+  <HashRouter>
+    <StrictMode>
+      <ContextGraphicsProvider>
         <App />
-      </StrictMode>
-    </HashRouter>
-  </ContextGraphicsProvider>
+      </ContextGraphicsProvider>
+    </StrictMode>
+  </HashRouter>
+
 )

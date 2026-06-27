@@ -367,20 +367,22 @@ const GraphicsRenko = () => {
   const lastChartSymbolRef = React.useRef(activeSymbol);
   const [dates, setDates] = React.useState(null);
   const [dateErro, setDateErro] = React.useState(null);
+  const [isTrend, setIsTrend] = React.useState(true);
 
   //===================/ Chama os hooks /===================//
   const { retestPointsState } = useOperatingData(trend);
-  const { retestPointsStatePrimary } = useOperatingDataPrimary(trendPrimary);
+  const { retestPointsStatePrimary } = useOperatingDataPrimary(trend);
   const { vpprData } = useVpprData(vppr);
   const { amrsiData } = useAmrsiData(rsi);
   useOperatingInputs();
   //===================//===================//
+  const trendCurrent = isTrend ? trend : trendPrimary;
 
 
   // seleciona o ativo que está ativo
   const selectedMarket = React.useMemo(() => {
-    return selectMarketBySymbol(trend, activeSymbol)
-  }, [trend, activeSymbol])
+    return selectMarketBySymbol(trendCurrent, activeSymbol)
+  }, [trendCurrent, activeSymbol])
 
   const selectedRsiMarket = React.useMemo(() => {
     return selectMarketBySymbol(rsi, activeSymbol)
@@ -622,7 +624,14 @@ const GraphicsRenko = () => {
         <div className="graphics-renko__header">
           <div>
             <span className="graphics-renko__eyebrow">Crypto graphics</span>
-            <h3>{activeSymbol || 'Trend Flow'}</h3>
+            {/**Botão para alternar entre gráficos primário e secundário */}
+            <div className='button-graphic'>
+              <button
+                onClick={() => setIsTrend(!isTrend)}
+              > {isTrend ? 'Secundary' : 'Primary'}
+              </button>
+            </div>
+
           </div>
           <div className="graphics-renko__status">
             {renkoCandles.length} Blocks
@@ -749,7 +758,7 @@ const GraphicsRenko = () => {
                 </button>
               </div>
             }
-            {!loading && mode === "simulation" &&
+            {loading && mode === "simulation" &&
               <div className='simulation-control'>
                 Please select another asset or download the date range.
               </div>
@@ -760,7 +769,6 @@ const GraphicsRenko = () => {
               Waiting for enough movement to form the blocks.
             </div>
           )}
-
         </div>
 
         <aside className="graphics-renko__indicators" aria-label="Graficos dos indicadores do ativo selecionado">

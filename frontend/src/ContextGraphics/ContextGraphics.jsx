@@ -1,6 +1,7 @@
-import React from 'react'
-import axios from 'axios'
-import { useIncrementalMarketEngine } from '../hooks/useIncrementalMarketEngine.js'
+import React from 'react';
+import axios from 'axios';
+import { useIncrementalMarketEngine } from '../hooks/useIncrementalMarketEngine.js';
+import { useNavigate } from 'react-router-dom';
 
 export const ContextGraphics = React.createContext(null);
 
@@ -17,7 +18,10 @@ const getNextFiveMinuteBoundaryDelay = () => {
 
 
 export const ContextGraphicsProvider = ({ children }) => {
+    //axios.defaults.withCredentials = true;
     const urlBackend = import.meta.env.VITE_BACKEND_URL;
+    const navigate = useNavigate();
+
     const [tabs, setTabs] = React.useState([]);
     const [activeSymbol, setActiveSymbol] = React.useState(() => { return localStorage.getItem('symbol') || 'BTCUSDT' });
     const [mode, setMode] = React.useState(() => { return localStorage.getItem('mode') || 'real' });
@@ -38,7 +42,7 @@ export const ContextGraphicsProvider = ({ children }) => {
         maxSnapshotPoints: 1200,
     });
     const {
-        snapshot, 
+        snapshot,
         status: engineStatus,
         cursor: engineCursor,
         maxCursor: engineMaxCursor,
@@ -249,6 +253,28 @@ export const ContextGraphicsProvider = ({ children }) => {
         }
     }
 
+    // envia credenciais de logim
+    const loginUser = async (email, password) => {
+        if (!email || !password) return;
+
+        const payload = {
+            email: email,
+            password: password
+        }
+
+        try {
+            const response = await axios.post(`${urlBackend}/api/auth/login`, { payload });
+            if (response.data.success) {
+                setTimeout(() => {
+                    navigate('/');
+                }, 2000);
+            }
+        } catch (error) {
+            console.error('Error logging in:', error)
+        }
+    };
+    const publicRoutes = ["/OperatingPanel","/"];
+
 
     // Carrega os dados quando o componente é montado
     React.useEffect(() => {
@@ -294,6 +320,7 @@ export const ContextGraphicsProvider = ({ children }) => {
 
     //Define o valor do contexto a ser fornecido aos componentes filhos
     const contextValue = {
+        loginUser,
         setMode,
         mode,
         tabs,
