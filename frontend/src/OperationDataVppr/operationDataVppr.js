@@ -163,7 +163,7 @@ export const useVpprData = (vppr) => {
             signals: signals.map(item => item.signals)
         }));
 
-        setVpprData(signalsArray);
+        setVpprData(signalsArray);  
 
     }, [vpprGroups]);
 

@@ -924,12 +924,12 @@ export const useOperatingDataPrimary = (trend) => {
       // ===============================
       if (TrendPivot && naturalRally && canExecuteRallyRef.current && executeTrendRally.current ||
         executeEntrieRally.current || executeTrendRally.current || executeEntrieRallyReverse.current) {
-        const limite = TrendPivot.limite;
+        const limite = TrendPivot?.limite;
         const tolerance = limite / 10;
-        const high = TrendPivot.closePrice + tolerance;
-        const low = TrendPivot.closePrice - tolerance;
-        const sellExit = TrendPivot.closePrice - limite / 2;
-        const buyExit = TrendPivot.closePrice + limite / 2;
+        const high = TrendPivot?.closePrice + tolerance;
+        const low = TrendPivot?.closePrice - tolerance;
+        const sellExit = TrendPivot?.closePrice - limite / 2;
+        const buyExit = TrendPivot?.closePrice + limite / 2;
 
         const eventId = buildEventId(TrendPivot, naturalRally);
         if (eventId && state.lastTrendExitId !== eventId) {

@@ -1247,6 +1247,8 @@ export const useOperatingData = (trend) => {
       console.log('❎ Operações processadas [SEC] (ordenadas temporalmente):', operationsArray);
     }
     setRetestPointsState(operationsArray);
+    console.log('retestPointsState:',retestPointsState);
+    
 
   }, [trendGroups]);
 
