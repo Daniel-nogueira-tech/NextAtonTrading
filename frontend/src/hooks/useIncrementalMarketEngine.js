@@ -18,6 +18,10 @@ const TIME_KEYS = ['Tempo', 'time', 'closeTime', 'openTime', 'open_time']
 const DEFAULT_SNAPSHOT_WINDOW = 1200 // 1200 pontos máximo no histórico para evitar sobrecarga de memória 
 const MIN_TIMER_SPEED = 100 // Velocidade mínima: 100ms
 
+const createEmptySources = () => ({
+  ...DEFAULT_FEEDS,
+})
+
 // Funções de Normalização e Extração
 const normalizeCollection = (payload) => {
   if (!payload) return []
@@ -254,7 +258,7 @@ export const useIncrementalMarketEngine = ({
   maxSnapshotPoints = DEFAULT_SNAPSHOT_WINDOW,
 } = {}) => {
   // Refs para armazenar o estado interno do motor sem causar re-renderizações desnecessárias
-  const sourcesRef = React.useRef(DEFAULT_FEEDS)
+  const sourcesRef = React.useRef(createEmptySources())
   const cursorRef = React.useRef(0)
   const maxCursorRef = React.useRef(0)
   const timerRef = React.useRef(null)
@@ -262,7 +266,7 @@ export const useIncrementalMarketEngine = ({
   const statusRef = React.useRef('idle')
 
   // Estado React para expor o snapshot atual, status, cursor e controle de velocidade
-  const [snapshot, setSnapshot] = React.useState(() => buildSnapshot(DEFAULT_FEEDS, 0, maxSnapshotPoints))
+  const [snapshot, setSnapshot] = React.useState(() => buildSnapshot(createEmptySources(), 0, maxSnapshotPoints))
   const [status, setStatus] = React.useState('idle')
   const [cursor, setCursor] = React.useState(0)
   const [maxCursor, setMaxCursor] = React.useState(0)
@@ -334,9 +338,14 @@ export const useIncrementalMarketEngine = ({
   // Continua a reprodução automática se estiver pausada.
   const reset = React.useCallback(() => {
     stopTimer()
-    publishCursor(0)
+    cursorRef.current = 0
+    statusRef.current = 'idle'
+
+    setCursor(0)
+    setMaxCursor(maxCursorRef.current)
+    setSnapshot(buildSnapshot(sourcesRef.current, 0, maxSnapshotPoints))
     setEngineStatus('idle')
-  }, [publishCursor, setEngineStatus, stopTimer])
+  }, [maxSnapshotPoints, setEngineStatus, stopTimer])
 
   // Carrega novos dados no motor.
   const loadSources = React.useCallback((nextSources, options = {}) => {

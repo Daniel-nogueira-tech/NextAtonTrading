@@ -368,6 +368,7 @@ const GraphicsRenko = () => {
   const [dates, setDates] = React.useState(null);
   const [dateErro, setDateErro] = React.useState(null);
   const [isTrend, setIsTrend] = React.useState(true);
+  
 
   //===================/ Chama os hooks /===================//
   const { retestPointsState } = useOperatingData(trend);
@@ -376,7 +377,10 @@ const GraphicsRenko = () => {
   const { amrsiData } = useAmrsiData(rsi);
   useOperatingInputs();
   //===================//===================//
+
+  // alterna entre dados classificados de primário e secundário
   const trendCurrent = isTrend ? trend : trendPrimary;
+
 
   // seleciona o ativo que está ativo
   const selectedMarket = React.useMemo(() => {
@@ -743,7 +747,6 @@ const GraphicsRenko = () => {
                   onClick={decreaseSimulationSpeed}
                   disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) >= MAX_ENGINE_SPEED}
                   title="Reduzir velocidade"
-                  setTre
                 >
                   Slower -
                 </button>

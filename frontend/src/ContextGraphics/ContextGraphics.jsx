@@ -238,6 +238,7 @@ export const ContextGraphicsProvider = ({ children }) => {
             console.error("Erro ao carregar dados", error)
         }
     };
+ 
 
     // Função para atualizar os dados a cada 5 minutos no modo real
     const refreshMarketData = async ({ preserveEngine = false } = {}) => {

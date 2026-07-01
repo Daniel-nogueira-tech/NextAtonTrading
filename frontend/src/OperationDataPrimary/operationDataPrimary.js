@@ -2,6 +2,7 @@ import { useContext } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ContextGraphics } from '../ContextGraphics/ContextGraphics'
 
+
 // Função para normalizar os dados de tendência, 
 // garantindo que seja sempre um array de grupos de movimentos especificados por símbolo
 const normalizeTrendGroups = (trend) => {
@@ -33,6 +34,7 @@ const normalizeTrendGroups = (trend) => {
 // Algoritimo de operações 
 export const useOperatingDataPrimary = (trend) => {
   const { retestPointsStatePrimary, setRetestPointsStatePrimary } = useContext(ContextGraphics)
+
 
   // Função auxiliar para converter timestamp em número para comparação
   const parseTimestamp = (time) => {
@@ -575,10 +577,16 @@ export const useOperatingDataPrimary = (trend) => {
           state.penultimoValor.push(ultimoTopo);
           state.ultimoTopoAnterior = ultimoTopo;
         } else {
-          console.log('Topo já identificado anteriormente - ignorando repetição');
+          if (import.meta.env.VITE_NODE_ENV === 'development') {
+            console.log('Topo já identificado anteriormente - ignorando repetição');
+          }
         }
       } else {
-        console.log('Nenhum topo de alta antecedendo reação natural foi encontrado');
+        if (import.meta.env.VITE_NODE_ENV === 'development') {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Nenhum topo de alta antecedendo reação natural foi encontrado');
+          }
+        }
       };
       /**----------------------------------------------------
        * ///////////////////////////////////////////////////
@@ -595,10 +603,14 @@ export const useOperatingDataPrimary = (trend) => {
         if (isNovoPivo) {
           state.pivoReversion.push(inversion)
         } else {
-          console.log('Topo já identificado anteriormente - ignorando repetição');
+          if (import.meta.env.VITE_NODE_ENV === 'development') {
+            console.log('Topo já identificado anteriormente - ignorando repetição');
+          }
         }
       } else {
-        console.log('Nenhum topo de alta antecedendo reação natural foi encontrado');
+        if (import.meta.env.VITE_NODE_ENV === 'development') {
+          console.log('Nenhum topo de alta antecedendo reação natural foi encontrado');
+        }
       };
 
 
@@ -704,7 +716,9 @@ export const useOperatingDataPrimary = (trend) => {
         if (isNovoPivo) {
           state.ultimoPivoAnterior = pivo; // atualiza trava
         } else {
-          console.log("ultimoPivoAnterior-ignorando repetição");
+          if (import.meta.env.VITE_NODE_ENV === 'development') {
+            console.log("ultimoPivoAnterior-ignorando repetição");
+          }
         }
       };
 
@@ -715,7 +729,9 @@ export const useOperatingDataPrimary = (trend) => {
         if (isNovoPivo) {
           state.ultimoPivoAtual = TrendPivot;
         } else {
-          console.log("TrendPivot-ignorando repetição");
+          if (import.meta.env.VITE_NODE_ENV === 'development') {
+            console.log("TrendPivot-ignorando repetição");
+          }
         };
       };
 
@@ -726,7 +742,9 @@ export const useOperatingDataPrimary = (trend) => {
         if (isNovoPivoSec) {
           state.ultimoPivoSec = pivoRallySec;
         } else {
-          console.log("ultimoPivoSec-ignorando repetição");
+          if (import.meta.env.VITE_NODE_ENV === 'development') {
+            console.log("ultimoPivoSec-ignorando repetição");
+          }
         };
       };
 
@@ -737,7 +755,9 @@ export const useOperatingDataPrimary = (trend) => {
         if (isNewTrend) {
           state.enteringTheTrendUpdate = pivotBreak;
         } else {
-          console.log("enteringTheTrendUpdate-ignorando repetição");
+          if (import.meta.env.VITE_NODE_ENV === 'development') {
+            console.log("enteringTheTrendUpdate-ignorando repetição");
+          }
         };
       };
 
@@ -748,7 +768,9 @@ export const useOperatingDataPrimary = (trend) => {
         if (isNewRallysec) {
           state.rallySecExitUpdate = rallySecExit;
         } else {
-          console.log("rallySecExit-ignorando repetição");
+          if (import.meta.env.VITE_NODE_ENV === 'development') {
+            console.log("rallySecExit-ignorando repetição");
+          }
         };
       };
 

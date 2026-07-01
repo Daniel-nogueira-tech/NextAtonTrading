@@ -70,7 +70,7 @@ export const useVpprData = (vppr) => {
                 if (state.vpprHistory.length > 8) state.vpprHistory.shift();
 
                 // ====================== BANDAS DE TENDÊNCIA ======================
-                const percentage = Math.abs(vpprEma) * 0.04;
+                const percentage = Math.abs(vpprEma) * 0.01;
                 const bandTop = vpprEma + percentage;
                 const bandBottom = vpprEma - percentage;
 
@@ -164,6 +164,8 @@ export const useVpprData = (vppr) => {
         }));
 
         setVpprData(signalsArray);  
+        console.log('vppr',vpprData);
+        
 
     }, [vpprGroups]);
 

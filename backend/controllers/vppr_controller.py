@@ -3,7 +3,7 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from utils.klines import get_klines
 from controllers.symbols_controller import get_stored_symbols
-from controllers.data_to_simulation_controllers import get_klines_data_simulation_primary
+from controllers.data_to_simulation_controllers import get_klines_data_simulation
 
 
 def _get_open(kline):
@@ -60,7 +60,7 @@ def _get_vppr_single(symbol, modo="real", time="5m",total=5000):
 
     try:
         if modo == "simulation":
-            klines = get_klines_data_simulation_primary(symbol)
+            klines = get_klines_data_simulation(symbol)
         else:
             klines = get_klines(symbol=symbol, interval=time, total=total)
     except Exception as e:

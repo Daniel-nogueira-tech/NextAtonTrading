@@ -1,6 +1,6 @@
 from binance.client import Client
 from models.data_to_simulation_models import create_klines_simulation,create_klines_simulation_Primary
-from controllers.data_to_simulation_controllers import delete_klines_data_simulation
+from controllers.data_to_simulation_controllers import delete_klines_data_simulation, delete_klines_data_simulation_primary
 from datetime import datetime, timedelta, timezone
 import time
 import requests
@@ -75,6 +75,7 @@ def download_and_save_klines(
            delete_klines_data_simulation()
            print("DELETANDO klines",intervalo)
         elif intervalo == "1h":
+           delete_klines_data_simulation_primary()
            print("DELETANDO klines",intervalo)
 
     all_klines = []

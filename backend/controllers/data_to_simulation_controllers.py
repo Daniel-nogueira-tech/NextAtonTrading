@@ -91,3 +91,18 @@ def delete_klines_data_simulation():
     finally:
         if conn:
             conn.close()
+
+# Funcao para remover dados de simulacao
+def delete_klines_data_simulation_primary():
+    conn = None
+    try:
+        conn = conectar()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM klines_simulation_primary")
+        conn.commit()
+    except Exception as erro:
+        print(f"Erro ao deletar klines primary: {erro}")
+        raise
+    finally:
+        if conn:
+            conn.close()

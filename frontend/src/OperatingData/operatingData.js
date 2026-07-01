@@ -84,8 +84,8 @@ export const useOperatingData = (trend) => {
     if (!trendGroups || trendGroups.length === 0) return;
 
     const nextRetestHistory = { ...retestHistoryRef.current };
-  
-    
+
+
 
     trendGroups.forEach(({ symbol, movements }) => {
       if (!movements || movements.length === 0) return;
@@ -579,10 +579,16 @@ export const useOperatingData = (trend) => {
           state.penultimoValor.push(ultimoTopo);
           state.ultimoTopoAnterior = ultimoTopo;
         } else {
-          console.log('Topo já identificado anteriormente - ignorando repetição');
+          if (import.meta.env.VITE_NODE_ENV === 'development') {
+            console.log('Topo já identificado anteriormente - ignorando repetição');
+          }
         }
       } else {
-        console.log('Nenhum topo de alta antecedendo reação natural foi encontrado');
+        if (import.meta.env.VITE_NODE_ENV === 'development') {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Nenhum topo de alta antecedendo reação natural foi encontrado');
+          }
+        }
       };
       /**----------------------------------------------------
        * ///////////////////////////////////////////////////
@@ -599,10 +605,14 @@ export const useOperatingData = (trend) => {
         if (isNovoPivo) {
           state.pivoReversion.push(inversion)
         } else {
-          console.log('Topo já identificado anteriormente - ignorando repetição');
+          if (import.meta.env.VITE_NODE_ENV === 'development') {
+            console.log('Topo já identificado anteriormente - ignorando repetição');
+          }
         }
       } else {
-        console.log('Nenhum topo de alta antecedendo reação natural foi encontrado');
+        if (import.meta.env.VITE_NODE_ENV === 'development') {
+          console.log('Nenhum topo de alta antecedendo reação natural foi encontrado');
+        }
       };
 
 
@@ -708,7 +718,9 @@ export const useOperatingData = (trend) => {
         if (isNovoPivo) {
           state.ultimoPivoAnterior = pivo; // atualiza trava
         } else {
-          console.log("ultimoPivoAnterior-ignorando repetição");
+          if (import.meta.env.VITE_NODE_ENV === 'development') {
+            console.log("ultimoPivoAnterior-ignorando repetição");
+          }
         }
       };
 
@@ -719,7 +731,9 @@ export const useOperatingData = (trend) => {
         if (isNovoPivo) {
           state.ultimoPivoAtual = TrendPivot;
         } else {
-          console.log("TrendPivot-ignorando repetição");
+          if (import.meta.env.VITE_NODE_ENV === 'development') {
+            console.log("TrendPivot-ignorando repetição");
+          }
         };
       };
 
@@ -730,7 +744,9 @@ export const useOperatingData = (trend) => {
         if (isNovoPivoSec) {
           state.ultimoPivoSec = pivoRallySec;
         } else {
-          console.log("ultimoPivoSec-ignorando repetição");
+          if (import.meta.env.VITE_NODE_ENV === 'development') {
+            console.log("ultimoPivoSec-ignorando repetição");
+          }
         };
       };
 
@@ -741,7 +757,9 @@ export const useOperatingData = (trend) => {
         if (isNewTrend) {
           state.enteringTheTrendUpdate = pivotBreak;
         } else {
-          console.log("enteringTheTrendUpdate-ignorando repetição");
+          if (import.meta.env.VITE_NODE_ENV === 'development') {
+            console.log("enteringTheTrendUpdate-ignorando repetição");
+          }
         };
       };
 
@@ -752,9 +770,12 @@ export const useOperatingData = (trend) => {
         if (isNewRallysec) {
           state.rallySecExitUpdate = rallySecExit;
         } else {
-          console.log("rallySecExit-ignorando repetição");
+          if (import.meta.env.VITE_NODE_ENV === 'development') {
+            console.log("rallySecExit-ignorando repetição");
+          }
         };
       };
+
 
 
       /**----------------------------------------------------------------------------------
@@ -1177,7 +1198,7 @@ export const useOperatingData = (trend) => {
 
         const pivoBuy = pivotBreak.closePrice - (limite / 2);
         const pivoSell = pivotBreak.closePrice + (limite / 2);
-         
+
         // stop abaixo(Tendência alta) ou acima(Tendência baixa) do pivot 
         const stopPivotBuy = pivoRallyPrimary?.closePrice - (limite / 2);
         const stopPivotSell = pivoRallyPrimary?.closePrice + (limite / 2);
@@ -1247,8 +1268,8 @@ export const useOperatingData = (trend) => {
       console.log('❎ Operações processadas [SEC] (ordenadas temporalmente):', operationsArray);
     }
     setRetestPointsState(operationsArray);
-    console.log('retestPointsState:',retestPointsState);
-    
+    console.log('retestPointsState:', retestPointsState);
+
 
   }, [trendGroups]);
 
