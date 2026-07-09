@@ -8,7 +8,7 @@ import 'primeicons/primeicons.css';
 
 
 const NavBar = () => {
-    const { addSymbols, tabs, setTabs, removeSymbol, setActiveSymbol, updateSymbolStatus } = React.useContext(ContextGraphics)
+    const { addSymbols, tabs, setTabs, removeSymbol, setActiveSymbol, updateSymbolStatus, userData } = React.useContext(ContextGraphics)
 
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -125,12 +125,26 @@ const NavBar = () => {
         addTab(symbol.symbol, symbol.name)
     };
 
+    // Formata nome
+    function formatName(fullName) {
+        if (!fullName || typeof fullName !== "string") return "";
+
+        const parts = fullName.trim().split(/\s+/);
+
+        if (parts.length <= 2) {
+            return parts.join(" ");
+        }
+        return parts.slice(1).join(" ");
+    }
+    const lastTwoNames = formatName(userData?.userData?.name);
+
+
     return (
         <div className="navbar">
             {/* Barra superior */}
             <div className="navbar__header">
                 <div className="navbar__logo">
-                    <div className="navbar__logo-icon"><img src="/aton.ico" alt="" style={{ width: '50px', height: '50px' }} /></div>
+                    <div className="navbar__logo-icon"><img src="/aton.ico" alt="" style={{ width: '30px', height: '30px' }} /></div>
                     <h3 className="navbar__logo-text">NextAton<span>Trading</span></h3>
                     <span className="navbar__badge">PRO</span>
                 </div>
@@ -141,7 +155,7 @@ const NavBar = () => {
 
                         {
                             tabs.length < 4 ?
-                                <span className="navbar__search-icon">🔍</span>
+                                <span className="navbar__search-icon">🔍︎</span>
                                 : <span className="navbar__search-icon">🚫</span>
                         }
 
@@ -234,7 +248,7 @@ const NavBar = () => {
                     <div className="navbar__user">
                         <div className="navbar__user-avatar">👤</div>
                         <div className="navbar__user-info">
-                            <span className="navbar__user-name">Trader Pro</span>
+                            <span className="navbar__user-name">{lastTwoNames || 'User'}</span>
                             <span className="navbar__user-status">Online</span>
                         </div>
                     </div>

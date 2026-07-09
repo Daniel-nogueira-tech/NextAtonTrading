@@ -358,7 +358,22 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
 }
 
 const GraphicsRenko = () => {
-  const { trend, trendPrimary, activeSymbol, rsi, vppr, setMode, mode, dateToSimulation, download, setDownload, loading, movementTables, setMovementTables, incrementalEngine } = React.useContext(ContextGraphics)
+  const {
+    trend,
+    trendPrimary,
+    activeSymbol,
+    rsi,
+    vppr,
+    setMode,
+    mode,
+    dateToSimulation,
+    download,
+    setDownload,
+    loading,
+    movementTables,
+    setMovementTables,
+    incrementalEngine
+  } = React.useContext(ContextGraphics)
   const chartContainerRef = React.useRef(null);
   const chartRef = React.useRef(null);
   const candlestickSeriesRef = React.useRef(null);
@@ -368,7 +383,7 @@ const GraphicsRenko = () => {
   const [dates, setDates] = React.useState(null);
   const [dateErro, setDateErro] = React.useState(null);
   const [isTrend, setIsTrend] = React.useState(true);
-  
+
 
   //===================/ Chama os hooks /===================//
   const { retestPointsState } = useOperatingData(trend);
@@ -377,6 +392,7 @@ const GraphicsRenko = () => {
   const { amrsiData } = useAmrsiData(rsi);
   useOperatingInputs();
   //===================//===================//
+
 
   // alterna entre dados classificados de primário e secundário
   const trendCurrent = isTrend ? trend : trendPrimary;
@@ -625,7 +641,7 @@ const GraphicsRenko = () => {
       </div>
       <div className="graphics-renko__card">
         <div className="graphics-renko__header">
-          <div>
+          <div className="graphics-renko__title">
             <span className="graphics-renko__eyebrow">Crypto graphics</span>
             {/**Botão para alternar entre gráficos primário e secundário */}
             <div className='button-graphic'>

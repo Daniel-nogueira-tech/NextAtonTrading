@@ -2,7 +2,7 @@
 import { useMemo, useEffect, useContext, useRef } from 'react';
 import { ContextGraphics } from '../ContextGraphics/ContextGraphics';
 
-// Função genérica que aceita "result" ou "movements"
+// Função genérica que aceita arrays diretos, arrays de arrays, objetos com result/operations/signals e preços.
 const normalizeCollection = (collection, symbolPrefix, keys = ["buy"], dataKey = "result") => {
     if (!collection) return [];
 
@@ -10,44 +10,109 @@ const normalizeCollection = (collection, symbolPrefix, keys = ["buy"], dataKey =
 
     return groups.flatMap((group, index) => {
         if (Array.isArray(group)) {
+            if (group.length > 0 && group.every(item => Array.isArray(item))) {
+                return group.flatMap((nestedGroup, nestedIndex) => {
+                    if (!Array.isArray(nestedGroup)) return [];
+                    return [{
+                        symbol: `${symbolPrefix}_${index + 1}_${nestedIndex + 1}`,
+                        result: nestedGroup.map(item => normalizeItem(item, keys))
+                    }];
+                });
+            }
+
+            if (group.length > 0 && group.every(item => item && typeof item === "object" && !Array.isArray(item) && ("Fechamento" in item || "close" in item || "price" in item || "symbol" in item))) {
+                return [{
+                    symbol: group[0]?.symbol || `${symbolPrefix}_${index + 1}`,
+                    result: group.map(item => normalizeItem(item, keys))
+                }];
+            }
+
             return [{
                 symbol: `${symbolPrefix}_${index + 1}`,
                 result: group.map(item => normalizeItem(item, keys))
             }];
         }
-        if (Array.isArray(group?.[dataKey])) {
-            return [{
-                symbol: group.symbol || `${symbolPrefix}_${index + 1}`,
-                result: group[dataKey].map(item => normalizeItem(item, keys))
-            }];
+
+        if (group && typeof group === "object") {
+            const candidateItems = Array.isArray(group[dataKey])
+                ? group[dataKey]
+                : Array.isArray(group.result)
+                    ? group.result
+                    : Array.isArray(group.operations)
+                        ? group.operations
+                        : Array.isArray(group.signals)
+                            ? group.signals
+                            : Array.isArray(group.prices)
+                                ? group.prices
+                                : Array.isArray(group.price)
+                                    ? group.price
+                                    : Array.isArray(group.data)
+                                        ? group.data
+                                        : null;
+
+            if (candidateItems) {
+                return [{
+                    symbol: group.symbol || `${symbolPrefix}_${index + 1}`,
+                    result: candidateItems.map(item => normalizeItem(item, keys))
+                }];
+            }
         }
+
         return [];
     });
 };
 
 const normalizeItem = (item, keys) => {
-    if (!item || typeof item !== "object") return {};
+    if (item == null) return {};
 
-    // Caso o item seja um array de {name, value}
     if (Array.isArray(item)) {
-        const obj = item.reduce((acc, { name, value }) => {
-            acc[name] = value;
+        return normalizeItem(item.reduce((acc, entry) => {
+            if (entry && typeof entry === "object") {
+                if (entry.name && entry.value !== undefined) {
+                    acc[entry.name] = entry.value;
+                } else {
+                    Object.assign(acc, entry);
+                }
+            }
             return acc;
-        }, {});
-        // Retorna apenas as chaves desejadas
-        const normalized = {};
-        keys.forEach(key => {
-            normalized[key] = obj[key] ?? null;
-        });
-        return normalized;
+        }, {}), keys);
     }
 
-    // Caso seja objeto plano
+    if (typeof item !== "object") {
+        return {};
+    }
+
     const normalized = {};
     keys.forEach(key => {
-        normalized[key] = item[key] ?? null;
+        const directValue = item[key];
+        const alternateValue = item[key.toLowerCase()];
+        const camelValue = item[key.charAt(0).toLowerCase() + key.slice(1)];
+        normalized[key] = directValue ?? alternateValue ?? camelValue ?? null;
     });
-    if (item.time) normalized.time = item.time;
+
+    if (item.time || item.Time || item.tempo || item.Tempo) {
+        normalized.time = item.time ?? item.Time ?? item.tempo ?? item.Tempo;
+    }
+
+    if (item.operation && Array.isArray(item.operation)) {
+        const operationObj = item.operation.reduce((acc, entry) => {
+            if (entry && typeof entry === "object" && "name" in entry && "value" in entry) {
+                acc[entry.name] = entry.value;
+            }
+            return acc;
+        }, {});
+
+        keys.forEach(key => {
+            if (normalized[key] == null || normalized[key] === undefined) {
+                normalized[key] = operationObj[key] ?? null;
+            }
+        });
+    }
+
+    if (item.symbol) {
+        normalized.symbol = item.symbol;
+    }
+
     return normalized;
 };
 
@@ -126,8 +191,7 @@ export const useOperatingInputs = () => {
             const lastVpprArray = vppr.find(item => item.symbol === symbol)?.result || [];
             const lastPriceArray = price.find(item => item.symbol === symbol)?.result || [];
 
-
-
+            
             // Verifica se encontrou dados
             console.log(`🔍 [${symbol}] Trend: ${lastTrendArray.length} itens, Primary: ${lastTrendPrimaryArray.length} itens, Price: ${lastPriceArray.length} itens`);
 
@@ -360,9 +424,9 @@ export const useOperatingInputs = () => {
                 }
             }
 
-
+            
             //🍰🟢 Parcial compra 
-            if (flags.upwardTrendCurrent && lastAmrsi.type === 'Partial Buy') {
+            if (TYPE_BUY_BREAK_UP.includes(lastTrend?.type) && flags.upwardTrendCurrent && lastAmrsi.type === 'Partial Buy') {
 
                 console.log(`📉 [${symbol}] Condição PARTIAL BUY:`, {
                     upwardTrendCurrentOk: flags.upwardTrendCurrent,
@@ -380,7 +444,7 @@ export const useOperatingInputs = () => {
                 console.log(`🚪💲 [${symbol}] PARTIAL BUY`);
             }
             //🍰🔴 Parcial de venda
-            else if (flags.downwardTrendCurrent && lastAmrsi.type === 'Partial Sell') {
+            else if (TYPE_SELL_BREAK_UP.includes(lastTrend?.type) && flags.downwardTrendCurrent && lastAmrsi.type === 'Partial Sell') {
 
                 console.log(`📉 [${symbol}] Condição PARTIAL BUY:`, {
                     downwardTrendCurrentOk: flags.downwardTrendCurrent,

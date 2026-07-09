@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { createChart, AreaSeries } from 'lightweight-charts';
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx';
 import {
@@ -10,9 +11,10 @@ import {
 } from '../../OperatingData/operatingData.js';
 
 import './OperatingPanel.css';
+import PopUpConfirm from '../PopUpConfirm/PopUpConfirm.jsx';
 
 const OperatingPanel = () => {
-  const { trend, fullTrend, retestPointsState } = React.useContext(ContextGraphics);
+  const { trend, fullTrend, retestPointsState, logoutUser, showPopUp, actionType, setActionType, setShowPopUp, openLogoutConfirm } = React.useContext(ContextGraphics);
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
 
@@ -87,14 +89,81 @@ const OperatingPanel = () => {
     };
   }, []);
 
+
+
+  // Logout function
+  const handleLogout = () => {
+    if (typeof openLogoutConfirm === 'function') {
+      openLogoutConfirm()
+    } else {
+      setActionType('logout')
+      setShowPopUp(true)
+    }
+  }
+
+  const closePopup = () => {
+    setShowPopUp(false)
+    setActionType('')
+  }
+
+  // Confirmação da ação
+  const confirmAction = () => {
+    switch (actionType) {
+      case 'logout':
+        logoutUser()
+        break
+      case 'delete':
+        console.log('Item excluído')
+        break
+      default:
+        console.log('Ação confirmada')
+    }
+
+    closePopup()
+  }
+
   return (
     <div className="op-panel-container">
+
+      {/* PopUp de Logout */}
+      <PopUpConfirm
+        isOpen={showPopUp && actionType === 'logout'}
+        onClose={closePopup}
+        onConfirm={confirmAction}
+        title="Sair da Conta"
+        message="Tem certeza que deseja sair? Você precisará fazer login novamente para acessar sua conta."
+        confirmText="Sair"
+        cancelText="Cancelar"
+        icon={<svg xmlns="http://w3.org" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        }
+        isDestructive={false}
+      />
+
+      <Link to="/">
+        <div className="op-back-button" >
+          {"↩ Back"}
+        </div>
+      </Link>
+
+      {/*Logout*/}
+      <div className="op-back-button" id="logout-button" onClick={handleLogout}>
+        <svg xmlns="http://w3.org" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"  >
+          <path d="M10 22H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h5"></path>
+          <polyline points="17 16 21 12 17 8"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        Logout
+      </div>
+
       {/* Header */}
       <header className="op-header">
         <h1>Operating <span className="accent-text">Panel</span></h1>
         <p>Performance analysis and quantitative execution metrics.</p>
       </header>
-
       {/* Grid Principal - Cards de Métricas */}
       <div className="op-stats-grid">
         <div className="op-card">

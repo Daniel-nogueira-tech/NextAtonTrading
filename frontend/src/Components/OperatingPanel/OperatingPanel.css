@@ -114,6 +114,37 @@
   margin-bottom: 24px;
 }
 
+/* Botão de Voltar */
+.op-back-button{
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--bg-track);
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  position: absolute;
+  transition: background-color 0.2s ease, color 0.2s ease
+}
+.op-back-button:hover {
+  background-color: var(--purple-main);
+  color: var(--bg-card);
+}
+/* Botão de Logout */
+#logout-button {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  gap: 8px;
+}
+#logout-button:hover {
+  background-color: red;
+  color: var(--bg-card);
+}
+
 @media (max-width: 1024px) {
   .op-charts-grid {
     grid-template-columns: 1fr;

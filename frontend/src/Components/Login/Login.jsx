@@ -280,6 +280,8 @@ const Login = () => {
                             </label>
                             <input
                                 type="email"
+                                name="email"
+                                autoComplete="username"
                                 className="login-card__input"
                                 placeholder="your@email.com"
                                 value={email}
@@ -295,6 +297,8 @@ const Login = () => {
                             </label>
                             <input
                                 type="password"
+                                name="password"
+                                autoComplete="current-password"
                                 className="login-card__input"
                                 placeholder="••••••••"
                                 value={password}
@@ -304,13 +308,13 @@ const Login = () => {
                         </div>
 
                         <button type="submit" className="login-card__button">
-                            <span>Entrar</span>
+                            <span>To enter</span>
                             <span className="login-card__button-icon">→</span>
                         </button>
                     </form>
 
                     <div className="login-card__footer">
-                        <a href="#" className="login-card__link">Esqueceu a senha?</a>
+                        <a href="#" className="login-card__link">Forgot your password?</a>
                         <span className="login-card__divider">|</span>
                         <a href="#" className="login-card__link login-card__link--primary">
                             Create account
@@ -320,7 +324,7 @@ const Login = () => {
                     <div className="login-card__terms">
                         <span>🔒</span>
                         <p className="login-card__terms-text">
-                            Ao continuar, você concorda com os <a href="#">Termos de Uso</a> e a <a href="#">Política de Privacidade</a>
+                            By continuing, you agree to the <a href="#">Terms of Use</a> and the <a href="#">Privacy Policy</a>
                         </p>
                     </div>
                 </div>

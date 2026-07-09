@@ -1,0 +1,363 @@
+/* PopUpConfirm.css */
+:root {
+  --primary-purple: #7c3aed;
+  --primary-purple-dark: #5b21b6;
+  --primary-purple-light: #8b5cf6;
+  --purple-glow: rgba(124, 58, 237, 0.3);
+  --purple-glow-strong: rgba(124, 58, 237, 0.5);
+}
+
+/* Overlay */
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: overlayFadeIn 0.3s ease;
+  padding: 1rem;
+}
+
+.popup-overlay--closing {
+  animation: overlayFadeOut 0.3s ease forwards;
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes overlayFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Popup principal */
+.popup {
+  position: relative;
+  max-width: 480px;
+  width: 100%;
+  background: linear-gradient(135deg, rgba(26, 26, 30, 0.98), rgba(15, 15, 18, 0.99));
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  border-radius: 24px;
+  padding: 2rem;
+  box-shadow: 
+    0 25px 60px rgba(0, 0, 0, 0.8),
+    0 0 80px rgba(124, 58, 237, 0.05),
+    inset 0 1px 0 rgba(124, 58, 237, 0.1);
+  animation: popupSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+}
+
+.popup--closing {
+  animation: popupSlideOut 0.3s ease forwards;
+}
+
+@keyframes popupSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes popupSlideOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9) translateY(20px);
+  }
+}
+
+/* Anéis de luz decorativos */
+.popup__glow-ring {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.1;
+}
+
+.popup__glow-ring:first-of-type {
+  width: 300px;
+  height: 300px;
+  top: -150px;
+  right: -150px;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.3), transparent 70%);
+  animation: glowRingFloat 6s ease-in-out infinite;
+}
+
+.popup__glow-ring--secondary {
+  width: 200px;
+  height: 200px;
+  bottom: -100px;
+  left: -100px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.2), transparent 70%);
+  animation: glowRingFloat 8s ease-in-out infinite reverse;
+}
+
+@keyframes glowRingFloat {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(10px, -10px) scale(1.1);
+  }
+}
+
+/* Header */
+.popup__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.popup__icon-wrapper {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.15), rgba(91, 33, 182, 0.05));
+  border: 1px solid rgba(124, 58, 237, 0.15);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  animation: iconPulse 2s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.popup__close {
+  width: 36px;
+  height: 36px;
+  background: rgba(42, 42, 48, 0.6);
+  border: 1px solid rgba(124, 58, 237, 0.1);
+  border-radius: 10px;
+  color: #a1a1aa;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.popup__close:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  transform: rotate(90deg);
+}
+
+/* Body */
+.popup__body {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 2rem;
+}
+
+.popup__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #f4f4f5;
+  margin: 0 0 0.5rem 0;
+  background: linear-gradient(135deg, #f4f4f5, #d4d4d8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.popup__message {
+  font-size: 0.95rem;
+  color: rgba(161, 161, 170, 0.8);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Footer com botões */
+.popup__footer {
+  display: flex;
+  gap: 0.75rem;
+  position: relative;
+  z-index: 1;
+}
+
+.popup__button {
+  flex: 1;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Botão Cancelar */
+.popup__button--cancel {
+  background: rgba(42, 42, 48, 0.6);
+  color: #a1a1aa;
+  border: 1px solid rgba(124, 58, 237, 0.05);
+}
+
+.popup__button--cancel:hover {
+  background: rgba(42, 42, 48, 0.9);
+  color: #f4f4f5;
+  transform: translateY(-2px);
+  border-color: rgba(124, 58, 237, 0.1);
+}
+
+.popup__button--cancel:active {
+  transform: translateY(0);
+}
+
+/* Botão Confirmar */
+.popup__button--confirm {
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.popup__button--confirm::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: left 0.5s ease;
+}
+
+.popup__button--confirm:hover::before {
+  left: 100%;
+}
+
+.popup__button--confirm:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(124, 58, 237, 0.3);
+}
+
+.popup__button--confirm:active {
+  transform: translateY(0);
+}
+
+.popup__button-text {
+  position: relative;
+  z-index: 1;
+}
+
+.popup__button-icon {
+  font-size: 1.1rem;
+  transition: transform 0.3s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.popup__button--confirm:hover .popup__button-icon {
+  transform: translateX(4px);
+}
+
+/* Foco nos botões */
+.popup__button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.3);
+}
+
+.popup__button--cancel:focus {
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+/* Responsividade */
+@media (max-width: 480px) {
+  .popup {
+    padding: 1.5rem;
+    border-radius: 20px;
+    margin: 0.5rem;
+  }
+
+  .popup__title {
+    font-size: 1.25rem;
+  }
+
+  .popup__icon-wrapper {
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+  }
+
+  .popup__footer {
+    flex-direction: column-reverse;
+  }
+
+  .popup__button {
+    padding: 0.875rem;
+  }
+
+  .popup__glow-ring:first-of-type {
+    width: 200px;
+    height: 200px;
+    top: -100px;
+    right: -100px;
+  }
+
+  .popup__glow-ring--secondary {
+    width: 150px;
+    height: 150px;
+    bottom: -75px;
+    left: -75px;
+  }
+}
+
+/* Tema de perigo (destrutivo) */
+.popup--danger .popup__button--confirm {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+}
+
+.popup--danger .popup__button--confirm:hover {
+  box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3) !important;
+}
+
+/* Tema de aviso */
+.popup--warning .popup__button--confirm {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+}
+
+.popup--warning .popup__button--confirm:hover {
+  box-shadow: 0 10px 30px rgba(245, 158, 11, 0.3) !important;
+}

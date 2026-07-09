@@ -164,7 +164,7 @@ export const useVpprData = (vppr) => {
         }));
 
         setVpprData(signalsArray);  
-        console.log('vppr',vpprData);
+        //console.log('vppr',vpprData);
         
 
     }, [vpprGroups]);

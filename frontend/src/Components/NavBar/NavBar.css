@@ -61,7 +61,7 @@
 }
 
 .navbar__logo-text {
-  font-size: 1.25rem;
+  font-size: 1rem;
   font-weight: 700;
   background: linear-gradient(135deg, var(--primary-purple-light), var(--primary-purple));
   -webkit-background-clip: text;
@@ -72,9 +72,9 @@
 
 .navbar__badge {
   background: linear-gradient(135deg, var(--primary-purple), var(--primary-purple-dark));
-  padding: 0.15rem 0.5rem;
+  padding: 0.001rem 0.5rem;
   border-radius: 12px;
-  font-size: 0.65rem;
+  font-size: 0.55rem;
   font-weight: 700;
   color: white;
   letter-spacing: 0.5px;
@@ -104,7 +104,7 @@
 
 .navbar__search-input {
   width: 100%;
-  padding: 0.6rem 2rem 0.6rem 2.5rem;
+  padding: 0.3rem 1rem 0.3rem 2.5rem;
   background: var(--gray-750);
   border: 1px solid var(--gray-600);
   border-radius: 12px;
@@ -304,7 +304,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5rem 1rem;
+  padding: 0.1rem 1rem;
   background: var(--gray-750);
   border-radius: 12px;
   cursor: pointer;
@@ -333,7 +333,7 @@
 }
 
 .navbar__user-name {
-  font-size: 0.85rem;
+  font-size: 0.7rem;
   font-weight: 600;
   color: var(--gray-200);
 }
@@ -345,13 +345,13 @@
 }
 
 .navbar__user-status {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: var(--success);
 }
 
 /* Tabs */
 .navbar__tabs {
-  padding: 0 1rem;
+  padding: 0 1.8rem;
   overflow-x: auto;
   scrollbar-width: thin;
 }
@@ -364,7 +364,7 @@
 
 .navbar__tab {
   position: relative;
-  padding: 0.5rem 0.75rem;
+  padding: 0.05rem 0.5rem;
   background: var(--gray-750);
   border-radius: 8px 8px 0 0;
   cursor: pointer;

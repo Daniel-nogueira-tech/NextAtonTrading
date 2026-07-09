@@ -94,6 +94,16 @@ def calculate_atr_wilder_from_data(data, period=182):
 
     return atrs
 
+# Função para obter o ATR correspondente a um candle específico
+def _get_atr_for_candle(atrs, candle_index, period):
+    if candle_index < period:
+        return atrs[0]
+
+    atr_index = candle_index - period
+    if atr_index >= len(atrs):
+        return atrs[-1]
+
+    return atrs[atr_index]
 
 # Função principal para obter as clarificações de tendência usando ATR
 def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
@@ -120,6 +130,9 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
             data = format_raw_data(raw_data)
             print(f"✅ dados formatados: {len(data)} candles")
 
+        # Garante que a sequência de candles esteja ordenada pelo tempo para manter ATR e classificação sincronizados
+        data = sorted(data, key=lambda x: x["Tempo"])   
+
     except Exception as e:
         print(f"❌ Erro ao buscar klines de {symbol}: {str(e)}")
         raise Exception(f"Erro ao buscar klines de {symbol}: {str(e)}")
@@ -139,16 +152,18 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
         raise ValueError("ATR não pôde ser calculado.")
 
     verify_time_multiply = 4
+    atr_period = 182
 
-    # Define os limites com base no ATR e no multiplicador de tempo
-    atr_mult = atrs[-1] * verify_time_multiply
 
-    # Aredonda os valores
-    atr = atr_mult
+    # Sincroniza o ATR com cada candle para manter a classificação alinhada à volatilidade
+    # A cada iteração, limit e confirmar são recalculados com base no ATR do candle atual.
+    base_atr = atrs[0]
+    atr = base_atr * verify_time_multiply
     confir = atr / 2
     confir_round = confir
-    print(f"✅ ATR multiplicado: {atr_mult}, ATR arredondado: {atr}, Confirmação: {confir_round}")
+    print(f"✅ ATR inicial: {base_atr}, limite inicial: {atr}, confirmação inicial: {confir_round}")
     
+
     limit = atr
     confirmar = confir_round
 
@@ -202,6 +217,10 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
     # Salva os dados completos em outra tabela antes de classificar
 
     for i in range(1, len(closes)):
+        current_atr = _get_atr_for_candle(atrs, i, atr_period)
+        limit = current_atr * verify_time_multiply
+        confirmar = limit / 2
+
         price = closes[i]
         tempo = timestamps[i]
         added_movement = False  # Controle para evitar duplicação

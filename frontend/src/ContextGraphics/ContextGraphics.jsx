@@ -1,7 +1,7 @@
 import React from 'react';
 import axios from 'axios';
 import { useIncrementalMarketEngine } from '../hooks/useIncrementalMarketEngine.js';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export const ContextGraphics = React.createContext(null);
 
@@ -18,9 +18,10 @@ const getNextFiveMinuteBoundaryDelay = () => {
 
 
 export const ContextGraphicsProvider = ({ children }) => {
-    //axios.defaults.withCredentials = true;
     const urlBackend = import.meta.env.VITE_BACKEND_URL;
+    const urlBackendSite = import.meta.env.VITE_BACKEND_URL_SITE;
     const navigate = useNavigate();
+    const pathname = useLocation().pathname;
 
     const [tabs, setTabs] = React.useState([]);
     const [activeSymbol, setActiveSymbol] = React.useState(() => { return localStorage.getItem('symbol') || 'BTCUSDT' });
@@ -35,6 +36,14 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [retestPointsStatePrimary, setRetestPointsStatePrimary] = React.useState([]);
     const [retestPointsState, setRetestPointsState] = React.useState([]);
     const [amrsiData, setAmrsiData] = React.useState([]);
+
+    // Dados do usuário
+    const [userData, setUserData] = React.useState(null);
+    const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+
+    // PopUpConfirm
+    const [showPopUp, setShowPopUp] = React.useState(false)
+    const [actionType, setActionType] = React.useState('')
 
 
     const incrementalEngine = useIncrementalMarketEngine({
@@ -238,7 +247,7 @@ export const ContextGraphicsProvider = ({ children }) => {
             console.error("Erro ao carregar dados", error)
         }
     };
- 
+
 
     // Função para atualizar os dados a cada 5 minutos no modo real
     const refreshMarketData = async ({ preserveEngine = false } = {}) => {
@@ -254,7 +263,9 @@ export const ContextGraphicsProvider = ({ children }) => {
         }
     }
 
-    // envia credenciais de logim
+
+    //=================================//Usuário//=================================//
+    // envia credenciais de login
     const loginUser = async (email, password) => {
         if (!email || !password) return;
 
@@ -264,17 +275,82 @@ export const ContextGraphicsProvider = ({ children }) => {
         }
 
         try {
-            const response = await axios.post(`${urlBackend}/api/auth/login`, { payload });
+            const response = await axios.post(`${urlBackendSite}/api/auth/login`, payload, {
+                withCredentials: true,
+            });
             if (response.data.success) {
                 setTimeout(() => {
                     navigate('/');
-                }, 2000);
+                }, 1000);
+                setIsAuthenticated(true);
             }
         } catch (error) {
             console.error('Error logging in:', error)
         }
     };
-    const publicRoutes = ["/OperatingPanel","/"];
+
+    // Função para buscar os dados do usuário
+    const UserData = async () => {
+        try {
+            const response = await axios.get(`${urlBackendSite}/api/user/data`, {
+                withCredentials: true,
+            });
+            setUserData(response.data);
+        } catch (error) {
+            console.error('Error fetching user data:', error);
+            throw error;
+        }
+    };
+
+
+    // Função para verificar a autenticação do usuário
+    const privateRoutes = ["/OperatingPanel", "/", "/Login"];
+    const checkAuthentication = async () => {
+        if (!privateRoutes.includes(pathname)) {
+            return;
+        };
+        try {
+            const { data } = await axios.get(`${urlBackendSite}/api/auth/is-auth`, {
+                withCredentials: true,
+            });
+
+            if (!data.success) {
+                setIsAuthenticated(false);
+                navigate("/Login");
+            } else {
+                setIsAuthenticated(true);
+                UserData();
+            }
+
+            console.log("Authentication check:", data.success);
+        } catch (error) {
+            console.error("Error checking authentication:", error);
+            setIsAuthenticated(false);
+            navigate("/Login");
+        }
+    };
+
+    // Função para abrir o PopUpConfirm de logout
+    const openLogoutConfirm = () => {
+        setActionType('logout')
+        setShowPopUp(true)
+    }
+    // Função para deslogar o usuário
+    const logoutUser = async () => {
+        try {
+            const { data } = await axios.post(`${urlBackendSite}/api/auth/logout`, {}, {
+                withCredentials: true,
+            });
+
+            if (data.success) {
+                setIsAuthenticated(false);
+                setUserData(false);
+                navigate('/Login');
+            }
+        } catch (error) {
+            console.error('Error logging out:', error);
+        }
+    }
 
 
     // Carrega os dados quando o componente é montado
@@ -283,7 +359,7 @@ export const ContextGraphicsProvider = ({ children }) => {
             try {
                 await Promise.all([
                     getSymbols(),
-                    marketData()
+                    marketData(), 
                 ])
             } catch (error) {
                 console.error('Error loading data:', error)
@@ -291,6 +367,15 @@ export const ContextGraphicsProvider = ({ children }) => {
         }
         loadData()
     }, []);
+
+// checkAuthentication é chamado quando o componente é montado e quando a rota muda
+    React.useEffect(() => {
+        try {
+            checkAuthentication();
+        } catch (error) {
+            console.error('Error checking authentication:', error);
+        }
+    },[navigate, pathname]);
 
 
     // Configura o refresh automático dos dados a cada 5 minutos no modo real
@@ -321,7 +406,16 @@ export const ContextGraphicsProvider = ({ children }) => {
 
     //Define o valor do contexto a ser fornecido aos componentes filhos
     const contextValue = {
+        // usuário
         loginUser,
+        userData,
+        logoutUser,
+        showPopUp,
+        setShowPopUp,
+        actionType,
+        setActionType,
+        openLogoutConfirm,
+
         setMode,
         mode,
         tabs,
