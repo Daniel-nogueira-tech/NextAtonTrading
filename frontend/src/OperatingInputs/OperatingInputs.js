@@ -1,5 +1,5 @@
 // useOperatingInputs.js
-import { useMemo, useEffect, useContext, useRef } from 'react';
+import { useMemo, useEffect, useContext, useRef, useState } from 'react';
 import { ContextGraphics } from '../ContextGraphics/ContextGraphics';
 
 // Função genérica que aceita arrays diretos, arrays de arrays, objetos com result/operations/signals e preços.
@@ -117,11 +117,11 @@ const normalizeItem = (item, keys) => {
 };
 
 export const useOperatingInputs = () => {
-    const { retestPointsState, retestPointsStatePrimary, amrsiData, vpprData, fullPrice } = useContext(ContextGraphics);
+    const { retestPointsState, setRetestPoints, retestPointsStatePrimary, amrsiData, vpprData, fullPrice } = useContext(ContextGraphics);
 
     // ====================== HOOKS DOS INDICADORES ======================
     const trend = useMemo(
-        () => normalizeCollection(retestPointsState, "TREND", ["type", "time", "buy", "sell", "stop"], "operations"),
+        () => normalizeCollection(retestPointsState, "TREND", ["type", "time", "buy", "sell", "stop", "limite"], "operations"),
         [retestPointsState]
     );
 
@@ -148,6 +148,13 @@ export const useOperatingInputs = () => {
     // Usar useRef para persistir as flags entre renders
     const flagsBySymbolRef = useRef({});
     const signalsHistoryRef = useRef({});
+    const [signalsBySymbolState, setSignalsBySymbolState] = useState({});
+
+    //Usar useRef para armazenar o último trend de cada símbolo
+    const lastTrendRef = useRef({});
+    const [lastTrendState, setLastTrendState] = useState({});
+    const lastTrendRefPrimary = useRef({});
+    const [lastTrendStatePrimary, setLastTrendStatePrimary] = useState({});
 
     useEffect(() => {
         if (price.length === 0 || trend.length === 0 || trendPrimary.length === 0 || amrsi.length === 0 || vppr.length === 0) {
@@ -169,6 +176,8 @@ export const useOperatingInputs = () => {
         console.log(`📊 Processando ${allSymbols.length} símbolos:`, allSymbols);
 
         const signalsBySymbol = {};
+        const newLastTrends = {};
+        const newLastTrendsPrimary = {};
 
         // Intera sobre os indicadores para verificar entradas
         allSymbols.forEach(symbol => {
@@ -179,6 +188,8 @@ export const useOperatingInputs = () => {
                     inputExecuted: false,
                     upwardTrendCurrent: false,
                     downwardTrendCurrent: false,
+                    downwardAmrsiCurrent: false,
+                    upwardAmrsiCurrent: false,
                     lastSignal: null,
                     signalCount: 0
                 };
@@ -191,7 +202,7 @@ export const useOperatingInputs = () => {
             const lastVpprArray = vppr.find(item => item.symbol === symbol)?.result || [];
             const lastPriceArray = price.find(item => item.symbol === symbol)?.result || [];
 
-            
+
             // Verifica se encontrou dados
             console.log(`🔍 [${symbol}] Trend: ${lastTrendArray.length} itens, Primary: ${lastTrendPrimaryArray.length} itens, Price: ${lastPriceArray.length} itens`);
 
@@ -212,12 +223,26 @@ export const useOperatingInputs = () => {
                 return;
             }
 
+            // Assignar os últimos trends aos estados e refs
+            if (lastTrend) {
+                newLastTrends[symbol] = lastTrend;
+                lastTrendRef.current[symbol] = lastTrend;
+            }
+
+            if (lastTrendPrimary) {
+                newLastTrendsPrimary[symbol] = lastTrendPrimary;
+                lastTrendRefPrimary.current[symbol] = lastTrendPrimary;
+            }
+
+
             let signal = null;
             const flags = flagsBySymbolRef.current[symbol];
 
             // Tipos para entrada
             const TYPE_BUY = ["ENTRY_BUY_TREND", "ENTRY_BUY_RALLY", "ENTRY_BUY_RALLY_SEC", "ENTRY_BUY_RALLY_REVERSE"];
             const TYPE_SELL = ["ENTRY_SELL_TREND", "ENTRY_SELL_RALLY", "ENTRY_SELL_RALLY_SEC", "ENTRY_SELL_RALLY_REVERSE"];
+            const TYPE_BUY_PRI = ["ENTRY_BUY_TREND", "ENTRY_BUY_RALLY", "ENTRY_BUY_RALLY_SEC", "ENTRY_BUY_RALLY_REVERSE", "pivotBreak-buy"];
+            const TYPE_SELL_PRI = ["ENTRY_SELL_TREND", "ENTRY_SELL_RALLY", "ENTRY_SELL_RALLY_SEC", "ENTRY_SELL_RALLY_REVERSE", "pivotBreak-sell"];
 
             // Tipos para saída
             const TYPE_BUY_EXIT = ["pivotBreak-sell"];
@@ -229,11 +254,9 @@ export const useOperatingInputs = () => {
             // Logs para debug por símbolo
             console.log(`🌚 [${symbol}] Trend Primary:`, lastTrendPrimary?.type);
             console.log(`🌚 [${symbol}] Trend Secondary:`, lastTrend?.type);
-            //console.log(`📊 [${symbol}] Flag Executada:`, flags.inputExecuted);
-            //console.log(`📊 [${symbol}] Buy esperado:`, lastTrend?.buy);
-            //console.log(`📊 [${symbol}] Sell esperado:`, lastTrend?.sell);
-            //console.log(`📊 [${symbol}] Preço atual:`, lastPrice?.Fechamento);
+            console.log(`🌚 [${symbol}] lastTrend:`, lastTrend);
             console.log(`📊 [${symbol}] VPPR Trend:`, lastVppr?.trend);
+            console.log(`📊 [${symbol}] VPPR >:`, lastVppr?.type);
 
 
             // Reseta flag de entrada
@@ -243,14 +266,33 @@ export const useOperatingInputs = () => {
                 return;
             }
 
+
+            // Reseta setRetestPoints caso preço se mova muito destante do pivô
+            if (setRetestPoints && lastTrend?.limite && lastPrice?.Fechamento) {
+                const upperLimit = (lastTrend?.pivot + (lastTrend?.limite / 2)) >= lastPrice?.Fechamento;
+                const lowerLimit = (lastTrend?.pivot - (lastTrend?.limite / 2)) <= lastPrice?.Fechamento;
+                if (!upperLimit || !lowerLimit) {
+                    setRetestPoints([]);
+                };
+            }
+
+            console.log(`📈 [${symbol}] Condição BUY:`, {
+                primaryOk: TYPE_BUY_PRI.includes(lastTrendPrimary?.type),
+                secondaryOk: TYPE_BUY.includes(lastTrend?.type),
+                priceOk: lastPrice.Fechamento >= lastTrend?.buy,
+                vpprOk: lastVppr?.trend === 'buy',
+                result: TYPE_BUY_PRI.includes(lastTrendPrimary?.type) && TYPE_BUY.includes(lastTrend?.type) && lastPrice.Fechamento >= lastTrend?.buy && lastVppr?.trend === 'buy'
+            });
+
             //🟢 Entrada de compra
-            if (!flags.inputExecuted && TYPE_BUY.includes(lastTrendPrimary?.type)) {
+            if (!flags.inputExecuted && TYPE_BUY_PRI.includes(lastTrendPrimary?.type)) {
                 const conditionBuy = TYPE_BUY.includes(lastTrend?.type) &&
                     lastPrice.Fechamento >= lastTrend?.buy &&
+                    lastPrice.Fechamento <= lastTrend?.buy + (lastTrend?.limite / 4) &&
                     lastVppr?.trend === 'buy';
 
-                console.log(`📈 [${symbol}] Condição BUY:`, {
-                    primaryOk: TYPE_BUY.includes(lastTrendPrimary?.type),
+                console.log(`📈 [${symbol}] Condição BUY::`, {
+                    primaryOk: TYPE_BUY_PRI.includes(lastTrendPrimary?.type),
                     secondaryOk: TYPE_BUY.includes(lastTrend?.type),
                     priceOk: lastPrice.Fechamento >= lastTrend?.buy,
                     vpprOk: lastVppr?.trend === 'buy',
@@ -270,17 +312,19 @@ export const useOperatingInputs = () => {
                     flags.upwardTrendCurrent = true;
                     flags.inputExecuted = true;
                     flags.signalCount += 1;
+                    flags.upwardAmrsiCurrent = false; // Resetar a flag de AMRSI para permitir nova entrada parcial
                     console.log(`✅ [${symbol}] SINAL DE COMPRA GERADO! #${flags.signalCount}`);
                 }
             }
             //🔴 Entrada de venda
-            else if (!flags.inputExecuted && TYPE_SELL.includes(lastTrendPrimary?.type)) {
+            else if (!flags.inputExecuted && TYPE_SELL_PRI.includes(lastTrendPrimary?.type)) {
                 const conditionSell = TYPE_SELL.includes(lastTrend?.type) &&
                     lastPrice.Fechamento <= lastTrend?.sell &&
+                    lastPrice.Fechamento >= lastTrend?.sell - (lastTrend?.limite / 4) &&
                     lastVppr?.trend === 'sell';
 
                 console.log(`📉 [${symbol}] Condição SELL:`, {
-                    primaryOk: TYPE_SELL.includes(lastTrendPrimary?.type),
+                    primaryOk: TYPE_SELL_PRI.includes(lastTrendPrimary?.type),
                     secondaryOk: TYPE_SELL.includes(lastTrend?.type),
                     priceOk: lastPrice.Fechamento <= lastTrend?.sell,
                     vpprOk: lastVppr?.trend === 'sell',
@@ -300,80 +344,143 @@ export const useOperatingInputs = () => {
                     flags.downwardTrendCurrent = true;
                     flags.inputExecuted = true;
                     flags.signalCount += 1;
+                    flags.downwardAmrsiCurrent = false; // Resetar a flag de AMRSI para permitir nova entrada parcial
                     console.log(`✅ [${symbol}] SINAL DE VENDA GERADO! #${flags.signalCount}`);
                 }
             }
-            // console.log("BUY_EXIT:", TYPE_BUY_EXIT.includes(lastTrend?.type));
-            console.log("upwardTrend >", flags.upwardTrendCurrent);
-            console.log('inputExecuted', flags.inputExecuted);
-            console.log('inputExecutedBreakup:', flags.inputExecutedBreakup);
 
 
             //🔵 Entrada compra em Rompimento de pivô
-            if (!flags.inputExecutedBreakup && TYPE_BUY.includes(lastTrendPrimary?.type)) {
-                const conditionBuy = TYPE_BUY_BREAK_UP.includes(lastTrend?.type) &&
-                    lastPrice?.Fechamento >= lastTrend?.buy &&
-                    lastVppr?.trend === 'buy';
+            /*  if (!flags.inputExecutedBreakup && TYPE_BUY.includes(lastTrendPrimary?.type)) {
+                  const conditionBuy = TYPE_BUY_BREAK_UP.includes(lastTrend?.type) &&
+                      lastPrice?.Fechamento >= lastTrend?.buy &&
+                      lastVppr?.trend === 'buy';
+   
+                  console.log(`📈 [${symbol}] Condição BUY:`, {
+                      primaryOk: TYPE_BUY.includes(lastTrendPrimary?.type),
+                      secondaryOk: TYPE_BUY_BREAK_UP.includes(lastTrend?.type),
+                      priceOk: lastPrice.Fechamento >= lastTrend?.buy,
+                      vpprOk: lastVppr?.trend === 'buy',
+                      result: conditionBuy
+                  });
+  
+                  if (conditionBuy) {
+                      signal = {
+                          symbol,
+                          action: "BUY",
+                          expectedPriceBuy: lastTrend.buy,
+                          entryPrice: lastPrice?.Fechamento,
+                          time: lastPrice?.Tempo || lastPrice?.time,
+                          trendPrimary: lastTrendPrimary?.type,
+                          trendSecondary: lastTrend?.type
+                      };
+                      flags.upwardTrendCurrent = true;
+                      flags.inputExecutedBreakup = true;
+                      flags.signalCount += 1;
+                      console.log(`✅ [${symbol}] SINAL DE COMPRA GERADO! #${flags.signalCount}`);
+                  }
+              }
+              //🔴 Entrada venda em Rompimento de pivô
+              else if (!flags.inputExecutedBreakup && TYPE_SELL.includes(lastTrendPrimary?.type)) {
+                  const conditionSell = TYPE_SELL_BREAK_UP.includes(lastTrend?.type) &&
+                      lastPrice.Fechamento <= lastTrend?.sell &&
+                      lastVppr?.trend === 'sell';
+  
+                  console.log(`📉 [${symbol}] Condição SELL:`, {
+                      primaryOk: TYPE_SELL.includes(lastTrendPrimary?.type),
+                      secondaryOk: TYPE_SELL_BREAK_UP.includes(lastTrend?.type),
+                      priceOk: lastPrice.Fechamento <= lastTrend?.sell,
+                      vpprOk: lastVppr?.trend === 'sell',
+                      result: conditionSell
+                  });
+  
+                  if (conditionSell) {
+                      signal = {
+                          symbol,
+                          action: "SELL",
+                          expectedPriceSell: lastTrend.sell,
+                          entryPrice: lastPrice?.Fechamento,
+                          time: lastPrice?.Tempo || lastPrice?.time,
+                          trendPrimary: lastTrendPrimary?.type,
+                          trendSecondary: lastTrend?.type
+                      };
+                      flags.downwardTrendCurrent = true;
+                      flags.inputExecutedBreakup = true;
+                      flags.signalCount += 1;
+                      console.log(`✅ [${symbol}] SINAL DE VENDA GERADO! #${flags.signalCount}`);
+                  }
+              }*/
 
-                console.log(`📈 [${symbol}] Condição BUY:`, {
-                    primaryOk: TYPE_BUY.includes(lastTrendPrimary?.type),
-                    secondaryOk: TYPE_BUY_BREAK_UP.includes(lastTrend?.type),
-                    priceOk: lastPrice.Fechamento >= lastTrend?.buy,
-                    vpprOk: lastVppr?.trend === 'buy',
-                    result: conditionBuy
-                });
+            console.log(
+                "upwardTrendCurrent:", flags.upwardTrendCurrent, "||",
+                "lastPrice:", lastPrice.Fechamento, "||",
+                "stop:", lastTrend?.stop
+            )
 
-                if (conditionBuy) {
+            //🚫 Saída de operações stop
+            if (lastTrend?.stop && flags.inputExecuted) {
+                // Lógica para saída de operações stop
+                if (flags.upwardTrendCurrent && lastPrice.Fechamento <= lastTrend.stop && lastVppr?.trend === 'sell') {
                     signal = {
                         symbol,
-                        action: "BUY",
-                        expectedPriceBuy: lastTrend.buy,
+                        action: "STOP_BUY",
+                        expectedPriceExitBuy: lastTrend.stop,
+                        exitPrice: lastPrice?.Fechamento,
+                        time: lastPrice?.Tempo || lastPrice?.time
+                    };
+                    flags.upwardTrendCurrent = false;
+                    flags.inputExecutedBreakup = false;
+                    flags.inputExecuted = false;
+                    console.log(`🚪 [${symbol}] SAÍDA DE COMPRA`);
+                } else if (flags.downwardTrendCurrent && lastPrice.Fechamento >= lastTrend.stop) {
+                    signal = {
+                        symbol,
+                        action: "STOP_SELL",
+                        expectedPriceExitSell: lastTrend.stop,
+                        exitPrice: lastPrice?.Fechamento,
+                        time: lastPrice?.Tempo || lastPrice?.time
+                    };
+                    flags.downwardTrendCurrent = false;
+                    flags.inputExecutedBreakup = false;
+                    flags.inputExecuted = false;
+                    console.log(`🚪 [${symbol}] SAÍDA DE VENDA`);
+                }
+            }
+
+            // Ponto de saída para comprar depois de rompimento de pivô de alta
+            if(TYPE_BUY_BREAK_UP.includes(lastTrend?.type) && lastTrend?.limite && flags.inputExecuted) {
+                if(lastPrice.Fechamento >= (lastTrend?.buy + (lastTrend?.limite / 2)) && flags.upwardTrendCurrent ) {
+                    signal = {
+                        symbol,
+                        action: "EXIT_BUY",
+                        expectedPriceBuy: lastTrend.buy + (lastTrend?.limite / 2),
                         entryPrice: lastPrice?.Fechamento,
                         time: lastPrice?.Tempo || lastPrice?.time,
                         trendPrimary: lastTrendPrimary?.type,
                         trendSecondary: lastTrend?.type
                     };
-                    flags.upwardTrendCurrent = true;
-                    flags.inputExecutedBreakup = true;
+                    flags.upwardTrendCurrent = false;
+                    flags.inputExecuted = false;
                     flags.signalCount += 1;
-                    console.log(`✅ [${symbol}] SINAL DE COMPRA GERADO! #${flags.signalCount}`);
-                }
-            }
-            //🔴 Entrada venda em Rompimento de pivô
-            else if (!flags.inputExecutedBreakup && TYPE_SELL.includes(lastTrendPrimary?.type)) {
-                const conditionSell = TYPE_SELL_BREAK_UP.includes(lastTrend?.type) &&
-                    lastPrice.Fechamento <= lastTrend?.sell &&
-                    lastVppr?.trend === 'sell';
-
-                console.log(`📉 [${symbol}] Condição SELL:`, {
-                    primaryOk: TYPE_SELL.includes(lastTrendPrimary?.type),
-                    secondaryOk: TYPE_SELL_BREAK_UP.includes(lastTrend?.type),
-                    priceOk: lastPrice.Fechamento <= lastTrend?.sell,
-                    vpprOk: lastVppr?.trend === 'sell',
-                    result: conditionSell
-                });
-
-                if (conditionSell) {
+                    console.log(`✅ [${symbol}] SINAL DE SAÍDA DE COMPRA GERADO! #${flags.signalCount}`);
+                } else if(lastPrice.Fechamento <= (lastTrend?.buy + (lastTrend?.limite / 2)) && flags.downwardTrendCurrent) {
                     signal = {
                         symbol,
-                        action: "SELL",
-                        expectedPriceSell: lastTrend.sell,
+                        action: "EXIT_SELL",
+                        expectedPriceSell: lastTrend.buy + (lastTrend?.limite / 2),
                         entryPrice: lastPrice?.Fechamento,
                         time: lastPrice?.Tempo || lastPrice?.time,
                         trendPrimary: lastTrendPrimary?.type,
                         trendSecondary: lastTrend?.type
                     };
-                    flags.downwardTrendCurrent = true;
-                    flags.inputExecutedBreakup = true;
+                    flags.downwardTrendCurrent = false;
+                    flags.inputExecuted = false;
                     flags.signalCount += 1;
-                    console.log(`✅ [${symbol}] SINAL DE VENDA GERADO! #${flags.signalCount}`);
+                    console.log(`✅ [${symbol}] SINAL DE SAÍDA DE VENDA GERADO! #${flags.signalCount}`);
                 }
             }
 
 
-            console.log('TYPE_BUY_EXIT :', TYPE_BUY_EXIT.includes(lastTrend?.type));
-            console.log('upwardTrendCurrent :', flags.upwardTrendCurrent);
-            console.log('Preço baixo do fechamento', lastPrice.Fechamento <= lastTrend.sell);
 
             //🔺 Saída de operações de compra
             if (TYPE_BUY_EXIT.includes(lastTrend?.type) && flags.upwardTrendCurrent) {
@@ -424,40 +531,67 @@ export const useOperatingInputs = () => {
                 }
             }
 
-            
+
+            console.log(`📉 [${symbol}] Condição PARTIAL BUY:`, {
+                upwardTrendCurrentOk: flags.upwardTrendCurrent,
+                upwardAmrsiCurrent: !flags.upwardAmrsiCurrent,
+                amrsiType: lastAmrsi?.type,
+                amrsiOk: String(lastAmrsi?.type).toUpperCase() === 'PARTIAL_BUY',
+                result: flags.upwardTrendCurrent && String(lastAmrsi?.type).toUpperCase() === 'PARTIAL_BUY',
+            });
+
+            let trendUpPivotPlusLimit = lastTrend?.buy + (lastTrend?.limite / 2);
+            let trendDownPivotPlusLimit = lastTrend?.sell - (lastTrend?.limite / 2);
             //🍰🟢 Parcial compra 
-            if (TYPE_BUY_BREAK_UP.includes(lastTrend?.type) && flags.upwardTrendCurrent && lastAmrsi.type === 'Partial Buy') {
+            if (
+                TYPE_BUY_BREAK_UP.includes(lastTrend?.type) &&
+                lastPrice?.Fechamento >= trendUpPivotPlusLimit &&
+                flags.upwardTrendCurrent &&
+                !flags.upwardAmrsiCurrent &&
+                String(lastAmrsi?.type).toUpperCase() === 'PARTIAL_BUY'
+            ) {
 
                 console.log(`📉 [${symbol}] Condição PARTIAL BUY:`, {
                     upwardTrendCurrentOk: flags.upwardTrendCurrent,
-                    amrsiOk: lastPrice.Fechamento >= lastTrend?.sell,
-                    result: flags.upwardTrendCurrent && lastAmrsi.type === 'Partial Buy',
+                    amrsiType: lastAmrsi?.type,
+                    amrsiOk: String(lastAmrsi?.type).toUpperCase() === 'PARTIAL_BUY',
+                    result: flags.upwardTrendCurrent && String(lastAmrsi?.type).toUpperCase() === 'PARTIAL_BUY',
                 });
 
                 signal = {
                     symbol,
-                    action: "PARTIAL_BUY",
+                    action: "EXIT_BUY",
                     partialPrice: lastPrice?.Fechamento,
                     time: lastPrice?.Tempo || lastPrice?.time
                 };
-
+                flags.upwardAmrsiCurrent = true;
+                flags.signalCount += 1;
                 console.log(`🚪💲 [${symbol}] PARTIAL BUY`);
             }
             //🍰🔴 Parcial de venda
-            else if (TYPE_SELL_BREAK_UP.includes(lastTrend?.type) && flags.downwardTrendCurrent && lastAmrsi.type === 'Partial Sell') {
+            else if (
+                TYPE_SELL_BREAK_UP.includes(lastTrend?.type) &&
+                flags.downwardTrendCurrent &&
+                lastPrice?.Fechamento <= trendDownPivotPlusLimit &&
+                !flags.downwardAmrsiCurrent &&
+                String(lastAmrsi?.type).toUpperCase() === 'PARTIAL_SELL'
+            ) {
 
-                console.log(`📉 [${symbol}] Condição PARTIAL BUY:`, {
+                console.log(`📉 [${symbol}] Condição PARTIAL SELL:`, {
                     downwardTrendCurrentOk: flags.downwardTrendCurrent,
-                    amrsiOk: lastAmrsi.type === 'Partial Sell',
-                    result: flags.downwardTrendCurrent && lastAmrsi.type === 'Partial Sell',
+                    amrsiType: lastAmrsi?.type,
+                    amrsiOk: String(lastAmrsi?.type).toUpperCase() === 'PARTIAL_SELL',
+                    result: flags.downwardTrendCurrent && String(lastAmrsi?.type).toUpperCase() === 'PARTIAL_SELL',
                 });
 
                 signal = {
                     symbol,
-                    action: "PARTIAL_SELL",
+                    action: "EXIT_SELL",
                     partialPrice: lastPrice?.Fechamento,
                     time: lastPrice?.Tempo || lastPrice?.time
                 };
+                flags.downwardAmrsiCurrent = true;
+                flags.signalCount += 1;
 
                 console.log(`🚪💲 [${symbol}] PARTIAL SELL`);
             };
@@ -495,8 +629,28 @@ export const useOperatingInputs = () => {
         if (Object.keys(signalsBySymbol).length > 0) {
             console.log("🎯 Novos sinais detectados:", Object.keys(signalsBySymbol));
         }
+        console.log("📊 Histórico de sinais por símbolo:", signalsHistoryRef.current);
+
+        setSignalsBySymbolState({ ...signalsHistoryRef.current });
+
+
+        // Atualiza os estados de lastTrend e lastTrendPrimary apenas se houver mudanças
+        if (Object.keys(newLastTrends).length > 0) {
+            setLastTrendState({ ...newLastTrends });
+        }
+        if (Object.keys(newLastTrendsPrimary).length > 0) {
+            setLastTrendStatePrimary({ ...newLastTrendsPrimary });
+        }
 
     }, [trend, trendPrimary, amrsi, vppr, price]);
+
+    // Criar uma função para pegar o lastTrend de um símbolo específico
+    const getLastTrendBySymbol = (symbol) => {
+        return lastTrendRef.current[symbol] || null;
+    };
+    const getLastTrendPrimaryBySymbol = (symbol) => {
+        return lastTrendRefPrimary.current[symbol] || null;
+    };
 
     return {
         trend,
@@ -504,9 +658,15 @@ export const useOperatingInputs = () => {
         amrsi,
         vppr,
         price,
+        lastTrend: lastTrendState,
+        lastTrendPrimary: lastTrendStatePrimary,
+
         // Exporta funções auxiliares
-        getSignalsBySymbol: (symbol) => signalsHistoryRef.current[symbol] || [],
-        getAllSignals: () => signalsHistoryRef.current,
+        signalsBySymbol: signalsBySymbolState,
+        getLastTrendBySymbol,
+        getLastTrendPrimaryBySymbol,
+        getSignalsBySymbol: (symbol) => signalsBySymbolState[symbol] || [],
+        getAllSignals: () => signalsBySymbolState,
         getFlagsBySymbol: (symbol) => flagsBySymbolRef.current[symbol] || null
     };
 };

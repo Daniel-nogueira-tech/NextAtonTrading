@@ -2,7 +2,7 @@
 import React from 'react'
 import './GraphicsRenko.css'
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx'
-import { CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, createChart } from 'lightweight-charts'
+import { CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, createChart, createSeriesMarkers } from 'lightweight-charts'
 import { Calendar } from 'primereact/calendar';
 import { Button } from 'primereact/button';
 import MovementTables from '../MovementTables/MovementTables.jsx';
@@ -46,6 +46,13 @@ const selectMarketBySymbol = (payload, activeSymbol) => {
 
 //--------------/Formata datas/--------------
 const parseChartTime = (closeTime, fallbackIndex) => {
+  if (closeTime == null) return fallbackIndex + 1
+
+  if (typeof closeTime === 'number') {
+    // Aceita timestamps em milissegundos ou segundos
+    return closeTime > 9999999999 ? Math.floor(closeTime / 1000) : closeTime
+  }
+
   if (typeof closeTime !== 'string') return fallbackIndex + 1
 
   // Remove espaços e garante formato ISO
@@ -115,6 +122,87 @@ const buildReferenceLineData = (baseData, value) => {
     value,
   }))
 }
+
+// Constrói marcadores de sinal para o gráfico
+const normalizeSignalTime = (value, fallbackIndex) => {
+  if (value == null) return fallbackIndex + 1
+  if (typeof value === 'number') {
+    return value > 9999999999 ? Math.floor(value / 1000) : value
+  }
+  if (typeof value !== 'string') return fallbackIndex + 1
+  const timestamp = Number(value)
+  if (!Number.isNaN(timestamp) && value.trim() !== '') {
+    return timestamp > 9999999999 ? Math.floor(timestamp / 1000) : timestamp
+  }
+  return parseChartTime(value, fallbackIndex)
+}
+
+const buildSignalMarkers = (signals = []) => {
+  return signals
+    .filter(signal => signal && (signal.time != null || signal.Time != null || signal.Tempo != null))
+    .map((signal) => ({
+      ...signal,
+      action: String(signal.action || signal.type || '').trim().toUpperCase(),
+      time: signal.time ?? signal.Time ?? signal.Tempo,
+    }))
+    .filter(signal => ['BUY', 'SELL', 'EXIT_BUY', 'EXIT_SELL', 'PARTIAL_BUY', 'PARTIAL_SELL', 'STOP_BUY', 'STOP_SELL'].includes(signal.action))
+    .map((signal, index) => {
+      const markerPrice = signal.entryPrice || signal.partialPrice || signal.exitPrice || signal.price || signal.expectedPriceBuy || signal.expectedPriceSell || signal.expectedPriceExitBuy || signal.expectedPriceExitSell || '';
+      let position, color, shape, text;
+
+      if (signal.action === 'BUY') {
+        position = 'belowBar';
+        color = '#22AB94';
+        shape = 'arrowUp';
+        text = `BUY ${markerPrice}`.trim();
+      } else if (signal.action === 'SELL') {
+        position = 'aboveBar';
+        color = '#fc5b5b';
+        shape = 'arrowDown';
+        text = `SELL ${markerPrice}`.trim();
+      } else if (signal.action === 'EXIT_BUY') {
+        position = 'aboveBar';
+        color = '#ffd4d4';
+        shape = 'arrowDown';
+        text = `EXIT BUY ${markerPrice}`.trim();
+      } else if (signal.action === 'EXIT_SELL') {
+        position = 'belowBar';
+        color = '#c1fff5';
+        shape = 'arrowUp';
+        text = `EXIT SELL ${markerPrice}`.trim();
+      } else if (signal.action === 'PARTIAL_BUY') {
+        position = 'aboveBar';
+        color = '#68a59b';
+        shape = 'arrowDown';
+        text = `PARTIAL BUY ${markerPrice}`.trim();
+      } else if (signal.action === 'PARTIAL_SELL') {
+        position = 'belowBar';
+        color = '#c29b9b';
+        shape = 'arrowUp';
+        text = `PARTIAL SELL ${markerPrice}`.trim();
+      } else if (signal.action === 'STOP_BUY') {
+        position = 'aboveBar';
+        color = '#ff0000';
+        shape = 'arrowDown';
+        text = `STOP BUY ${markerPrice}`.trim();
+      } else if (signal.action === 'STOP_SELL') {
+        position = 'belowBar';
+        color = '#00ff0d';
+        shape = 'arrowUp';
+        text = `STOP SELL ${markerPrice}`.trim();
+      }
+
+      return {
+        time: normalizeSignalTime(signal.time, index),
+        position,
+        color,
+        shape,
+        text,
+      }
+    })
+    .filter(marker => marker.position && marker.color && marker.shape && typeof marker.time === 'number');
+};
+
 
 const getChartTimeKey = (time) => {
   if (time == null) return null
@@ -390,12 +478,16 @@ const GraphicsRenko = () => {
   const { retestPointsStatePrimary } = useOperatingDataPrimary(trendPrimary);
   const { vpprData } = useVpprData(vppr);
   const { amrsiData } = useAmrsiData(rsi);
-  useOperatingInputs();
+  const { signalsBySymbol, getLastTrendBySymbol, getLastTrendPrimaryBySymbol } = useOperatingInputs();
   //===================//===================//
 
 
   // alterna entre dados classificados de primário e secundário
   const trendCurrent = isTrend ? trend : trendPrimary;
+
+  // Pega o ultimo typo de tendencia do ativo
+  const lastTrend = getLastTrendBySymbol(activeSymbol);
+  const lastTrendPrimary = getLastTrendPrimaryBySymbol(activeSymbol);
 
 
   // seleciona o ativo que está ativo
@@ -535,6 +627,15 @@ const GraphicsRenko = () => {
       },
     })
 
+    const chartMarkersRef = createSeriesMarkers(candlestickSeriesRef.current, [], {
+      position: 'atPriceTop',
+      color: '#000000',
+      size: 12,
+      shape: 'circle',
+    })
+
+    candlestickSeriesRef.current.chartMarkers = chartMarkersRef
+
     return () => {
       chartRef.current?.remove()
       chartRef.current = null
@@ -555,11 +656,15 @@ const GraphicsRenko = () => {
 
     updateSeriesData(candlestickSeriesRef.current, renkoCandles, candlestickSeriesMetaRef)
 
+    const activeSignals = signalsBySymbol?.[activeSymbol] || []
+    const markers = buildSignalMarkers(activeSignals)
+    candlestickSeriesRef.current.chartMarkers?.setMarkers(markers)
+
     if (renkoCandles.length > 0 && !hadRenkoCandlesRef.current) {
       chartRef.current.timeScale().fitContent()
     }
     hadRenkoCandlesRef.current = renkoCandles.length > 0
-  }, [renkoCandles, activeSymbol])
+  }, [renkoCandles, activeSymbol, signalsBySymbol])
 
   //-------------------------/Calendário/-------------------------
   // Função para formatar quando precisar salvar ou mostrar
@@ -660,9 +765,16 @@ const GraphicsRenko = () => {
               onClick={() => { movementTables ? setMovementTables(false) : setMovementTables(true) }}
             >Movement Tables</button>
           </div>
+          {/**-------------/Ultima tendência/------------- */}
+          <div className='lastTrend'>
+             {lastTrendPrimary && <span className='lastTrend-primary'> Trend Primary : {lastTrendPrimary?.type} <br /></span>}
+            {lastTrend && <span className='lastTrend-type'>Trend : {lastTrend?.type} <br /></span>} 
+          </div>
+
         </div>
 
         <div className="graphics-renko__chart" ref={chartContainerRef}>
+
           <div className='button-simulation'>
             <button
               onClick={buttonSimulation}
@@ -777,6 +889,7 @@ const GraphicsRenko = () => {
                 </button>
               </div>
             }
+
             {loading && mode === "simulation" &&
               <div className='simulation-control'>
                 Please select another asset or download the date range.
@@ -788,7 +901,9 @@ const GraphicsRenko = () => {
               Waiting for enough movement to form the blocks.
             </div>
           )}
+
         </div>
+
 
         <aside className="graphics-renko__indicators" aria-label="Graficos dos indicadores do ativo selecionado">
           <IndicatorChart

@@ -316,7 +316,35 @@
   font-weight: 700;
   text-align: center;
 }
+.lastTrend{
+  position: absolute;
+  top: 10%;
+  right: 10%;
+  background-color: rgba(0, 0, 0, 0.315);
+  color: #fff;
+  padding: 5px 10px;
+  margin-top: 20px;
+  border-radius: 4px;
+  font-size: 12px;
+  width: auto;
+  height:auto;
+  text-align: center;
+  z-index: 1000;
+  gap: 4px;
+  text-align: left;
+}
 
+.lastTrend-type {
+  font-size: 12px;
+  color: #fff;
+  text-align: left;
+}
+
+.lastTrend-primary {
+  font-size: 12px;
+  color: #fff;
+  text-align: left;
+}
 
 @keyframes renkoFadeInUp {
   from {

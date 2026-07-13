@@ -75,8 +75,8 @@ export const useVpprData = (vppr) => {
                 const bandBottom = vpprEma - percentage;
 
                 let currentTrend = null;
-                if (vppr > bandTop) currentTrend = 'TREND_BUY';
-                else if (vppr < bandBottom) currentTrend = 'TREND_SELL';
+                if (vppr > vpprEma) currentTrend = 'TREND_BUY';
+                else if (vppr < vpprEma) currentTrend = 'TREND_SELL';
 
                 // ====================== DETECÇÃO DE ACUMULAÇÃO ======================
                 let accumulationSignal = null;

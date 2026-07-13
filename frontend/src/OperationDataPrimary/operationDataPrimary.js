@@ -846,7 +846,7 @@ export const useOperatingDataPrimary = (trend) => {
       // ======================================================================
       if (pivoRallyPrimary && naturalReaction && canExecuteReactionRef.current && !executeEntrieRally.current) {
         const limite = pivoRallyPrimary.limite;
-        const tolerance = limite / 2.5;
+        const tolerance = limite / 3;
         const high = pivoRallyPrimary.closePrice + tolerance;
         const low = pivoRallyPrimary.closePrice - tolerance;
         const buyPoint = pivoRallyPrimary.closePrice + limite / 2;
