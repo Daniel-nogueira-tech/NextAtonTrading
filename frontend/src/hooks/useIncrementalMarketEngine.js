@@ -337,6 +337,8 @@ export const useIncrementalMarketEngine = ({
 
   // Continua a reprodução automática se estiver pausada.
   const reset = React.useCallback(() => {
+    location.reload(); 
+
     stopTimer()
     cursorRef.current = 0
     statusRef.current = 'idle'

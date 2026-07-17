@@ -82,6 +82,8 @@ export const useOperatingDataPrimary = (trend) => {
   useEffect(() => {
     // dados de classificação simulados 
     if (!trendGroups || trendGroups.length === 0) return;
+    console.log('trendGroup:',trendGroups);
+    
 
     const nextRetestHistory = { ...retestHistoryRef.current };
 
@@ -944,8 +946,8 @@ export const useOperatingDataPrimary = (trend) => {
       // ===============================
       // SAÍDA DE TENDÊNCIA
       // ===============================
-      if (TrendPivot && naturalRally && canExecuteRallyRef.current && executeTrendRally.current ||
-        executeEntrieRally.current || executeTrendRally.current || executeEntrieRallyReverse.current) {
+      if (TrendPivot && naturalRally && canExecuteRallyRef.current || executeTrendRally.current ||
+        executeEntrieRally.current || executeEntrieRallyReverse.current) {
         const limite = TrendPivot?.limite;
         const tolerance = limite / 10;
         const high = TrendPivot?.closePrice + tolerance;

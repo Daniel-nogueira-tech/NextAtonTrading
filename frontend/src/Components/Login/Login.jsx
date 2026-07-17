@@ -243,7 +243,7 @@ const Login = () => {
     const handleSubmit = (e) => {
         e.preventDefault()
         console.log('Login attempt:', { email, password })
-        // Aqui você adiciona a lógica de autenticação
+        // lógica de autenticação
         loginUser(email, password)
     }
 

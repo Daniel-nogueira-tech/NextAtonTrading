@@ -470,7 +470,7 @@ const GraphicsRenko = () => {
   const lastChartSymbolRef = React.useRef(activeSymbol);
   const [dates, setDates] = React.useState(null);
   const [dateErro, setDateErro] = React.useState(null);
-  const [isTrend, setIsTrend] = React.useState(true);
+  const [isTrend, setIsTrend] = React.useState(false);
 
 
   //===================/ Chama os hooks /===================//
@@ -767,8 +767,8 @@ const GraphicsRenko = () => {
           </div>
           {/**-------------/Ultima tendência/------------- */}
           <div className='lastTrend'>
-             {lastTrendPrimary && <span className='lastTrend-primary'> Trend Primary : {lastTrendPrimary?.type} <br /></span>}
-            {lastTrend && <span className='lastTrend-type'>Trend : {lastTrend?.type} <br /></span>} 
+            {lastTrendPrimary && <span className='lastTrend-primary'> Trend Primary : {lastTrendPrimary?.type} <br /></span>}
+            {lastTrend && <span className='lastTrend-type'>Trend : {lastTrend?.type} <br /></span>}
           </div>
 
         </div>
@@ -863,6 +863,7 @@ const GraphicsRenko = () => {
                   Continue
                 </button>
                 <button
+                  id='button-reset'
                   type="button"
                   onClick={resetSimulation}
                   title="Reset"

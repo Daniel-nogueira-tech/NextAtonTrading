@@ -17,18 +17,17 @@
     position: absolute;
     z-index: 1;
     width:100%;
-    margin: 5% auto 48px;
-    padding: 18px;
+    height: 100%;
     border: 1px solid var(--movement-border);
     border-radius: 8px;
     background:
         linear-gradient(135deg, rgba(170, 59, 255, 0.12), transparent 34%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.13)),
         var(--movement-bg);
     box-shadow: var(--movement-shadow);
     color: var(--movement-text);
     animation: fadeIns 520ms ease;
-    margin-top: 74px;
+    margin-top: 67px;
 }
 
 .table-container {

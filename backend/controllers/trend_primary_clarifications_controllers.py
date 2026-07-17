@@ -1221,7 +1221,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
     # devolve também confirmações para o frontend
     return movements 
 
-def trend_clarifications_atr(symbols, time="1h", mode="real"):
+def trend_clarifications_atr(symbols, time="5m", mode="real"):
     default_symbols = get_stored_symbols()
 
     if symbols is None or symbols == "":
@@ -1260,5 +1260,3 @@ def trend_clarifications_atr(symbols, time="1h", mode="real"):
             results = list(executor.map(classify_symbol, enumerate(symbols_to_process)))
 
     return results
-
-
