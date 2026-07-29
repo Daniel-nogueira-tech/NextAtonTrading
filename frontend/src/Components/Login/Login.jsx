@@ -272,7 +272,7 @@ const Login = () => {
                         </p>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="login-card__form">
+                    <form onSubmit={handleSubmit} className="login-card__form"  autoComplete="on" >
                         <div className="login-card__field">
                             <label className="login-card__label">
                                 <span className="login-card__label-icon">📩</span>
@@ -281,7 +281,7 @@ const Login = () => {
                             <input
                                 type="email"
                                 name="email"
-                                autoComplete="username"
+                                autoComplete="email"
                                 className="login-card__input"
                                 placeholder="your@email.com"
                                 value={email}

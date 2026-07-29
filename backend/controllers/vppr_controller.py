@@ -51,7 +51,7 @@ def calculate_vppr(klines):
         if close_price < open_price:
             vppr_candle *= -1
 
-        vppr_acumulado += vppr_candle
+        vppr_acumulado += (vppr_candle / 1000)
         vppr_values.append(vppr_acumulado)
 
     return vppr_values

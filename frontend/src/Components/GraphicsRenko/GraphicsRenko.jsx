@@ -478,16 +478,17 @@ const GraphicsRenko = () => {
   const { retestPointsStatePrimary } = useOperatingDataPrimary(trendPrimary);
   const { vpprData } = useVpprData(vppr);
   const { amrsiData } = useAmrsiData(rsi);
-  const { signalsBySymbol, getLastTrendBySymbol, getLastTrendPrimaryBySymbol } = useOperatingInputs();
+  const { signalsBySymbol, getLastTrendBySymbol, getLastTrendPrimaryBySymbol, getLastVpprBySymbol } = useOperatingInputs();
   //===================//===================//
 
 
   // alterna entre dados classificados de primário e secundário
   const trendCurrent = isTrend ? trend : trendPrimary;
 
-  // Pega o ultimo typo de tendencia do ativo
+  // Pega o ultimo typo de tendencia do ativo para o (Painel)
   const lastTrend = getLastTrendBySymbol(activeSymbol);
   const lastTrendPrimary = getLastTrendPrimaryBySymbol(activeSymbol);
+  const lastVppr = getLastVpprBySymbol(activeSymbol);
 
 
   // seleciona o ativo que está ativo
@@ -730,12 +731,19 @@ const GraphicsRenko = () => {
     incrementalEngine?.reset()
   }
 
+  const handleStepChange = (event) => {
+    const nextStep = Number(event.target.value)
+    incrementalEngine?.setStep(nextStep)
+  }
+
   const speedLabel = React.useMemo(() => {
     const currentSpeed = Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED
     return `${currentSpeed}ms`
   }, [incrementalEngine?.speed])
 
-
+  const stepLabel = React.useMemo(() => {
+    return Number(incrementalEngine?.step) || 1
+  }, [incrementalEngine?.step])
 
   return (
     <section className="graphics-renko">
@@ -830,7 +838,7 @@ const GraphicsRenko = () => {
                 Pause
               </button>
             )}
-            {!loading && mode === "simulation" &&
+            {loading && mode === "simulation" &&
 
               <div className='simulation-control'>
 
@@ -870,28 +878,46 @@ const GraphicsRenko = () => {
                 >
                   Reset
                 </button>
-                <span className='separates-speed'>--</span>
-                <button
-                  type="button"
-                  onClick={decreaseSimulationSpeed}
-                  disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) >= MAX_ENGINE_SPEED}
-                  title="Reduzir velocidade"
-                >
-                  Slower -
-                </button>
-                <span className="simulation-control__speed">{speedLabel}</span>
-                <button
-                  type="button"
-                  onClick={increaseSimulationSpeed}
-                  disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) <= MIN_ENGINE_SPEED}
-                  title="Aumentar velocidade"
-                >
-                  Faster +
-                </button>
+                <span className='separates-speed'></span>
+                <div className='controlle-speed-container'>
+                  <div className='controlle-speed'>
+                    <button
+                      type="button"
+                      onClick={decreaseSimulationSpeed}
+                      disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) >= MAX_ENGINE_SPEED}
+                      title="Reduzir velocidade"
+                    >
+                      Slower -
+                    </button>
+                    <span className="simulation-control__speed">{speedLabel}</span>
+                    <button
+                      type="button"
+                      onClick={increaseSimulationSpeed}
+                      disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) <= MIN_ENGINE_SPEED}
+                      title="Aumentar velocidade"
+                    >
+                      Faster +
+                    </button>
+                  </div>
+
+                  <div className='controlle-step'>
+                    <label htmlFor="slider">Step: {stepLabel}</label>
+                    <input
+                      type="range"
+                      id="slider"
+                      name="slider"
+                      min="1"
+                      max="100"
+                      value={stepLabel}
+                      onChange={handleStepChange}
+                    />
+                  </div>
+
+                </div>
               </div>
             }
 
-            {loading && mode === "simulation" &&
+            {!loading && mode === "simulation" &&
               <div className='simulation-control'>
                 Please select another asset or download the date range.
               </div>
@@ -902,23 +928,38 @@ const GraphicsRenko = () => {
               Waiting for enough movement to form the blocks.
             </div>
           )}
-
         </div>
 
-
         <aside className="graphics-renko__indicators" aria-label="Graficos dos indicadores do ativo selecionado">
-          <IndicatorChart
-            title="AMRSI (arithmetic mean of Relative Strength Index)"
-            series={rsiSeries}
-            emptyMessage="No RSI history available for this asset."
-            resetKey={activeSymbol}
-          />
-          <IndicatorChart
-            title="VPPR (Volume Price Pressure Ratio)"
-            series={vpprSeries}
-            emptyMessage="No VPPR history available for this asset."
-            resetKey={activeSymbol}
-          />
+
+          <div className='indicators-container' >
+            <span style={{ 'position': 'absolute' }}>
+            </span>
+            <IndicatorChart
+              title="AMRSI"
+              series={rsiSeries}
+              emptyMessage="No RSI history available for this asset."
+              resetKey={activeSymbol}
+            />
+          </div>
+
+          <div className='painel-vppr'>
+            <span
+              className='vppr'
+              style={{ 'position': 'absolute', 'backgroundColor': 'rgba(0, 0, 0, 0.315)' }} >
+              {lastVppr && <span className='lastTrend-primary'> Main trend {lastVppr?.major === 'MajorBuy' ? 'Buy' : 'Sell'} <br /></span>}
+              {lastVppr && <span className='lastTrend-primary'>  Flow {lastVppr?.trend} <br /></span>}
+              {lastVppr && <span className='lastTrend-primary'>  Flow {lastVppr?.volumeEmaSignal} <br /></span>}
+
+            </span>
+
+            <IndicatorChart
+              title="VPPR"
+              series={vpprSeries}
+              emptyMessage="No VPPR history available for this asset."
+              resetKey={activeSymbol}
+            />
+          </div>
         </aside>
       </div>
     </section>

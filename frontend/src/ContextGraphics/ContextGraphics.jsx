@@ -27,7 +27,7 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [activeSymbol, setActiveSymbol] = React.useState(() => { return localStorage.getItem('symbol') || 'BTCUSDT' });
     const [mode, setMode] = React.useState(() => { return localStorage.getItem('mode') || 'real' });
     const [download, setDownload] = React.useState(false);
-    const [loading, setLoading] = React.useState(false);
+    const [loading, setLoading] = React.useState(true);
     const [movementTables, setMovementTables] = React.useState(false);
     const [fullSources, setFullSources] = React.useState(null);
 
@@ -45,9 +45,8 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [showPopUp, setShowPopUp] = React.useState(false)
     const [actionType, setActionType] = React.useState('')
 
-
     const incrementalEngine = useIncrementalMarketEngine({
-        initialSpeed: mode === 'simulation' ? 500 : 50,
+        initialSpeed: mode === 'simulation' ? 500 : 150,
         maxSnapshotPoints: 1200,
     });
     const {
@@ -56,6 +55,7 @@ export const ContextGraphicsProvider = ({ children }) => {
         cursor: engineCursor,
         maxCursor: engineMaxCursor,
         speed: engineSpeed,
+        step: engineStep,
         loadSources,
         updateSources,
         play,
@@ -64,6 +64,7 @@ export const ContextGraphicsProvider = ({ children }) => {
         reset,
         setSpeed,
         isRunning,
+        setStep,
     } = incrementalEngine;
 
     const fullPrice = snapshot.fullPrice;
@@ -306,27 +307,27 @@ export const ContextGraphicsProvider = ({ children }) => {
     // Função para verificar a autenticação do usuário
     const privateRoutes = ["/OperatingPanel", "/", "/Login"];
     const checkAuthentication = async () => {
-        if (!privateRoutes.includes(pathname)) {
+        /*if (!privateRoutes.includes(pathname)) {
             return;
-        };
+        };*/
         try {
             const { data } = await axios.get(`${urlBackendSite}/api/auth/is-auth`, {
                 withCredentials: true,
             });
 
-            if (!data.success) {
+         /*   if (!data.success) {
                 setIsAuthenticated(false);
                 navigate("/Login");
             } else {
                 setIsAuthenticated(true);
                 UserData();
-            }
+            }*/
 
             console.log("Authentication check:", data.success);
         } catch (error) {
-            console.error("Error checking authentication:", error);
+           /* console.error("Error checking authentication:", error);
             setIsAuthenticated(false);
-            navigate("/Login");
+            navigate("/Login");*/
         }
     };
 
@@ -444,12 +445,14 @@ export const ContextGraphicsProvider = ({ children }) => {
             cursor: engineCursor,
             maxCursor: engineMaxCursor,
             speed: engineSpeed,
+            step: engineStep,
             isRunning,
             play,
             pause,
             continue: continueEngine,
             reset,
             setSpeed,
+            setStep,
             updateSources,
         },
         // Simulação
@@ -476,6 +479,7 @@ export const ContextGraphicsProvider = ({ children }) => {
         // Amrsi
         amrsiData,
         setAmrsiData
+        
     }
 
     return (

@@ -12,6 +12,8 @@
   --renko-text: #d1d4dc;
   --renko-muted-text: #787b86;
   --renko-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+  --controller-speed-border: #8a5cf65b;
+  --controller-speed-background: #8a5cf604;
 }
 
 
@@ -294,11 +296,16 @@
 
 /*Controles de simulação*/
 .simulation-control {
+  position: sticky;
   gap: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-left: 8px;
+  padding-left: 10px;
+  border: solid 1px var(--controller-speed-border);
+  background-color: var(--controller-speed-background);
+  border-radius: 8px;
 }
 
 .simulation-control button {
@@ -317,7 +324,55 @@
   font-weight: 700;
   text-align: center;
 }
-.lastTrend{
+
+/*==================== estilo geral BOTÂO SLEP================*/
+#slider {
+  appearance: none;
+  -webkit-appearance: none;
+  /* remove estilo padrão no Chrome/Safari */
+  margin: 10px;
+  height: 10px;
+  background: var(--controller-speed-background);
+  /* roxo transparente */
+  border-radius: 5px;
+  outline: none;
+  border: solid 1px var(--controller-speed-border);
+}
+
+/* thumb no Chrome/Safari */
+#slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--controller-speed-border);
+  /* botão roxo */
+  cursor: pointer;
+}
+
+/* thumb no Firefox */
+#slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--controller-speed-background);
+  cursor: pointer;
+}
+
+/* track no Firefox */
+#slider::-moz-range-track {
+  background: rgba(128, 0, 128, 0.3);
+  height: 8px;
+  border-radius: 5px;
+}
+
+.controlle-step label {
+  font-size: 10px;
+}
+
+
+.lastTrend {
   position: absolute;
   top: 10%;
   right: 10%;
@@ -328,7 +383,7 @@
   border-radius: 4px;
   font-size: 12px;
   width: auto;
-  height:auto;
+  height: auto;
   text-align: center;
   z-index: 1000;
   gap: 4px;
@@ -346,9 +401,31 @@
   color: #fff;
   text-align: left;
 }
-#button-reset{
+
+#button-reset {
   background: #ff00001f;
   color: white;
+}
+
+.controlle-speed-container {
+  display: flex;
+  flex-direction: column;
+  margin-top: 10px;
+  margin: 10px;
+  gap: 5px;
+}
+
+.controlle-speed-container button {
+  margin: 4px;
+}
+
+.vppr {
+  display: flex;
+  flex-direction: column;
+  right: 0;
+  padding: 5px;
+  margin-right: 9%;
+  top: 27%;
 }
 
 @keyframes renkoFadeInUp {

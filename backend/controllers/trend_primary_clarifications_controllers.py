@@ -106,7 +106,7 @@ def _get_atr_for_candle(atrs, candle_index, period):
     return atrs[atr_index]
 
 # Função principal para obter as clarificações de tendência usando ATR
-def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
+def _trend_clarifications_atr_single(symbol, time, mode , total = 2000):
     print(f"Calculating trend clarifications for {symbol} with time {time} and mode {mode}")
     #  Busca os klines na Binance
     try:
@@ -151,7 +151,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    verify_time_multiply = 5
+    verify_time_multiply = 6
     atr_period = 182
 
 
@@ -607,7 +607,6 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                     # Retomada da tendência de alta
                     state = "tendencia_alta"
                     last_pivot_high = price
-                    last_pivot_down = None
                     current_trend = "Alta"
                     top = price
                     reference_point = price
@@ -648,7 +647,6 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                     bottom = price
                     current_trend = "Baixa"
                     last_pivot_down = price
-                    last_pivot_high = None
                     reference_point = price
                     movements.append(
                         {
@@ -687,7 +685,6 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                     # Retomada da tendência de baixa
                     bottom = price
                     last_pivot_down = price
-                    last_pivot_high = None
                     reference_point = price
                     state = "tendencia_baixa"
                     current_trend = "Baixa"
@@ -728,7 +725,6 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                     top = price
                     current_trend = "Alta"
                     last_pivot_high = price
-                    last_pivot_down = None
                     reference_point = price
                     movements.append(
                         {
@@ -1000,7 +996,6 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                     state = "tendencia_alta"
                     current_trend = "Alta"
                     last_pivot_high = price
-                    last_pivot_down = None
                     top = price
                     reference_point = price
                     movements.append(
@@ -1041,7 +1036,6 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                     current_trend = "Baixa"
                     bottom = price
                     last_pivot_down = price
-                    last_pivot_high = None
                     reference_point = price
                     movements.append(
                         {
@@ -1060,8 +1054,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                     state = "tendencia_alta"
                     current_trend = "Alta"
                     bottom = price
-                    last_pivot_down = price
-                    last_pivot_high = None
+                    last_pivot_high = price
                     reference_point = price
                     movements.append(
                         {
@@ -1173,7 +1166,6 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                     current_trend = "Alta"
                     top = price
                     last_pivot_high = price
-                    last_pivot_down = None
                     reference_point = price
                     movements.append(
                         {
@@ -1193,7 +1185,6 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
                     current_trend = "Baixa"
                     bottom = price
                     last_pivot_down = price
-                    last_pivot_high = None
                     reference_point = price
                     movements.append(
                         {
@@ -1221,7 +1212,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 5000):
     # devolve também confirmações para o frontend
     return movements 
 
-def trend_clarifications_atr(symbols, time="5m", mode="real"):
+def trend_clarifications_atr(symbols, time="1h", mode="real"):
     default_symbols = get_stored_symbols()
 
     if symbols is None or symbols == "":

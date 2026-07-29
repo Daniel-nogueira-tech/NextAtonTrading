@@ -16,7 +16,7 @@ const TIME_KEYS = ['Tempo', 'time', 'closeTime', 'openTime', 'open_time']
 
 
 const DEFAULT_SNAPSHOT_WINDOW = 1200 // 1200 pontos máximo no histórico para evitar sobrecarga de memória 
-const MIN_TIMER_SPEED = 100 // Velocidade mínima: 100ms
+const MIN_TIMER_SPEED = 150 // Velocidade mínima: 150ms
 
 const createEmptySources = () => ({
   ...DEFAULT_FEEDS,
@@ -260,17 +260,20 @@ export const useIncrementalMarketEngine = ({
   // Refs para armazenar o estado interno do motor sem causar re-renderizações desnecessárias
   const sourcesRef = React.useRef(createEmptySources())
   const cursorRef = React.useRef(0)
+  const snapshotRef = React.useRef(buildSnapshot(createEmptySources(), 0, maxSnapshotPoints))
   const maxCursorRef = React.useRef(0)
   const timerRef = React.useRef(null)
   const speedRef = React.useRef(initialSpeed)
+  const stepRef = React.useRef(1)
   const statusRef = React.useRef('idle')
 
-  // Estado React para expor o snapshot atual, status, cursor e controle de velocidade
-  const [snapshot, setSnapshot] = React.useState(() => buildSnapshot(createEmptySources(), 0, maxSnapshotPoints))
-  const [status, setStatus] = React.useState('idle')
+  // Estado React para expor o cursor, status, maxCursor e controle de velocidade
   const [cursor, setCursor] = React.useState(0)
+  const [status, setStatus] = React.useState('idle')
   const [maxCursor, setMaxCursor] = React.useState(0)
   const [speed, setSpeedState] = React.useState(initialSpeed)
+  const [step, setStepState] = React.useState(1)
+  const [snapshotVersion, setSnapshotVersion] = React.useState(0)
 
   const setEngineStatus = React.useCallback((nextStatus) => {
     if (typeof nextStatus === 'function') {
@@ -294,11 +297,17 @@ export const useIncrementalMarketEngine = ({
     }
   }, [])
 
-  //Atualiza o cursor e reconstrói o snapshot.
+  // Atualiza o cursor interno e reconstrói o snapshot.
   const publishCursor = React.useCallback((nextCursor) => {
+    const previousCursor = cursorRef.current
     cursorRef.current = nextCursor
-    setCursor(nextCursor)
-    setSnapshot(buildSnapshot(sourcesRef.current, nextCursor, maxSnapshotPoints))
+    snapshotRef.current = buildSnapshot(sourcesRef.current, nextCursor, maxSnapshotPoints)
+
+    if (nextCursor !== previousCursor) {
+      setCursor(nextCursor)
+    } else {
+      setSnapshotVersion(version => version + 1)
+    }
   }, [maxSnapshotPoints])
 
   // Pausa a reprodução automática, mantendo o estado atual para possível continuação.
@@ -309,7 +318,7 @@ export const useIncrementalMarketEngine = ({
 
   // Avança um passo na timeline. Se atingir o final, para o timer e marca como 'completed'.
   const tick = React.useCallback(() => {
-    const nextCursor = Math.min(cursorRef.current + 1, maxCursorRef.current)
+    const nextCursor = Math.min(cursorRef.current + stepRef.current, maxCursorRef.current)
     publishCursor(nextCursor)
 
     if (nextCursor >= maxCursorRef.current) {
@@ -342,10 +351,10 @@ export const useIncrementalMarketEngine = ({
     stopTimer()
     cursorRef.current = 0
     statusRef.current = 'idle'
+    snapshotRef.current = buildSnapshot(sourcesRef.current, 0, maxSnapshotPoints)
 
     setCursor(0)
     setMaxCursor(maxCursorRef.current)
-    setSnapshot(buildSnapshot(sourcesRef.current, 0, maxSnapshotPoints))
     setEngineStatus('idle')
   }, [maxSnapshotPoints, setEngineStatus, stopTimer])
 
@@ -429,17 +438,28 @@ export const useIncrementalMarketEngine = ({
     }
   }, [initialSpeed, setEngineStatus, stopTimer, tick])
 
+  const setStep = React.useCallback((nextStep) => {
+    const parsedStep = Number(nextStep)
+    const normalizedStep = Number.isFinite(parsedStep) && parsedStep > 0
+      ? Math.max(1, Math.round(parsedStep))
+      : 1
+
+    stepRef.current = normalizedStep
+    setStepState(normalizedStep)
+  }, [])
+
   //  Limpa timer ao desmontar o componente, Evita memory leaks quando o componente é destruído.
   React.useEffect(() => {
     return () => stopTimer()
   }, [stopTimer])
 
   return {
-    snapshot,
+    snapshot: snapshotRef.current,
     status,
-    cursor,
+    cursor: cursorRef.current,
     maxCursor,
     speed,
+    step,
     loadSources,
     updateSources,
     play,
@@ -447,6 +467,7 @@ export const useIncrementalMarketEngine = ({
     continue: play,
     reset,
     setSpeed,
+    setStep,
     isRunning: status === 'running',
   }
 }
