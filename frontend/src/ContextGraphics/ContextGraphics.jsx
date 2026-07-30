@@ -2,6 +2,7 @@ import React from 'react';
 import axios from 'axios';
 import { useIncrementalMarketEngine } from '../hooks/useIncrementalMarketEngine.js';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useRef } from 'react';
 
 export const ContextGraphics = React.createContext(null);
 
@@ -33,8 +34,8 @@ export const ContextGraphicsProvider = ({ children }) => {
 
     // Indicadores para operações
     const [vpprData, setVpprData] = React.useState([]);
-    const [retestPointsStatePrimary, setRetestPointsStatePrimary] = React.useState([]);
-    const [retestPointsState, setRetestPointsState] = React.useState([]);
+    const retestPointsStateRef = useRef([]);
+    const retestPointsStatePrimaryRef = useRef([]);
     const [amrsiData, setAmrsiData] = React.useState([]);
 
     // Dados do usuário
@@ -44,6 +45,9 @@ export const ContextGraphicsProvider = ({ children }) => {
     // PopUpConfirm
     const [showPopUp, setShowPopUp] = React.useState(false)
     const [actionType, setActionType] = React.useState('')
+
+    // Botão de operação
+    const [buttonOperation, setButtonOperation] = React.useState({});
 
     const incrementalEngine = useIncrementalMarketEngine({
         initialSpeed: mode === 'simulation' ? 500 : 150,
@@ -315,19 +319,19 @@ export const ContextGraphicsProvider = ({ children }) => {
                 withCredentials: true,
             });
 
-         /*   if (!data.success) {
-                setIsAuthenticated(false);
-                navigate("/Login");
-            } else {
-                setIsAuthenticated(true);
-                UserData();
-            }*/
+            /*   if (!data.success) {
+                   setIsAuthenticated(false);
+                   navigate("/Login");
+               } else {
+                   setIsAuthenticated(true);
+                   UserData();
+               }*/
 
             console.log("Authentication check:", data.success);
         } catch (error) {
-           /* console.error("Error checking authentication:", error);
-            setIsAuthenticated(false);
-            navigate("/Login");*/
+            /* console.error("Error checking authentication:", error);
+             setIsAuthenticated(false);
+             navigate("/Login");*/
         }
     };
 
@@ -360,7 +364,7 @@ export const ContextGraphicsProvider = ({ children }) => {
             try {
                 await Promise.all([
                     getSymbols(),
-                    marketData(), 
+                    marketData(),
                 ])
             } catch (error) {
                 console.error('Error loading data:', error)
@@ -369,14 +373,14 @@ export const ContextGraphicsProvider = ({ children }) => {
         loadData()
     }, []);
 
-// checkAuthentication é chamado quando o componente é montado e quando a rota muda
+    // checkAuthentication é chamado quando o componente é montado e quando a rota muda
     React.useEffect(() => {
         try {
             checkAuthentication();
         } catch (error) {
             console.error('Error checking authentication:', error);
         }
-    },[navigate, pathname]);
+    }, [navigate, pathname]);
 
 
     // Configura o refresh automático dos dados a cada 5 minutos no modo real
@@ -471,15 +475,13 @@ export const ContextGraphicsProvider = ({ children }) => {
         vpprData,
         setVpprData,
         // Classificação primária
-        retestPointsStatePrimary,
-        setRetestPointsStatePrimary,
+        retestPointsStatePrimaryRef,
         // classificação secundaria
-        retestPointsState,
-        setRetestPointsState,
+        retestPointsStateRef,
         // Amrsi
         amrsiData,
         setAmrsiData
-        
+
     }
 
     return (

@@ -33,7 +33,7 @@ const normalizeTrendGroups = (trend) => {
 
 // Algoritimo de operações 
 export const useOperatingDataPrimary = (trend) => {
-  const { retestPointsStatePrimary, setRetestPointsStatePrimary } = useContext(ContextGraphics)
+  const { retestPointsStatePrimaryRef } = useContext(ContextGraphics)
 
 
   // Função auxiliar para converter timestamp em número para comparação
@@ -1112,10 +1112,10 @@ export const useOperatingDataPrimary = (trend) => {
         operations: sortOperationsByTime(history).map(item => item.operation),
       }));
 
-    setRetestPointsStatePrimary(operationsArray);
+    retestPointsStatePrimaryRef.current = operationsArray;
 
 
   }, [trendGroups]);
 
-  return { retestPointsStatePrimary };
+  return { retestPointsStatePrimaryRef };
 }

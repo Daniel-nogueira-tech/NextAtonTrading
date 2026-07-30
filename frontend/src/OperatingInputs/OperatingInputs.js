@@ -117,7 +117,7 @@ const normalizeItem = (item, keys) => {
 };
 
 export const useOperatingInputs = () => {
-    const { retestPointsState, setRetestPointsState, retestPointsStatePrimary, amrsiData, vpprData, fullPrice } = useContext(ContextGraphics);
+    const { retestPointsStateRef, retestPointsStatePrimaryRef, amrsiData, vpprData, fullPrice } = useContext(ContextGraphics);
 
     const getTrendBandBounds = (trendItem) => {
         if (!trendItem) return { low: NaN, high: NaN };
@@ -141,13 +141,13 @@ export const useOperatingInputs = () => {
 
     // ====================== HOOKS DOS INDICADORES ======================
     const trend = useMemo(
-        () => normalizeCollection(retestPointsState, "TREND", ["type", "time", "buy", "sell", "stop", "limite", "BandLow", "BandHigh", "pivot", "pivotExit"], "operations"),
-        [retestPointsState]
+        () => normalizeCollection(retestPointsStateRef.current, "TREND", ["type", "time", "buy", "sell", "stop", "limite", "BandLow", "BandHigh", "pivot", "pivotExit"], "operations"),
+        [retestPointsStateRef.current]
     );
 
     const trendPrimary = useMemo(
-        () => normalizeCollection(retestPointsStatePrimary, "TREND_PRIMARY", ["type", "time", "buy", "sell", "stop"], "operations"),
-        [retestPointsStatePrimary]
+        () => normalizeCollection(retestPointsStatePrimaryRef.current, "TREND_PRIMARY", ["type", "time", "buy", "sell", "stop"], "operations"),
+        [retestPointsStatePrimaryRef.current]
     );
 
     const price = useMemo(
@@ -335,9 +335,9 @@ export const useOperatingInputs = () => {
                 const conditionBuy = TYPE_BUY.includes(lastTrend?.type) &&
                     lastPrice.Fechamento >= lastTrend?.buy &&
                     lastPrice.Fechamento <= lastTrend?.buy + (lastTrend?.limite / 3) &&
-                    lastPrice.Fechamento <= lastTrend?.pivotExit - (lastTrend?.limite / 2) &&
+                    lastPrice.Fechamento <= lastTrend?.pivotExit - lastTrend?.limite &&
                     lastVppr?.trend === 'buy' &&
-                    // lastVppr?.major === 'MajorBuy' &&
+                    lastVppr?.major === 'MajorBuy' &&
                     lastVppr?.volumeEmaSignal === 'Volume BUY Increasing'
 
                 console.log(`📈 [${symbol}] Condição BUY:`, {
@@ -380,9 +380,9 @@ export const useOperatingInputs = () => {
                 const conditionSell = TYPE_SELL.includes(lastTrend?.type) &&
                     lastPrice.Fechamento <= lastTrend?.sell &&
                     lastPrice.Fechamento >= lastTrend?.sell - (lastTrend?.limite / 3) &&
-                    lastPrice.Fechamento >= lastTrend?.pivotExit + (lastTrend?.limite / 3) &&
+                    lastPrice.Fechamento >= lastTrend?.pivotExit + lastTrend?.limite &&
                     lastVppr?.trend === 'sell' &&
-                    //  lastVppr?.major === 'MajorSell' &&
+                    lastVppr?.major === 'MajorSell' &&
                     lastVppr?.volumeEmaSignal === 'Volume SELL Increasing'
 
                 console.log(`📉 [${symbol}] Condição SELL:`, {

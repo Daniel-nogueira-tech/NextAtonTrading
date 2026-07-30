@@ -32,7 +32,7 @@ const normalizeTrendGroups = (trend) => {
 
 // ======================|ALGORITIMO DE OPERAÇÕES|====================== //
 export const useOperatingData = (trend) => {
-  const { retestPointsState, setRetestPointsState } = useContext(ContextGraphics)
+  const { retestPointsStateRef } = useContext(ContextGraphics)
 
   // Função auxiliar para converter timestamp em número para comparação
   const parseTimestamp = (time) => {
@@ -48,6 +48,7 @@ export const useOperatingData = (trend) => {
   const canExecuteReactionSecRef = useRef(false);
   const canExecuteRallySecRef = useRef(false);
   const retestHistoryRef = useRef({});
+
   // capitura mudança de tendencia para primeiro pivot
   const trendHistoryRef = useRef([]);
   const useRallyRef = useRef(false);
@@ -973,8 +974,7 @@ export const useOperatingData = (trend) => {
       };
 
       // ======================|SAÍDA DE TENDÊNCIA|====================== //
-      if (TrendPivot && naturalRally && canExecuteRallyRef.current || state.executeTrendRally ||
-        state.executeEntrieRally || state.executeEntrieRallyReverse || state.executeBreakout || state.executeBreakoutToRally) {
+      if (TrendPivot && naturalRally && canExecuteRallyRef.current /**&& state.executeTrendRally || state.executeEntrieRally || state.executeEntrieRallyReverse */) {
         const limite = TrendPivot?.limite;
         const tolerance = limite / 4;
         const high = TrendPivot?.closePrice + tolerance;
@@ -1093,7 +1093,7 @@ export const useOperatingData = (trend) => {
       };
 
       // ======================|SAÍDA REAÇÃO SECUNDÁRIA|====================== //
-      if (pivoRallySecExit && rallySecundaria && canExecuteRallySecRef.current && state.executeEntrieRallySec || state.executeEntrieRallySec2 || state.executeBreakout || state.executeBreakoutToRally) {
+      if (pivoRallySecExit && rallySecundaria && canExecuteRallySecRef.current && state.executeEntrieRallySec) {
         const limite = pivoRallySecExit.limite;
         const tolerance = limite / 4;
         const high = pivoRallySecExit.closePrice + tolerance;
@@ -1212,7 +1212,7 @@ export const useOperatingData = (trend) => {
       };
 
       // ======================|SAÍDA REAÇÃO SECUNDÁRIA 2 EM UMA LATERALIZAÇÃO| ====================== //
-      if (rallySecExit && rallySecundaria && canExecuteRallySecRef.current && state.executeEntrieRallySec2 || state.executeEntrieRallySec || state.executeBreakout || state.executeBreakoutToRally) {
+      if (rallySecExit && rallySecundaria && canExecuteRallySecRef.current && state.executeEntrieRallySec2) {
         const limite = rallySecExit?.limite;
         const tolerance = limite / 4;
         const high = rallySecExit?.closePrice + tolerance;
@@ -1460,11 +1460,12 @@ export const useOperatingData = (trend) => {
         operations: sortOperationsByTime(history).map(item => item.operation),
       }));
 
-    setRetestPointsState(operationsArray); 
+    //setRetestPointsState(operationsArray); 
+    retestPointsStateRef.current = operationsArray
 
   }, [trendGroups]);
 
-  return { retestPointsState };
+  return { retestPointsStateRef };
 }
 
 
