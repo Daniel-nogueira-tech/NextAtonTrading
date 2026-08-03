@@ -460,7 +460,9 @@ const GraphicsRenko = () => {
     loading,
     movementTables,
     setMovementTables,
-    incrementalEngine
+    incrementalEngine,
+    buttonOperation,
+    setButtonOperation
   } = React.useContext(ContextGraphics)
   const chartContainerRef = React.useRef(null);
   const chartRef = React.useRef(null);
@@ -478,7 +480,7 @@ const GraphicsRenko = () => {
   const { retestPointsStatePrimaryRef } = useOperatingDataPrimary(trendPrimary);
   const { vpprData } = useVpprData(vppr);
   const { amrsiData } = useAmrsiData(rsi);
-  const { signalsBySymbol, getLastTrendBySymbol, getLastTrendPrimaryBySymbol, getLastVpprBySymbol } = useOperatingInputs();
+  const { signalsBySymbol, getLastTrendBySymbol, getLastTrendPrimaryBySymbol, getLastVpprBySymbol, getLastAmrsiBySymbol } = useOperatingInputs();
   //===================//===================//
 
 
@@ -489,7 +491,7 @@ const GraphicsRenko = () => {
   const lastTrend = getLastTrendBySymbol(activeSymbol);
   const lastTrendPrimary = getLastTrendPrimaryBySymbol(activeSymbol);
   const lastVppr = getLastVpprBySymbol(activeSymbol);
-
+  const lastAmrsi = getLastAmrsiBySymbol(activeSymbol);
 
   // seleciona o ativo que está ativo
   const selectedMarket = React.useMemo(() => {
@@ -745,13 +747,63 @@ const GraphicsRenko = () => {
     return Number(incrementalEngine?.step) || 1
   }, [incrementalEngine?.step])
 
+
+  //=====================|função para mapa de cores|=====================//
+  // ***Define um mapa de cores para os sinais de volume
+  const colorMapVolume = {
+    'Volume SELL Increasing': 'red',
+    'Volume BUY Increasing': 'green',
+    'Volume BUY Weakly Increasing': '#aeffb2',
+    'Volume SELL Weakly Increasing': '#ffaaaa',
+    'sell': 'red',
+    'buy': 'green',
+    'MajorBuy': 'green',
+    'MajorSell': 'red',
+  }
+
+  const colorMapTrend = {
+    "PIVOT_BUY_TREND": 'green',
+    "PIVOT_BUY_RALLY": 'green',
+    "PIVOT_BUY_RALLY_REVERSE": 'green',
+    "PIVOT_BUY_RALLY_SEC": 'green',
+    "PIVOT_BUY_RALLY_REACT_SEC": 'green',
+    "PIVOT_BUY_RALLY_SEC_LATE": 'green',
+    "PIVOT_BREAK_BUY": 'green',
+    "PIVOT_SELL_TREND": 'red',
+    "PIVOT_SELL_RALLY": 'red',
+    "PIVOT_SELL_RALLY_REVERSE": 'red',
+    "PIVOT_SELL_RALLY_SEC": 'red',
+    "PIVOT_SELL_RALLY_REACT_SEC": 'red',
+    "PIVOT_SELL_RALLY_SEC_LATE": 'red',
+    "PIVOT_BREAK_SELL": 'red',
+  }
+
+
+
+  if (lastVppr && lastTrend && lastTrendPrimary && lastAmrsi) {
+    const signalColor1 = colorMapVolume[lastVppr.volumeEmaSignal] || 'gray'
+    const signalColor2 = colorMapVolume[lastVppr.vpprTrend] || 'gray'
+    const signalColor3 = colorMapVolume[lastVppr.major] || 'gray'
+    const signalColor4 = colorMapTrend[lastTrend?.type] || 'gray'
+    const signalColor5 = colorMapTrend[lastTrendPrimary?.type] || 'gray'
+
+    document.documentElement.style.setProperty('--signal-color', signalColor1)
+    document.documentElement.style.setProperty('--signal-color-2', signalColor2)
+    document.documentElement.style.setProperty('--signal-color-3', signalColor3)
+    document.documentElement.style.setProperty('--signal-color-4', signalColor4)
+    document.documentElement.style.setProperty('--signal-color-5', signalColor5)
+  }
+
+
   return (
     <section className="graphics-renko">
+
       <div style={{ display: "flex", justifyContent: "center" }}>
         {movementTables &&
           <MovementTables />
         }
       </div>
+
       <div className="graphics-renko__card">
         <div className="graphics-renko__header">
           <div className="graphics-renko__title">
@@ -764,6 +816,48 @@ const GraphicsRenko = () => {
               </button>
             </div>
 
+            {/**=======================|Painel de informações do ativo|=======================| */}
+            {lastTrendPrimary && lastTrend && lastVppr && (
+              <div className='lastTrend-container'>
+                <div className='lastTrend'>
+                  <h4>Trend:</h4>
+                  {lastTrendPrimary &&
+                    <span className='lastTrend-primary'>
+                      Trend Primary : {lastTrendPrimary?.type}
+                      <div className='signal-circle-5' ></div>
+                    </span>}
+                  {lastTrend &&
+                    <span className='lastTrend-type'>
+                      Trend : {lastTrend?.type}
+                      <div className='signal-circle-4' ></div>
+                    </span>}
+                </div>
+
+                <div className='lastTrend' >
+                  <h4>Vppr:</h4>
+                  {lastVppr && <span className='lastTrend-primary'>
+                    {lastVppr?.major === 'MajorSell' ? 'Trend Major Sell' : 'Trend Major Buy'}
+
+                    <div className='signal-circle-3' ></div>
+                  </span>}
+
+                  {lastVppr &&
+                    <span className='lastTrend-primary'>
+                      {'Flow ' + lastVppr?.vpprTrend}
+                      <div className='signal-circle-2' ></div>
+                    </span>}
+
+                  {lastVppr &&
+                    <span className='lastTrend-primary'>
+                      {'EMA ' + lastVppr?.volumeEmaSignal}
+                      <div className='signal-circle' ></div>
+                    </span>
+                  }
+
+                </div>
+
+              </div>)}
+
           </div>
           <div className="graphics-renko__status">
             {renkoCandles.length} Blocks
@@ -773,16 +867,9 @@ const GraphicsRenko = () => {
               onClick={() => { movementTables ? setMovementTables(false) : setMovementTables(true) }}
             >Movement Tables</button>
           </div>
-          {/**-------------/Ultima tendência/------------- */}
-          <div className='lastTrend'>
-            {lastTrendPrimary && <span className='lastTrend-primary'> Trend Primary : {lastTrendPrimary?.type} <br /></span>}
-            {lastTrend && <span className='lastTrend-type'>Trend : {lastTrend?.type} <br /></span>}
-          </div>
-
         </div>
 
         <div className="graphics-renko__chart" ref={chartContainerRef}>
-
           <div className='button-simulation'>
             <button
               onClick={buttonSimulation}
@@ -914,6 +1001,7 @@ const GraphicsRenko = () => {
                   </div>
 
                 </div>
+
               </div>
             }
 
@@ -928,10 +1016,18 @@ const GraphicsRenko = () => {
               Waiting for enough movement to form the blocks.
             </div>
           )}
+
+          {/**==========================|Botão para compra e venda|============================ */}
+          <div className='button-buy-sell'>
+            <button className="btn btn-buy">Buy</button>
+            <button className="btn btn-sell">Sell</button>
+            <button className="btn btn-exit">Exit</button>
+          </div>
+
         </div>
 
+        {/**==========================|Painel dos indicadores|============================ */}
         <aside className="graphics-renko__indicators" aria-label="Graficos dos indicadores do ativo selecionado">
-
           <div className='indicators-container' >
             <span style={{ 'position': 'absolute' }}>
             </span>
@@ -944,15 +1040,6 @@ const GraphicsRenko = () => {
           </div>
 
           <div className='painel-vppr'>
-            <span
-              className='vppr'
-              style={{ 'position': 'absolute', 'backgroundColor': 'rgba(0, 0, 0, 0.315)' }} >
-              {lastVppr && <span className='lastTrend-primary'> Main trend {lastVppr?.major === 'MajorBuy' ? 'Buy' : 'Sell'} <br /></span>}
-              {lastVppr && <span className='lastTrend-primary'>  Flow {lastVppr?.trend} <br /></span>}
-              {lastVppr && <span className='lastTrend-primary'>  Flow {lastVppr?.volumeEmaSignal} <br /></span>}
-
-            </span>
-
             <IndicatorChart
               title="VPPR"
               series={vpprSeries}

@@ -19,7 +19,7 @@ const NavBar = () => {
     const searchRef = useRef(null);
     const inputRef = useRef(null);
 
-    const [isOpen, setIsOpen] = useState(true);
+    const [isOpen, setIsOpen] = useState(false);
 
 
 

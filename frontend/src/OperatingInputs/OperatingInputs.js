@@ -156,7 +156,7 @@ export const useOperatingInputs = () => {
     );
 
     const vppr = useMemo(
-        () => normalizeCollection(vpprData, "VPPR", ["type", "trend", "time", "major", "volumeEmaSignal"], "signals"),
+        () => normalizeCollection(vpprData, "VPPR", ["type", "vpprTrend", "time", "major", "volumeEmaSignal"], "signals"),
         [vpprData]
     );
 
@@ -177,6 +177,8 @@ export const useOperatingInputs = () => {
     const [lastTrendStatePrimary, setLastTrendStatePrimary] = useState({});
     const lastVpprRef = useRef({});
     const [lastVpprState, setLastVpprState] = useState({});
+    const lastAmrsiRef = useRef({});
+    const [lastAmrsiState, setLastAmrsiState] = useState({});
 
     useEffect(() => {
         if (price.length === 0 || trend.length === 0 || trendPrimary.length === 0 || amrsi.length === 0 || vppr.length === 0) {
@@ -199,6 +201,7 @@ export const useOperatingInputs = () => {
         const newLastTrends = {};
         const newLastTrendsPrimary = {};
         const newLastVppr = {};
+        const newLastAmrsi = {};
 
         // Intera sobre os indicadores para verificar entradas
         allSymbols.forEach(symbol => {
@@ -261,23 +264,27 @@ export const useOperatingInputs = () => {
                 newLastVppr[symbol] = lastVppr;
                 lastVpprRef.current[symbol] = lastVppr;
             }
+            if (lastAmrsi) {
+                newLastAmrsi[symbol] = lastAmrsi;
+                lastAmrsiRef.current[symbol] = lastAmrsi;
+            }
 
             let signal = null;
 
             // Tipos para entrada
-            const TYPE_BUY = ["ENTRY_BUY_TREND", "ENTRY_BUY_RALLY", "ENTRY_BUY_RALLY_REVERSE", "ENTRY_BUY_RALLY_SEC", "ENTRY_BUY_RALLY_REACT_SEC", "ENTRY_BUY_RALLY_SEC_LATE"];//"ENTRY_BUY_RALLY_SEC", "ENTRY_BUY_RALLY_SEC_LATE"
-            const TYPE_SELL = ["ENTRY_SELL_TREND", "ENTRY_SELL_RALLY", "ENTRY_SELL_RALLY_REVERSE", "ENTRY_SELL_RALLY_SEC", "ENTRY_SELL_RALLY_REACT_SEC", "ENTRY_SELL_RALLY_SEC_LATE"]; //"ENTRY_SELL_RALLY_SEC",, "ENTRY_SELL_RALLY_SEC_LATE"
-            const TYPE_BUY_PRI = ["ENTRY_BUY_TREND", "ENTRY_BUY_RALLY", "ENTRY_BUY_RALLY_SEC", "ENTRY_BUY_RALLY_REVERSE", "pivotBreak-buy"];
-            const TYPE_SELL_PRI = ["ENTRY_SELL_TREND", "ENTRY_SELL_RALLY", "ENTRY_SELL_RALLY_SEC", "ENTRY_SELL_RALLY_REVERSE", "pivotBreak-sell"];
+            const TYPE_BUY = ["PIVOT_BUY_TREND", "PIVOT_BUY_RALLY", "PIVOT_BUY_RALLY_REVERSE", "PIVOT_BUY_RALLY_SEC", "PIVOT_BUY_RALLY_REACT_SEC", "PIVOT_BUY_RALLY_SEC_LATE"];//"ENTRY_BUY_RALLY_SEC", "ENTRY_BUY_RALLY_SEC_LATE"
+            const TYPE_SELL = ["PIVOT_SELL_TREND", "PIVOT_SELL_RALLY", "PIVOT_SELL_RALLY_REVERSE", "PIVOT_SELL_RALLY_SEC", "PIVOT_SELL_RALLY_REACT_SEC", "PIVOT_SELL_RALLY_SEC_LATE"]; //"ENTRY_SELL_RALLY_SEC",, "ENTRY_SELL_RALLY_SEC_LATE"
+            const TYPE_BUY_PRI = ["PIVOT_BUY_TREND", "PIVOT_BUY_RALLY", "PIVOT_BUY_RALLY_SEC", "PIVOT_BUY_RALLY_REVERSE", "pivotBreak-buy"];
+            const TYPE_SELL_PRI = ["PIVOT_SELL_TREND", "PIVOT_SELL_RALLY", "PIVOT_SELL_RALLY_SEC", "PIVOT_SELL_RALLY_REVERSE", "pivotBreak-sell"];
 
             // Tipos para saída
-            const TYPE_BUY_EXIT = ["EXIT_BUY_TREND", "EXIT_BUY_SEC"];
-            const TYPE_SELL_EXIT = ["EXIT_SELL_TREND", "EXIT_SELL_SEC"]
-            const TYPE_BUY_EXIT_REVERSE = ["pivotBreak-sell"];
-            const TYPE_SELL_EXIT_REVERSE = ["pivotBreak-buy"];
-            const TYPE_BUY_BREAK_UP = ["pivotBreak-buy", "pivotBreakRally-buy"];
-            const TYPE_SELL_BREAK_UP = ["pivotBreak-sell", "pivotBreakRally-sell"];
-            const TYPE_BREAK = ["pivotBreak-buy", "pivotBreak-sell"];
+            const TYPE_BUY_EXIT = ["PIVOT_EXIT_BUY_TREND", "PIVOT_EXIT_BUY_SEC"];
+            const TYPE_SELL_EXIT = ["PIVOT_EXIT_SELL_TREND", "PIVOT_EXIT_SELL_SEC"]
+            const TYPE_BUY_EXIT_REVERSE = ["PIVOT_BREAK_SELL"];
+            const TYPE_SELL_EXIT_REVERSE = ["PIVOT_BREAK_BUY"];
+            const TYPE_BUY_BREAK_UP = ["PIVOT_BREAK_BUY", "PIVOT_BREAK_RALLY_BUY"];
+            const TYPE_SELL_BREAK_UP = ["PIVOT_BREAK_SELL", "PIVOT_BREAK_RALLY-SELL"];
+            const TYPE_BREAK = ["PIVOT_BREAK_BUY", "PIVOT_BREAK_SELL"];
 
             // Reseta flags de trava de bandas excedidas
             if (lastTrend && previousTrendIdentity && previousTrendIdentity !== currentTrendIdentity) {
@@ -322,6 +329,9 @@ export const useOperatingInputs = () => {
                 volumeEmaSignal: lastVppr?.volumeEmaSignal === 'Volume SELL Increasing',
                 exceededBandOk: !flags.exceededBand,
                 bandaOk: lastPrice.Fechamento >= lastTrend?.sell - (lastTrend?.limite / 3),
+                bandaPrice: lastTrend?.sell - (lastTrend?.limite / 3),
+                bandLowOk: lastPrice.Fechamento >= lastTrend?.pivotExit + (lastTrend?.limite / 2),
+                pivoExit: lastTrend?.pivotExit,
 
             });
             //==============================|✅ENTRADAS EM OPERAÇÕES RETESTES|==============================//
@@ -334,8 +344,8 @@ export const useOperatingInputs = () => {
             ) {
                 const conditionBuy = TYPE_BUY.includes(lastTrend?.type) &&
                     lastPrice.Fechamento >= lastTrend?.buy &&
-                    lastPrice.Fechamento <= lastTrend?.buy + (lastTrend?.limite / 3) &&
-                    lastPrice.Fechamento <= lastTrend?.pivotExit - lastTrend?.limite &&
+                    lastPrice.Fechamento <= lastTrend?.buy + (lastTrend?.limite / 2) &&
+                    //  lastPrice.Fechamento <= lastTrend?.pivotExit - (lastTrend?.limite * 1.5) &&
                     lastVppr?.trend === 'buy' &&
                     lastVppr?.major === 'MajorBuy' &&
                     lastVppr?.volumeEmaSignal === 'Volume BUY Increasing'
@@ -348,7 +358,7 @@ export const useOperatingInputs = () => {
                     vpprMajorOk: lastVppr?.major === 'MajorBuy',
                     volumeEmaSignal: lastVppr?.volumeEmaSignal === 'Volume BUY Increasing',
                     exceededBandOk: !flags.exceededBand,
-                    bandaOk: lastPrice.Fechamento <= lastTrend?.buy + (lastTrend?.limite / 3),
+                    bandaOk: lastPrice.Fechamento <= lastTrend?.buy + (lastTrend?.limite / 2),
                     result: conditionBuy
                 });
 
@@ -379,8 +389,8 @@ export const useOperatingInputs = () => {
             ) {
                 const conditionSell = TYPE_SELL.includes(lastTrend?.type) &&
                     lastPrice.Fechamento <= lastTrend?.sell &&
-                    lastPrice.Fechamento >= lastTrend?.sell - (lastTrend?.limite / 3) &&
-                    lastPrice.Fechamento >= lastTrend?.pivotExit + lastTrend?.limite &&
+                    //lastPrice.Fechamento >= lastTrend?.sell - (lastTrend?.limite / 2) &&
+                    // lastPrice.Fechamento >= lastTrend?.pivotExit + (lastTrend?.limite * 1.5) &&
                     lastVppr?.trend === 'sell' &&
                     lastVppr?.major === 'MajorSell' &&
                     lastVppr?.volumeEmaSignal === 'Volume SELL Increasing'
@@ -394,6 +404,9 @@ export const useOperatingInputs = () => {
                     volumeEmaSignal: lastVppr?.volumeEmaSignal === 'Volume SELL Increasing',
                     exceededBandOk: !flags.exceededBand,
                     bandaOk: lastPrice.Fechamento >= lastTrend?.sell - (lastTrend?.limite / 3),
+                    bandaPrice: lastTrend?.sell - (lastTrend?.limite / 3),
+                    bandLowOk: lastPrice.Fechamento >= lastTrend?.pivotExit + (lastTrend?.limite / 2),
+                    pivoExit: lastTrend?.pivotExit,
                     result: conditionSell
                 });
 
@@ -509,8 +522,8 @@ export const useOperatingInputs = () => {
                 }
             }
             //=============================//PARCIAIS OU SAÍDAS//=============================//
-            let trendUpPivotPlusLimit = lastTrend?.buy + (lastTrend?.limite / 2);
-            let trendDownPivotPlusLimit = lastTrend?.sell - (lastTrend?.limite / 2);
+            let trendUpPivotPlusLimit = lastTrend?.buy + (lastTrend?.limite * 4);
+            let trendDownPivotPlusLimit = lastTrend?.sell - (lastTrend?.limite * 4);
             //🍰🟢 Parcial compra 
             if (
                 TYPE_BUY_BREAK_UP.includes(lastTrend?.type) &&
@@ -677,7 +690,9 @@ export const useOperatingInputs = () => {
             if (flags.inputExecuted && flags.isOperation && flags.upwardTrendCurrent) {
                 // SAÍDA PARA COMPRA PELO VOLUME
                 const conditionExitBuy =
-                    lastVppr?.volumeEmaSignal === 'Volume Stable' &&
+                    lastVppr?.volumeEmaSignal === 'Volume Stable' ||
+                    lastVppr?.volumeEmaSignal === 'Volume BUY Weakly Increasing' ||
+                    lastVppr?.volumeEmaSignal === 'Volume BUY Increasing' &&
                     lastVppr?.trend === 'sell' &&
                     lastPrice.Fechamento >= lastTrend?.buy + lastTrend?.limite
 
@@ -760,6 +775,9 @@ export const useOperatingInputs = () => {
         if (Object.keys(newLastVppr).length > 0) {
             setLastVpprState({ ...newLastVppr });
         }
+        if (Object.keys(newLastAmrsi).length > 0) {
+            setLastAmrsiState({ ...newLastAmrsi });
+        }
 
     }, [trend, trendPrimary, amrsi, vppr, price]);
 
@@ -772,6 +790,9 @@ export const useOperatingInputs = () => {
     };
     const getLastVpprBySymbol = (symbol) => {
         return lastVpprRef.current[symbol] || null;
+    };
+    const getLastAmrsiBySymbol = (symbol) => {
+        return lastAmrsiRef.current[symbol] || null;
     }
 
     const operationResults = useMemo(() => calculateSignalResults(signalsHistoryRef.current), [signalsBySymbolState]);
@@ -785,10 +806,12 @@ export const useOperatingInputs = () => {
         lastTrend: lastTrendState,
         lastTrendPrimary: lastTrendStatePrimary,
         lastVppr: lastVpprState,
+        lastAmrsi: lastAmrsiState,
 
         // Exporta funções auxiliares
         signalsBySymbol: signalsBySymbolState,
         operationResults,
+        getLastAmrsiBySymbol,
         getLastVpprBySymbol,
         getLastTrendBySymbol,
         getLastTrendPrimaryBySymbol,

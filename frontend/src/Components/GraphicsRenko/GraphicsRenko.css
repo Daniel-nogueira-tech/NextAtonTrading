@@ -19,7 +19,7 @@
 
 .graphics-renko {
   width: 100%;
-  height: 100vh;
+  height: 100%;
   gap: 20px;
   background: linear-gradient(135deg, var(--renko-bg-start), var(--renko-bg-middle), var(--renko-bg-end));
   color: var(--renko-text);
@@ -27,7 +27,7 @@
 }
 
 .graphics-renko__card {
-  padding: 10px 30px;
+  max-width: 100%;
   border: 1px solid var(--renko-glass-border);
   border-radius: 8px;
   background: var(--renko-bg-start);
@@ -35,7 +35,8 @@
   box-shadow: var(--renko-shadow);
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  margin: 0 auto;
+  padding: 10px;
 }
 
 .graphics-renko__header {
@@ -95,16 +96,15 @@
 }
 
 .graphics-renko__indicators {
-  position: absolute;
   display: grid;
   grid-template-columns: repeat(2, minmax(180px, 1fr));
   gap: 5px;
-  margin-top: 14px;
   right: 0;
   left: 0;
-  padding: 10px 30px;
   bottom: 0;
   z-index: 100;
+  margin-top: 6px;
+
 }
 
 .graphics-renko__indicator-panel {
@@ -114,6 +114,7 @@
   border-radius: 8px;
   background: rgba(19, 23, 34, 0.72);
   overflow: hidden;
+  width: 100%;
 }
 
 .graphics-renko__indicator-header {
@@ -371,23 +372,38 @@
   font-size: 10px;
 }
 
+/*=======================|Painel mostra os tipos de movimento|=======================*/
+.lastTrend-container {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  top: 11%;
+  right: 7%;
+  background-color: rgba(202, 202, 202, 0.055);
+  color: #fff;
+  padding: 5px;
+}
 
 .lastTrend {
-  position: absolute;
   top: 10%;
   right: 10%;
-  background-color: rgba(0, 0, 0, 0.315);
+  background-color: rgba(3, 3, 3, 0.274);
   color: #fff;
   padding: 5px 10px;
-  margin-top: 20px;
   border-radius: 4px;
   font-size: 12px;
   width: auto;
   height: auto;
   text-align: center;
   z-index: 1000;
-  gap: 4px;
   text-align: left;
+}
+
+.lastTrend span {
+  display: block;
+  margin-bottom: 4px;
+  border: 1px solid rgba(143, 143, 143, 0.178);
+  padding: 0px 20px;
 }
 
 .lastTrend-type {
@@ -397,10 +413,57 @@
 }
 
 .lastTrend-primary {
-  font-size: 12px;
+  font-size: 10px;
   color: #fff;
   text-align: left;
 }
+
+.lastTrend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.lastTrend span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.1);
+  font-size: 10px;
+  color: #fff;
+  text-align: left;
+}
+
+.lastTrend h4 {
+  margin: 0;
+  font-size: 10px;
+  color: #fff;
+  text-align: left;
+}
+
+.signal-circle,.signal-circle-2,.signal-circle-3,.signal-circle-4,.signal-circle-5 {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: var(--signal-color);
+  margin-left: 5px;
+}
+.signal-circle-2 {
+  background-color: var(--signal-color-2);
+}
+.signal-circle-3 {
+  background-color: var(--signal-color-3);
+}
+.signal-circle-4 {
+  background-color: var(--signal-color-4);
+}
+.signal-circle-5 {
+  background-color: var(--signal-color-5);
+}
+
 
 #button-reset {
   background: #ff00001f;
@@ -419,13 +482,54 @@
   margin: 4px;
 }
 
-.vppr {
+
+/*=======================|Botão de compra e venda|=======================*/
+.button-buy-sell {
+  position: absolute;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  width: 100px;
   right: 0;
-  padding: 5px;
-  margin-right: 9%;
-  top: 27%;
+  left: 40%;
+  bottom: 0%;
+  margin-right: 80px;
+  margin-bottom: 30px;
+
+}
+
+.button-buy-sell {
+  z-index: 1000;
+}
+
+.button-buy-sell .btn {
+  display: flex;
+  width: 100%;
+  padding: 10px 30px;
+  margin: 5px;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-buy {
+  background-color: #22ab34;
+}
+
+.btn-sell {
+  background-color: #F23645;
+}
+
+.btn-exit {
+  background-color: #a55d00;
+}
+
+.btn-buy:hover,
+.btn-sell:hover,
+.btn-exit:hover {
+  transform: scale(1.05);
+  transition: all 0.3s ease;
 }
 
 @keyframes renkoFadeInUp {

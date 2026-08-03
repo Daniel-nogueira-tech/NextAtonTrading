@@ -47,7 +47,7 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [actionType, setActionType] = React.useState('')
 
     // Botão de operação
-    const [buttonOperation, setButtonOperation] = React.useState({});
+    const [buttonOperation, setButtonOperation] = React.useState({ buy: false, sell: false, exit: false });
 
     const incrementalEngine = useIncrementalMarketEngine({
         initialSpeed: mode === 'simulation' ? 500 : 150,
@@ -480,8 +480,11 @@ export const ContextGraphicsProvider = ({ children }) => {
         retestPointsStateRef,
         // Amrsi
         amrsiData,
-        setAmrsiData
+        setAmrsiData,
 
+        // Botão de compra e venda
+        buttonOperation,
+        setButtonOperation
     }
 
     return (

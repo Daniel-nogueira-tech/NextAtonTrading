@@ -303,7 +303,7 @@ export const useVpprData = (vppr) => {
                             major: majorValue,
                             type: signalType,
                             side: side,
-                            trend: currentTrend === 'TREND_BUY' ? 'buy' : 'sell',
+                            vpprTrend: currentTrend === 'TREND_BUY' ? 'buy' : 'sell',
                             value: vppr,
                             bandTop: bandTop,
                             bandBottom: bandBottom
@@ -327,7 +327,7 @@ export const useVpprData = (vppr) => {
                             major: majorValue,
                             type: signalType,
                             side: side,
-                            trend: currentTrend === 'TREND_BUY' ? 'buy' : 'sell',
+                            vpprTrend: currentTrend === 'TREND_BUY' ? 'buy' : 'sell',
                             value: vppr,
                             isMajorSignal: true
                         });
@@ -335,7 +335,6 @@ export const useVpprData = (vppr) => {
                         console.log(`🎯 [${symbol}] NOVO SINAL MAJOR: ${signalType} | Major: ${majorValue}`);
                     }
                 }
-
                 // Sinal de Volume EMA
                 if (volumeEmaSignal && volumeEmaSignal !== state.lastSignalState) {
                     const majorValue = getMajorValue();
@@ -344,16 +343,15 @@ export const useVpprData = (vppr) => {
                         type: volumeEmaSignal,
                         volumeEmaSignal: volumeEmaSignal,
                         side: volumeEmaSignal.includes('Increasing') ? 'PURCHASE_VOLUME' : 'SALES_VOLUME',
-                        trend: currentTrend === 'TREND_BUY' ? 'buy' : 'sell',
+                        vpprTrend: currentTrend === 'TREND_BUY' ? 'buy' : 'sell',
                         value: vppr
                     });
                 }
 
 
                 // Adiciona os sinais ao histórico
-                signalsToAdd.forEach(({ major, type, side, trend, value, bandTop, bandBottom, isMajorSignal, volumeEmaSignal }) => {
+                signalsToAdd.forEach(({ major, type, side, vpprTrend, value, bandTop, bandBottom, isMajorSignal, volumeEmaSignal }) => {
                     const signalId = `${symbol}|${type}|${item.time}`;
-
                     if (!nextVpprHistory[symbol]) nextVpprHistory[symbol] = [];
 
                     if (!nextVpprHistory[symbol].some(s => s.id === signalId)) {
@@ -362,7 +360,7 @@ export const useVpprData = (vppr) => {
                             signals: [
                                 { name: "major", value: major || 'Neutral' },
                                 { name: "type", value: type },
-                                { name: "trend", value: trend },
+                                { name: "vpprTrend", value: vpprTrend },
                                 { name: "side", value: side },
                                 { name: "time", value: item.time },
                                 { name: "vppr", value: vppr },
