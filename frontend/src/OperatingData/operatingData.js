@@ -1535,7 +1535,7 @@ export const useOperatingData = (trend) => {
 
   }, [trendGroups]);
 
-  return { retestPointsStateRef };
+  return { retestPointsStateRef};
 }
 
 

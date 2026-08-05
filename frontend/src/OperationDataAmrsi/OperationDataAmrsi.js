@@ -99,7 +99,7 @@ const getPriceAtSignalTime = (series, signalTime) => {
 };
 
 export const useAmrsiData = (rsi) => {
-    const {amrsiData, setAmrsiData, fullPrice} = useContext(ContextGraphics)
+    const { amrsiData, setAmrsiData, fullPrice } = useContext(ContextGraphics)
 
     const amrsiHistoryRef = useRef({});
     const symbolsStateRef = useRef({});
@@ -156,16 +156,24 @@ export const useAmrsiData = (rsi) => {
                 const signalPrice = getPriceAtSignalTime(fullPriceSeries[symbol], signalTime);
 
                 // ====================== LÓGICA DE SINAL ======================
-                const isOverbought = amrsi >= 70;
-                const isOversold = amrsi <= 30;
+                const isOverbought = amrsi >= 90;
+                const isOversold = amrsi <= 10;
 
-                if (state.lastSignalState === 'OVERBOUGHT' && amrsi <= 60) {
-                    signalType = 'PARTIAL_BUY';
+                if (state.lastSignalState === 'OVERBOUGHT' && amrsi <= 90) {
+                    signalType = 'POTENTIAL_SELL';
                     signalSide = 'buy';
-                } else if (state.lastSignalState === 'OVERSOLD' && amrsi >= 40) {
-                    signalType = 'PARTIAL_SELL';
+                } else if (state.lastSignalState === 'OVERSOLD' && amrsi >= 10 ) {
+                    signalType = 'POTENTIAL_BUY';
                     signalSide = 'sell';
-                } else if (isOverbought && state.lastSignalState !== 'OVERBOUGHT') {
+                } else if (state.lastSignalState === 'POTENTIAL_BUY' && amrsi >= 20) {
+                    signalType = 'NEUTRAL';
+                    signalSide = 'neutral';
+                }
+                else if (state.lastSignalState === 'POTENTIAL_SELL' && amrsi <= 80) {
+                    signalType = 'NEUTRAL';
+                    signalSide = 'neutral';
+                }
+                else if (isOverbought && state.lastSignalState !== 'OVERBOUGHT') {
                     signalType = 'OVERBOUGHT';
                     signalSide = 'sell';
                 } else if (isOversold && state.lastSignalState !== 'OVERSOLD') {
@@ -185,7 +193,7 @@ export const useAmrsiData = (rsi) => {
                     const alreadyExists = nextAmrsiHistory[symbol].some(s => s.id === signalId);
 
                     if (!alreadyExists) {
-                     //   console.log(`🚀 SINAL AMRSI [${symbol}]: ${signalType} | RSI_MA: ${amrsi.toFixed(2)} | price: ${signalPrice}`);
+                        //   console.log(`🚀 SINAL AMRSI [${symbol}]: ${signalType} | RSI_MA: ${amrsi.toFixed(2)} | price: ${signalPrice}`);
 
                         nextAmrsiHistory[symbol].push({
                             id: signalId,
@@ -219,9 +227,8 @@ export const useAmrsiData = (rsi) => {
         }));
 
         setAmrsiData(signalsArray);
-        //console.log("amrsi signals:", signalsArray);
-        
-        
+
+
     }, [amrsiGroups]);
 
     return { amrsiData };

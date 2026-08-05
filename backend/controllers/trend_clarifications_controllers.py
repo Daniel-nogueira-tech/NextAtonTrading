@@ -7,7 +7,7 @@ from controllers.data_to_simulation_controllers import get_klines_data_simulatio
 
 
 # Função para calcular o ATR móvel
-def calculate_atr_wilder(symbol, interval="5m", period=182):
+def calculate_atr_wilder(symbol, interval="15m", period=182):
     if period is None or period <= 0:
         raise ValueError("period deve ser um número inteiro positivo")
     
@@ -106,7 +106,7 @@ def _get_atr_for_candle(atrs, candle_index, period):
     return atrs[atr_index]
 
 # Função principal para obter as clarificações de tendência usando ATR
-def _trend_clarifications_atr_single(symbol, time, mode , total = 8000):
+def _trend_clarifications_atr_single(symbol, time, mode , total = 10000):
     print(f"Calculating trend clarifications for {symbol} with time {time} and mode {mode}")
     #  Busca os klines na Binance
     try:
@@ -151,7 +151,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 8000):
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    verify_time_multiply = 12
+    verify_time_multiply = 24
     atr_period = 182
 
     # Sincroniza o ATR com cada candle para manter a classificação alinhada à volatilidade
@@ -1210,7 +1210,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 8000):
     # devolve também confirmações para o frontend
     return movements 
 
-def trend_clarifications_atr(symbols, time="5m", mode="real"):
+def trend_clarifications_atr(symbols, time="15m", mode="real"):
     default_symbols = get_stored_symbols()
 
     if symbols is None or symbols == "":

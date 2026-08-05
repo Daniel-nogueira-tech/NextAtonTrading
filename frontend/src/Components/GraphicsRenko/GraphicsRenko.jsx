@@ -472,7 +472,7 @@ const GraphicsRenko = () => {
   const lastChartSymbolRef = React.useRef(activeSymbol);
   const [dates, setDates] = React.useState(null);
   const [dateErro, setDateErro] = React.useState(null);
-  const [isTrend, setIsTrend] = React.useState(false);
+  const [isTrend, setIsTrend] = React.useState(true);
 
 
   //===================/ Chama os hooks /===================//
@@ -778,20 +778,36 @@ const GraphicsRenko = () => {
     "PIVOT_BREAK_SELL": 'red',
   }
 
+  const colorMapAmrsi = {
+    "POTENTIAL_SELL": 'red',
+    "POTENTIAL_BUY": 'green',
+    "OVERBOUGHT": '#ff8080',
+    "OVERSOLD": '#aaffaa',
+    "NEUTRAL": 'gray',
+  }
 
+  if (lastTrend) {
+    const signalColor = colorMapTrend[lastTrend?.type] || 'gray';
+    document.documentElement.style.setProperty('--signal-color-trend', signalColor)
+  }
 
-  if (lastVppr && lastTrend && lastTrendPrimary && lastAmrsi) {
-    const signalColor1 = colorMapVolume[lastVppr.volumeEmaSignal] || 'gray'
-    const signalColor2 = colorMapVolume[lastVppr.vpprTrend] || 'gray'
-    const signalColor3 = colorMapVolume[lastVppr.major] || 'gray'
-    const signalColor4 = colorMapTrend[lastTrend?.type] || 'gray'
-    const signalColor5 = colorMapTrend[lastTrendPrimary?.type] || 'gray'
+  if (lastTrendPrimary) {
+    const signalColorTrendPrimary = colorMapTrend[lastTrendPrimary?.type] || 'gray';
+    document.documentElement.style.setProperty('--signal-color-trend-primary', signalColorTrendPrimary)
+  }
+  if (lastVppr) {
+    const signalColorVpprTrend = colorMapVolume[lastVppr?.vpprTrend] || 'gray';
+    document.documentElement.style.setProperty('--signal-color-vppr-trend', signalColorVpprTrend)
 
-    document.documentElement.style.setProperty('--signal-color', signalColor1)
-    document.documentElement.style.setProperty('--signal-color-2', signalColor2)
-    document.documentElement.style.setProperty('--signal-color-3', signalColor3)
-    document.documentElement.style.setProperty('--signal-color-4', signalColor4)
-    document.documentElement.style.setProperty('--signal-color-5', signalColor5)
+    const signalColorVpprMajor = colorMapVolume[lastVppr?.major] || 'gray';
+    document.documentElement.style.setProperty('--signal-color-vppr-major', signalColorVpprMajor)
+
+    const signalColorVpprEma = colorMapVolume[lastVppr?.volumeEmaSignal] || 'gray';
+    document.documentElement.style.setProperty('--signal-color-vppr-ema', signalColorVpprEma)
+  }
+  if (lastAmrsi) {
+    const signalColorAmrsi = colorMapAmrsi[lastAmrsi?.type] || 'gray';
+    document.documentElement.style.setProperty('--signal-color-amrsi', signalColorAmrsi)
   }
 
 
@@ -824,12 +840,12 @@ const GraphicsRenko = () => {
                   {lastTrendPrimary &&
                     <span className='lastTrend-primary'>
                       Trend Primary : {lastTrendPrimary?.type}
-                      <div className='signal-circle-5' ></div>
+                      <div className='signal-circle-trend-primary' ></div>
                     </span>}
                   {lastTrend &&
                     <span className='lastTrend-type'>
                       Trend : {lastTrend?.type}
-                      <div className='signal-circle-4' ></div>
+                      <div className='signal-circle-trend' ></div>
                     </span>}
                 </div>
 
@@ -838,22 +854,30 @@ const GraphicsRenko = () => {
                   {lastVppr && <span className='lastTrend-primary'>
                     {lastVppr?.major === 'MajorSell' ? 'Trend Major Sell' : 'Trend Major Buy'}
 
-                    <div className='signal-circle-3' ></div>
+                    <div className='signal-circle-vppr' ></div>
                   </span>}
 
                   {lastVppr &&
                     <span className='lastTrend-primary'>
                       {'Flow ' + lastVppr?.vpprTrend}
-                      <div className='signal-circle-2' ></div>
+                      <div className='signal-circle-vppr-trend' ></div>
                     </span>}
 
                   {lastVppr &&
                     <span className='lastTrend-primary'>
                       {'EMA ' + lastVppr?.volumeEmaSignal}
-                      <div className='signal-circle' ></div>
+                      <div className='signal-circle-vppr-ema' ></div>
                     </span>
                   }
+                </div>
 
+                <div className='lastTrend' >
+                  <h4>Amrsi:</h4>
+                  {lastAmrsi &&
+                    <span className='lastTrend-primary'>
+                      {lastAmrsi?.type}
+                       <div className='signal-circle-amrsi' ></div>
+                    </span>}
                 </div>
 
               </div>)}

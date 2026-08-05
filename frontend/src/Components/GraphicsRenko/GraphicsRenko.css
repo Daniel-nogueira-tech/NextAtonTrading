@@ -444,24 +444,39 @@
   text-align: left;
 }
 
-.signal-circle,.signal-circle-2,.signal-circle-3,.signal-circle-4,.signal-circle-5 {
+.signal-circle-trend ,
+.signal-circle-trend-primary ,
+.signal-circle-vppr,
+.signal-circle-vppr-trend,
+.signal-circle-vppr-ema,
+.signal-circle-amrsi {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background-color: var(--signal-color);
   margin-left: 5px;
 }
-.signal-circle-2 {
-  background-color: var(--signal-color-2);
+.signal-circle-trend{
+    background-color: var(--signal-color-trend);
 }
-.signal-circle-3 {
-  background-color: var(--signal-color-3);
+
+.signal-circle-trend-primary {
+  background-color: var(--signal-color-trend-primary);
 }
-.signal-circle-4 {
-  background-color: var(--signal-color-4);
+
+.signal-circle-vppr {
+  background-color: var(--signal-color-vppr-major);
 }
-.signal-circle-5 {
-  background-color: var(--signal-color-5);
+
+.signal-circle-vppr-trend {
+  background-color: var(--signal-color-vppr-trend);
+}
+
+.signal-circle-vppr-ema {
+  background-color: var(--signal-color-vppr-ema);
+}
+
+.signal-circle-amrsi{
+  background-color: var(--signal-color-amrsi);
 }
 
 
