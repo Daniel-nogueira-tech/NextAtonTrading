@@ -2,7 +2,7 @@ from utils.klines import get_klines, format_raw_data
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from controllers.symbols_controller import get_stored_symbols
-from controllers.data_to_simulation_controllers import get_klines_data_simulation_primary
+from controllers.data_to_simulation_controllers import get_klines_data_simulation_primary, get_klines_data_simulation
 
 
 
@@ -113,7 +113,8 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 2000):
         if mode == "simulation":
             # 🔁 Pega os dados do banco
             try:
-                raw_data = get_klines_data_simulation_primary(symbol)
+               # raw_data = get_klines_data_simulation_primary(symbol)
+                raw_data =  get_klines_data_simulation(symbol)
                 print(f"✅ Dados baixados com sucesso: {len(raw_data) if raw_data else 0} registros")
             except Exception as download_e:
                 raise ValueError(f"Não foi possível baixar dados: {str(download_e)}")
