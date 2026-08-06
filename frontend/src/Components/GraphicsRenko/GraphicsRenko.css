@@ -444,8 +444,8 @@
   text-align: left;
 }
 
-.signal-circle-trend ,
-.signal-circle-trend-primary ,
+.signal-circle-trend,
+.signal-circle-trend-primary,
 .signal-circle-vppr,
 .signal-circle-vppr-trend,
 .signal-circle-vppr-ema,
@@ -455,8 +455,9 @@
   border-radius: 50%;
   margin-left: 5px;
 }
-.signal-circle-trend{
-    background-color: var(--signal-color-trend);
+
+.signal-circle-trend {
+  background-color: var(--signal-color-trend);
 }
 
 .signal-circle-trend-primary {
@@ -475,7 +476,7 @@
   background-color: var(--signal-color-vppr-ema);
 }
 
-.signal-circle-amrsi{
+.signal-circle-amrsi {
   background-color: var(--signal-color-amrsi);
 }
 
@@ -545,6 +546,22 @@
 .btn-exit:hover {
   transform: scale(1.05);
   transition: all 0.3s ease;
+}
+
+/*=======================|Resultado e saldo das operações|=======================*/
+.result {
+  display: flex;
+  gap: 10px;
+  background-color: rgba(0, 0, 0, 0.103);
+  border: solid 1px #8a5cf65b;
+  border-radius: 4px;
+  padding: 5px;
+}
+
+.result .result-panel {
+  font-size: 15px;
+  width: 100%;
+
 }
 
 @keyframes renkoFadeInUp {

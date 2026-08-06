@@ -402,6 +402,7 @@ export const useVpprData = (vppr) => {
         }));
 
         setVpprData(signalsArray);
+        console.log('📊 [VPPR] Dados atualizados:', signalsArray);
 
     }, [vpprGroups]);
 

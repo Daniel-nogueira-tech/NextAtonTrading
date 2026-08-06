@@ -473,7 +473,7 @@ const GraphicsRenko = () => {
   const [dates, setDates] = React.useState(null);
   const [dateErro, setDateErro] = React.useState(null);
   const [isTrend, setIsTrend] = React.useState(true);
-
+  const [disabledButton, setDisabledButton] = React.useState(false);
 
   //===================/ Chama os hooks /===================//
   const { retestPointsStateRef } = useOperatingData(trend);
@@ -811,6 +811,29 @@ const GraphicsRenko = () => {
   }
 
 
+  // Função para compra e venda de operação
+  const handleClick = (operation) => {
+    setDisabledButton(true);
+    // Define o botão clicado como true
+    setButtonOperation({
+      buy: operation === "buy",
+      sell: operation === "sell",
+      exit: operation === "exit",
+    });
+
+    // Reseta automaticamente após 1 segundo
+    setTimeout(() => {
+      setButtonOperation({
+        buy: false,
+        sell: false,
+        exit: false,
+      });
+      setDisabledButton(false);
+    }, 3000);
+  };
+
+
+
   return (
     <section className="graphics-renko">
 
@@ -876,7 +899,7 @@ const GraphicsRenko = () => {
                   {lastAmrsi &&
                     <span className='lastTrend-primary'>
                       {lastAmrsi?.type}
-                       <div className='signal-circle-amrsi' ></div>
+                      <div className='signal-circle-amrsi' ></div>
                     </span>}
                 </div>
 
@@ -1043,9 +1066,32 @@ const GraphicsRenko = () => {
 
           {/**==========================|Botão para compra e venda|============================ */}
           <div className='button-buy-sell'>
-            <button className="btn btn-buy">Buy</button>
-            <button className="btn btn-sell">Sell</button>
-            <button className="btn btn-exit">Exit</button>
+            <button
+              className="btn btn-buy"
+              onClick={() => handleClick("buy")}
+              disabled={disabledButton}
+            >Buy</button>
+            <button
+              className="btn btn-sell"
+              onClick={() => handleClick("sell")}
+              disabled={disabledButton}
+            >Sell</button>
+            <button
+              className="btn btn-exit"
+              onClick={() => handleClick("exit")}
+              disabled={disabledButton}
+            >Exit</button>
+            <div className="result">
+              <div className="result-panel">
+                <span>Result:</span>
+                <span className="result-value">150.00</span>
+              </div>
+              <div className="result-panel">
+                <span>Saldo:</span>
+                <span className="result-value">10.150,00</span>
+              </div>
+            </div>
+
           </div>
 
         </div>
@@ -1073,7 +1119,7 @@ const GraphicsRenko = () => {
           </div>
         </aside>
       </div>
-    </section>
+    </section >
   )
 }
 
