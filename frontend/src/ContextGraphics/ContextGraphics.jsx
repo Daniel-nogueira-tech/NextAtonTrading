@@ -47,12 +47,11 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [actionType, setActionType] = React.useState('')
 
     // Botão de operação
-    const [buttonOperation, setButtonOperation] = React.useState(
-        { 'buy': false },
-        { 'sell': false },
-        { 'exit': false }
-    );
-  console.log('buttonOperation:', buttonOperation); // Log para verificar o estado atual do botão
+    const [buttonOperation, setButtonOperation] = React.useState({
+        buy: false,
+        sell: false,
+        exit: false,
+    });
 
     const incrementalEngine = useIncrementalMarketEngine({
         initialSpeed: mode === 'simulation' ? 500 : 150,

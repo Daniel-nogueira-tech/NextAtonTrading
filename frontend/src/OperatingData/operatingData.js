@@ -537,7 +537,6 @@ export const useOperatingData = (trend) => {
 
           }
         };
-        console.log('pivotRetestRallyNatural', pivotRetestRallyNatural);
 
         return { naturalRally, ultimoPivoRally, ultimoPivoRallySec, rallySecundarioOrigem, pivotRallySec, pivotRetestRallyNatural };
       };
@@ -654,6 +653,7 @@ export const useOperatingData = (trend) => {
         }
       };
 
+
       // **Último Pivo depois de uma invesão de tendência
       if (inversion) {
         const isNovoPivo = !state.pivoReversaoAlta ||
@@ -753,7 +753,9 @@ export const useOperatingData = (trend) => {
         state.penultimoValorFundo[state.penultimoValorFundo.length - 2];
 
       // **Reteste de pivo para saída
-      const TrendPivot = state.penultimoValor[state.penultimoValor.length - 1];
+      let TrendPivot = ct ?
+        state.penultimoValor[state.penultimoValor.length - 1] :
+        state.penultimoValorFundo[state.penultimoValorFundo.length - 1];
 
       // **Reteste de pivo de rally sec
       const pivoRallySec2 = state.rallyPivotToSec2[state.rallyPivotToSec2.length - 1];
@@ -807,8 +809,8 @@ export const useOperatingData = (trend) => {
         const high = pivo.closePrice + tolerance;
         const low = pivo.closePrice - tolerance;
 
-        const buyPoint = pivo.closePrice + limite / 2.5;
-        const sellPoint = pivo.closePrice - limite / 2.5;
+        const buyPoint = pivo.closePrice + limite / 2;
+        const sellPoint = pivo.closePrice - limite / 2;
 
         const eventId = buildEventId(pivo, naturalReaction);
         if (eventId && state.lastTrendRetestId !== eventId) {
@@ -832,6 +834,7 @@ export const useOperatingData = (trend) => {
               { name: "pivotExit", value: TrendPivot?.closePrice },
             ]);
             state.executeTrendRally = true;
+            state.executeEntrieRallySec = true;
             state.executeBreakout = false;
             state.executeBreakoutToRally = false;
           };
@@ -855,6 +858,7 @@ export const useOperatingData = (trend) => {
               { name: "pivotExit", value: TrendPivot?.closePrice },
             ]);
             state.executeTrendRally = true;
+            state.executeEntrieRallySec = true;
             state.executeBreakout = false;
             state.executeBreakoutToRally = false;
           };
@@ -868,8 +872,8 @@ export const useOperatingData = (trend) => {
         const high = pivoRallyPrimary.closePrice + tolerance;
         const low = pivoRallyPrimary.closePrice - tolerance;
 
-        const buyPoint = pivoRallyPrimary.closePrice + limite / 2.5;
-        const sellPoint = pivoRallyPrimary.closePrice - limite / 2.5;
+        const buyPoint = pivoRallyPrimary.closePrice + limite / 2;
+        const sellPoint = pivoRallyPrimary.closePrice - limite / 2;
 
         const eventId = buildEventId(pivoRallyPrimary, naturalReaction);
         if (eventId && state.lastRallyRetestId !== eventId) {
@@ -892,6 +896,7 @@ export const useOperatingData = (trend) => {
               { name: "pivotExit", value: TrendPivot?.closePrice },
             ]);
             state.executeEntrieRally = true;
+            state.executeEntrieRallySec = true;
             state.executeBreakout = false;
             state.executeBreakoutToRally = false;
           };
@@ -913,6 +918,7 @@ export const useOperatingData = (trend) => {
               { name: "pivotExit", value: TrendPivot?.closePrice },
             ]);
             state.executeEntrieRally = true;
+            state.executeEntrieRallySec = true;
             state.executeBreakout = false;
             state.executeBreakoutToRally = false;
           };
@@ -926,8 +932,8 @@ export const useOperatingData = (trend) => {
         const high = pivoRallySecReversion.closePrice + tolerance;
         const low = pivoRallySecReversion.closePrice - tolerance;
 
-        const buyPoint = pivoRallySecReversion.closePrice + limite / 2.5;
-        const sellPoint = pivoRallySecReversion.closePrice - limite / 2.5;
+        const buyPoint = pivoRallySecReversion.closePrice + limite / 2;
+        const sellPoint = pivoRallySecReversion.closePrice - limite / 2;
 
         const eventId = buildEventId(pivoRallySecReversion, naturalReaction);
         if (eventId && state.lastRallyReverseRetestId !== eventId) {
@@ -951,6 +957,7 @@ export const useOperatingData = (trend) => {
             ]);
             useRallyRef.current = false;
             state.executeEntrieRallyReverse = true;
+            state.executeEntrieRallySec = true;
             state.executeBreakout = false;
             state.executeBreakoutToRally = false;
           };
@@ -974,12 +981,13 @@ export const useOperatingData = (trend) => {
             ]);
             useRallyRef.current = false;
             state.executeEntrieRallyReverse = true;
+            state.executeEntrieRallySec = true;
             state.executeBreakout = false;
             state.executeBreakoutToRally = false;
           };
         };
       };
-
+console.log('condição exit:',TrendPivot)
       // ======================|SAÍDA DE TENDÊNCIA|====================== //
       if (TrendPivot && naturalRally && canExecuteRallyRef.current /**&& state.executeTrendRally || state.executeEntrieRally || state.executeEntrieRallyReverse */) {
         const limite = TrendPivot?.limite;
@@ -988,6 +996,10 @@ export const useOperatingData = (trend) => {
         const low = TrendPivot?.closePrice - tolerance;
         const sellExit = TrendPivot?.closePrice - limite / 2;
         const buyExit = TrendPivot?.closePrice + limite / 2;
+
+        console.log('>U<',
+            low 
+          )
 
         const eventId = buildEventId(TrendPivot, naturalRally);
         if (eventId && state.lastTrendExitId !== eventId) {
@@ -1050,8 +1062,8 @@ export const useOperatingData = (trend) => {
         const high = pivoRallyPrimary.closePrice + tolerance;
         const low = pivoRallyPrimary.closePrice - tolerance;
 
-        const buyPoint = pivoRallyPrimary.closePrice + limite / 2.5;
-        const sellPoint = pivoRallyPrimary.closePrice - limite / 2.5;
+        const buyPoint = pivoRallyPrimary.closePrice + limite / 2;
+        const sellPoint = pivoRallyPrimary.closePrice - limite / 2;
 
         const eventId = buildEventId(pivoRallyPrimary, naturalReactionSec);
         if (eventId && state.lastRallySecRetestId !== eventId) {
@@ -1101,6 +1113,7 @@ export const useOperatingData = (trend) => {
         };
       };
 
+      console.log('pivoRallySecExit:', state.executeEntrieRallySec)
       // ======================|SAÍDA REAÇÃO SECUNDÁRIA|====================== //
       if (pivoRallySecExit && rallySecundaria && canExecuteRallySecRef.current && state.executeEntrieRallySec) {
         const limite = pivoRallySecExit.limite;
@@ -1170,8 +1183,8 @@ export const useOperatingData = (trend) => {
         const high = pivoRallySec2?.closePrice + tolerance;
         const low = pivoRallySec2?.closePrice - tolerance;
 
-        const buyPoint = pivoRallySec2?.closePrice + limite / 2.5;
-        const sellPoint = pivoRallySec2?.closePrice - limite / 2.5;
+        const buyPoint = pivoRallySec2?.closePrice + limite / 2;
+        const sellPoint = pivoRallySec2?.closePrice - limite / 2;
 
         // ✅ usar pivoRally em vez de pivoRallyPrimary.closePrice
         const eventId = buildEventId(pivoRallySec2, naturalReactionSec);
@@ -1289,8 +1302,8 @@ export const useOperatingData = (trend) => {
         const high = penultimatePivoRallySec?.closePrice + tolerance;
         const low = penultimatePivoRallySec?.closePrice - tolerance;
 
-        const buyPoint = penultimatePivoRallySec?.closePrice + limite / 2.5;
-        const sellPoint = penultimatePivoRallySec?.closePrice - limite / 2.5;
+        const buyPoint = penultimatePivoRallySec?.closePrice + limite / 2;
+        const sellPoint = penultimatePivoRallySec?.closePrice - limite / 2;
 
         // ✅ usar pivoRally em vez de pivoRallyPrimary.closePrice
         const eventId = buildEventId(penultimatePivoRallySec, naturalReactionSec);
@@ -1349,8 +1362,8 @@ export const useOperatingData = (trend) => {
         const high = lastPivotRallySec?.closePrice + tolerance;
         const low = lastPivotRallySec?.closePrice - tolerance;
 
-        const buyPoint = lastPivotRallySec?.closePrice + limite / 2.5;
-        const sellPoint = lastPivotRallySec?.closePrice - limite / 2.5;
+        const buyPoint = lastPivotRallySec?.closePrice + limite / 2;
+        const sellPoint = lastPivotRallySec?.closePrice - limite / 2;
 
         // ✅ usar pivoRally em vez de pivoRallyPrimary.closePrice
         const eventId = buildEventId(lastPivotRallySec, naturalReaction);
@@ -1535,7 +1548,7 @@ export const useOperatingData = (trend) => {
 
   }, [trendGroups]);
 
-  return { retestPointsStateRef};
+  return { retestPointsStateRef };
 }
 
 

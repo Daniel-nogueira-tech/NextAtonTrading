@@ -537,7 +537,6 @@ export const useOperatingDataPrimary = (trend) => {
 
           }
         };
-        console.log('pivotRetestRallyNatural', pivotRetestRallyNatural);
 
         return { naturalRally, ultimoPivoRally, ultimoPivoRallySec, rallySecundarioOrigem, pivotRallySec, pivotRetestRallyNatural };
       };

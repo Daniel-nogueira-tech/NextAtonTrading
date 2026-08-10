@@ -711,7 +711,7 @@ const GraphicsRenko = () => {
     dateToSimulation(formattedDatesObj)
   }
 
-  // Função para alternar entre Real ime e simulação
+  // Função para alternar entre Real time e simulação
   const buttonSimulation = async () => {
     setMode(mode === "simulation"
       ? "real"
@@ -811,7 +811,7 @@ const GraphicsRenko = () => {
   }
 
 
-  // Função para compra e venda de operação
+  // ====================|Função para compra e venda de operação|==================== //
   const handleClick = (operation) => {
     setDisabledButton(true);
     // Define o botão clicado como true
@@ -829,10 +829,10 @@ const GraphicsRenko = () => {
         exit: false,
       });
       setDisabledButton(false);
-    }, 3000);
+    }, 10000);
   };
 
-
+console.log('ButtonOperation:',buttonOperation)
 
   return (
     <section className="graphics-renko">
@@ -1091,7 +1091,6 @@ const GraphicsRenko = () => {
                 <span className="result-value">10.150,00</span>
               </div>
             </div>
-
           </div>
 
         </div>
