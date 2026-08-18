@@ -14,6 +14,7 @@
     --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
     --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
     --mono: ui-monospace, Consolas, monospace;
+    --grey: rgba(31, 31, 31, 0.5);
 
     font: 18px/145% var(--sans);
     letter-spacing: 0.18px;
@@ -114,4 +115,28 @@
     line-height: 135%;
     padding: 4px 8px;
     background: var(--code-bg);
+  }
+
+  /*==========|Botões de operação pop up|==========*/
+  .my-swal-popup {
+    width: 300px !important;
+    padding: 1rem !important;
+    font-size: 11px;
+    background: var(--grey);
+  }
+
+  .confirm-Button-sell {
+    background: #ca0a0a73;
+  }
+
+  .confirm-Button:hover {
+    background: #fc0b0b48;
+  }
+
+  .confirm-Button-buy {
+    background: #0aca3a88;
+  }
+
+  .confirm-Button-buy:hover {
+    background: #0aca3a49;
   }

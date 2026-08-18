@@ -147,50 +147,52 @@ const buildSignalMarkers = (signals = []) => {
     }))
     .filter(signal => ['BUY', 'SELL', 'EXIT_BUY', 'EXIT_SELL', 'PARTIAL_BUY', 'PARTIAL_SELL', 'STOP_BUY', 'STOP_SELL'].includes(signal.action))
     .map((signal, index) => {
-      const markerPrice = signal.entryPrice || signal.partialPrice || signal.exitPrice || signal.price || signal.expectedPriceBuy || signal.expectedPriceSell || signal.expectedPriceExitBuy || signal.expectedPriceExitSell || '';
+      const markerPrice = signal.entryPrice || signal.partialPrice || signal.exitPrice || signal.avgExitPrice || signal.price || signal.expectedPriceBuy || signal.expectedPriceSell || signal.expectedPriceExitBuy || signal.expectedPriceExitSell || '';
       let position, color, shape, text;
 
       if (signal.action === 'BUY') {
         position = 'belowBar';
-        color = '#22AB94';
+        color = '#00ff40e0';
         shape = 'arrowUp';
-        text = `BUY ${markerPrice}`.trim();
+        text = `Buy ${markerPrice}`.trim();
       } else if (signal.action === 'SELL') {
         position = 'aboveBar';
-        color = '#fc5b5b';
+        color = '#ff0000';
         shape = 'arrowDown';
-        text = `SELL ${markerPrice}`.trim();
+        text = `Sell ${markerPrice}`.trim();
       } else if (signal.action === 'EXIT_BUY') {
         position = 'aboveBar';
-        color = '#ffd4d4';
+        color = '#ff4f4f';
         shape = 'arrowDown';
-        text = `EXIT BUY ${markerPrice}`.trim();
+        text = `Exit buy ${markerPrice}`.trim();
       } else if (signal.action === 'EXIT_SELL') {
         position = 'belowBar';
-        color = '#c1fff5';
+        color = '#00fcd2';
         shape = 'arrowUp';
-        text = `EXIT SELL ${markerPrice}`.trim();
+        text = `Exit sell ${markerPrice}`.trim();
       } else if (signal.action === 'PARTIAL_BUY') {
         position = 'aboveBar';
         color = '#68a59b';
         shape = 'arrowDown';
-        text = `PARTIAL BUY ${markerPrice}`.trim();
+        text = `Partial buy ${markerPrice}`.trim();
       } else if (signal.action === 'PARTIAL_SELL') {
         position = 'belowBar';
-        color = '#c29b9b';
+        color = '#d6bcbc';
         shape = 'arrowUp';
-        text = `PARTIAL SELL ${markerPrice}`.trim();
+        text = `Partial sell ${markerPrice}`.trim();
       } else if (signal.action === 'STOP_BUY') {
         position = 'aboveBar';
         color = '#ff0000';
         shape = 'arrowDown';
-        text = `STOP BUY ${markerPrice}`.trim();
+        text = `Stop buy ${markerPrice}`.trim();
       } else if (signal.action === 'STOP_SELL') {
         position = 'belowBar';
         color = '#00ff0d';
         shape = 'arrowUp';
-        text = `STOP SELL ${markerPrice}`.trim();
+        text = `Stop sell ${markerPrice}`.trim();
       }
+
+      const numericPrice = Number(markerPrice);
 
       return {
         time: normalizeSignalTime(signal.time, index),
@@ -198,6 +200,7 @@ const buildSignalMarkers = (signals = []) => {
         color,
         shape,
         text,
+        price: Number.isFinite(numericPrice) ? numericPrice : undefined,
       }
     })
     .filter(marker => marker.position && marker.color && marker.shape && typeof marker.time === 'number');
@@ -829,10 +832,9 @@ const GraphicsRenko = () => {
         exit: false,
       });
       setDisabledButton(false);
-    }, 10000);
+    }, 200);
   };
 
-console.log('ButtonOperation:',buttonOperation)
 
   return (
     <section className="graphics-renko">

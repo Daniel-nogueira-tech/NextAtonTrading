@@ -987,7 +987,7 @@ export const useOperatingData = (trend) => {
           };
         };
       };
-console.log('condição exit:',TrendPivot)
+
       // ======================|SAÍDA DE TENDÊNCIA|====================== //
       if (TrendPivot && naturalRally && canExecuteRallyRef.current /**&& state.executeTrendRally || state.executeEntrieRally || state.executeEntrieRallyReverse */) {
         const limite = TrendPivot?.limite;
@@ -996,10 +996,6 @@ console.log('condição exit:',TrendPivot)
         const low = TrendPivot?.closePrice - tolerance;
         const sellExit = TrendPivot?.closePrice - limite / 2;
         const buyExit = TrendPivot?.closePrice + limite / 2;
-
-        console.log('>U<',
-            low 
-          )
 
         const eventId = buildEventId(TrendPivot, naturalRally);
         if (eventId && state.lastTrendExitId !== eventId) {
@@ -1113,7 +1109,6 @@ console.log('condição exit:',TrendPivot)
         };
       };
 
-      console.log('pivoRallySecExit:', state.executeEntrieRallySec)
       // ======================|SAÍDA REAÇÃO SECUNDÁRIA|====================== //
       if (pivoRallySecExit && rallySecundaria && canExecuteRallySecRef.current && state.executeEntrieRallySec) {
         const limite = pivoRallySecExit.limite;
