@@ -75,7 +75,7 @@ def _extract_clarification_series(trend_results):
 
 
 # Funcao principal para obter o RSI de um ativo
-def _get_rsi_single(symbol="BTCUSDT", period=14, media_period=6, mode="", time="5m"):
+def _get_rsi_single(symbol="BTCUSDT", period=14, media_period=6, mode="", time="15m"):
     if period is None or period <= 0:
         raise ValueError("period deve ser um numero inteiro positivo")
     if symbol is None or not isinstance(symbol, str):

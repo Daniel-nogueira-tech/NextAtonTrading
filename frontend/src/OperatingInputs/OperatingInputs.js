@@ -181,6 +181,7 @@ export const useOperatingInputs = () => {
     const [lastVpprState, setLastVpprState] = useState({});
     const lastAmrsiRef = useRef({});
     const [lastAmrsiState, setLastAmrsiState] = useState({});
+    const operationResults = {};
 
 
     useEffect(() => {
@@ -283,8 +284,8 @@ export const useOperatingInputs = () => {
             // Tipos para entrada
             const TYPE_BUY = ["PIVOT_BUY_TREND", "PIVOT_BUY_RALLY", "PIVOT_BUY_RALLY_REVERSE", "PIVOT_BUY_RALLY_SEC", "PIVOT_BUY_RALLY_REACT_SEC", "PIVOT_BUY_RALLY_SEC_LATE"];//"ENTRY_BUY_RALLY_SEC", "ENTRY_BUY_RALLY_SEC_LATE"
             const TYPE_SELL = ["PIVOT_SELL_TREND", "PIVOT_SELL_RALLY", "PIVOT_SELL_RALLY_REVERSE", "PIVOT_SELL_RALLY_SEC", "PIVOT_SELL_RALLY_REACT_SEC", "PIVOT_SELL_RALLY_SEC_LATE"]; //"ENTRY_SELL_RALLY_SEC",, "ENTRY_SELL_RALLY_SEC_LATE"
-            const TYPE_BUY_PRI = ["PIVOT_BUY_TREND", "PIVOT_BUY_RALLY", "PIVOT_BUY_RALLY_SEC", "PIVOT_BUY_RALLY_REVERSE", "pivotBreak-buy"];
-            const TYPE_SELL_PRI = ["PIVOT_SELL_TREND", "PIVOT_SELL_RALLY", "PIVOT_SELL_RALLY_SEC", "PIVOT_SELL_RALLY_REVERSE", "pivotBreak-sell"];
+            const TYPE_BUY_PRI = ["PIVOT_BUY_TREND", "PIVOT_BUY_RALLY", "PIVOT_BUY_RALLY_SEC", "PIVOT_BUY_RALLY_REVERSE", "PIVOT_BREAK_BUY", "PIVOT_BUY_RALLY_REACT_SEC", "PIVOT_BUY_RALLY_SEC_LATE"];
+            const TYPE_SELL_PRI = ["PIVOT_SELL_TREND", "PIVOT_SELL_RALLY", "PIVOT_SELL_RALLY_SEC", "PIVOT_SELL_RALLY_REVERSE", "PIVOT_BREAK_SELL", "PIVOT_SELL_RALLY_REACT_SEC", "PIVOT_SELL_RALLY_SEC_LATE"];
 
             // Tipos para saída
             const TYPE_BUY_EXIT = ["PIVOT_EXIT_BUY_TREND", "PIVOT_EXIT_BUY_SEC"];
@@ -332,21 +333,23 @@ export const useOperatingInputs = () => {
 
             //==============================|✅ENTRADAS EM OPERAÇÕES RETESTES|==============================//
             const conditionBuyMain = TYPE_BUY.includes(lastTrend?.type) &&
-                lastPrice.Fechamento <= lastTrend?.buy &&
+                lastPrice.Fechamento <= lastTrend?.buy + lastTrend?.limite &&
                 lastPrice.Fechamento >= lastTrend?.buy - lastTrend?.limite &&  //banda
                 lastVppr?.vpprTrend === 'buy' &&
                 lastVppr?.major === 'MajorBuy' &&
                 lastVppr?.volumeEmaSignal === 'Volume BUY Increasing';
 
-            // ***Muda as  classe dos butão
-            const btnBuy = document.querySelector('.btn-buy');
-            conditionBuyMain ? btnBuy.classList.add('btn-pulse-buy') : btnBuy.classList.remove('btn-pulse-buy');
 
             //🟢 Entrada de compra
             if (!flags.exceededBand && flags.blockedTrendIdentity !== currentTrendIdentity) {
+
                 const conditionBuy =
                     conditionBuyMain &&
                     buttonOperation.buy
+
+                // ***Muda as  classe dos butão
+                const btnBuy = document.querySelector('.btn-buy');
+                conditionBuyMain ? btnBuy.classList.add('btn-pulse-buy') : btnBuy.classList.remove('btn-pulse-buy');
 
                 console.log(`📈 [${symbol}] Condição BUY:`, {
                     secondaryOk: TYPE_BUY.includes(lastTrend?.type),
@@ -430,9 +433,9 @@ export const useOperatingInputs = () => {
                                         flags.lastSignal = aggregated;
                                     }
 
-                                    // ** passa os dados para função para calcular stop
-                                    calculatePositionSize(flags.lastSignal)
-
+                                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+                                    // **Atualiza botões e estado de simbolos
                                     setButtonOperation({ buy: false, sell: false, exit: false });
                                     setSignalsBySymbolState({ ...signalsHistoryRef.current });
 
@@ -454,20 +457,24 @@ export const useOperatingInputs = () => {
             // Condição de venda principal
             const conditionSellMain = TYPE_SELL.includes(lastTrend?.type) &&
                 lastPrice.Fechamento <= lastTrend?.sell + lastTrend?.limite && //Banda acima
-                lastPrice.Fechamento >= (lastTrend?.sell - lastTrend?.limite / 1.5) &&
+                lastPrice.Fechamento >= lastTrend?.sell - lastTrend?.limite &&
                 lastVppr?.vpprTrend === 'sell' &&
                 lastVppr?.major === 'MajorSell' &&
                 lastVppr?.volumeEmaSignal === 'Volume SELL Increasing';
 
-            // ***Muda as  classe dos butão
-            const btnSell = document.querySelector('.btn-sell');
-            conditionSellMain ? btnSell.classList.add('btn-pulse-sell') : btnSell.classList.remove('btn-pulse-sell');
+            console.log('>>',  )
 
             //🔴 Entrada de venda
             if (!flags.exceededBand && flags.blockedTrendIdentity !== currentTrendIdentity) {
+                // ***Muda as  classe dos butão
+                const btnSell = document.querySelector('.btn-sell');
+                conditionSellMain ? btnSell.classList.add('btn-pulse-sell') : btnSell.classList.remove('btn-pulse-sell');
+
+                console.log('conditionSellMain>>', conditionSellMain)
                 const conditionSell =
                     conditionSellMain &&
                     buttonOperation.sell
+
 
                 console.log(`📉 [${symbol}] Condição SELL:`, {
                     secondaryOk: TYPE_SELL.includes(lastTrend?.type),
@@ -556,9 +563,10 @@ export const useOperatingInputs = () => {
                                         flags.lastSignal = aggregatedS;
                                     }
 
-                                    // ** passa os dados para função para calcular stop
-                                    calculatePositionSize(flags.lastSignal)
+                                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
 
+                                    // **Atualiza botões e estado de simbolos
                                     setButtonOperation({ buy: false, sell: false, exit: false });
                                     setSignalsBySymbolState({ ...signalsHistoryRef.current });
 
@@ -576,6 +584,8 @@ export const useOperatingInputs = () => {
                     }
                 }
             };
+
+
 
             //==============================|🚫EXIT|==============================//
             //🟢 Condição de saída principal
@@ -728,6 +738,10 @@ export const useOperatingInputs = () => {
 
                                     if (history.length > 100) signalsHistoryRef.current[symbol] = history.slice(-100);
 
+                                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+
+                                    // **Atualiza botões e estado de simbolos
                                     setButtonOperation({ buy: false, sell: false, exit: false });
                                     setSignalsBySymbolState({ ...signalsHistoryRef.current });
 
@@ -865,6 +879,11 @@ export const useOperatingInputs = () => {
                                     }
 
                                     if (historyS.length > 100) signalsHistoryRef.current[symbol] = historyS.slice(-100);
+
+                                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+
+                                    // **Atualiza botões e estado de simbolos
                                     setButtonOperation({ buy: false, sell: false, exit: false });
                                     setSignalsBySymbolState({ ...signalsHistoryRef.current });
 
@@ -898,8 +917,8 @@ export const useOperatingInputs = () => {
                         symbol,
                         action: "STOP_BUY",
                         count: flags.numberEntries,
-                        expectedPriceExitBuy: lastTrend.stop,
-                        exitPrice: lastPrice?.Fechamento,
+                        expectedPriceExitBuy: lastTrend.stop.toFixed(2),
+                        exitPrice: lastPrice?.Fechamento.toFixed(2),
                         time: lastPrice?.Tempo || lastPrice?.time
                     };
                     flags.upwardTrendCurrent = false;
@@ -909,6 +928,14 @@ export const useOperatingInputs = () => {
                     flags.exceededBand = false;
                     flags.blockedTrendIdentity = null;
                     flags.numberEntries = 0;
+
+                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+
+                    // **Atualiza botões e estado de simbolos
+                    setButtonOperation({ buy: false, sell: false, exit: false });
+                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
+
                     console.log(`🚪 [${symbol}] STOP DE COMPRA`);
                 }
                 if (
@@ -920,8 +947,8 @@ export const useOperatingInputs = () => {
                         symbol,
                         action: "STOP_SELL",
                         count: flags.numberEntries,
-                        expectedPriceExitSell: lastTrend.stop,
-                        exitPrice: lastPrice?.Fechamento,
+                        expectedPriceExitSell: lastTrend.stop.toFixed(2),
+                        exitPrice: lastPrice?.Fechamento.toFixed(2),
                         time: lastPrice?.Tempo || lastPrice?.time
                     };
                     flags.downwardTrendCurrent = false;
@@ -931,19 +958,21 @@ export const useOperatingInputs = () => {
                     flags.exceededBand = false;
                     flags.blockedTrendIdentity = null;
                     flags.numberEntries = 0;
+
+                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+
+                    // **Atualiza botões e estado de simbolos
+                    setButtonOperation({ buy: false, sell: false, exit: false });
+                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
+
                     console.log(`🚪 [${symbol}] STOP DE VENDA`);
                 }
             }
 
             //==============================|🚫PONTOS DE SAÍDA EM ROMPIMENTO DE COM INVERSÃO DE TENDÊNCIA (SÓ POR SEGURANÇA)|==============================//
             //🔺 Saída de operações de compra
-            if (TYPE_BUY_EXIT_REVERSE.includes(lastTrend?.type) &&
-                flags.upwardTrendCurrent &&
-                flags.inputExecuted &&
-                flags.isOperation &&
-                flags.numberEntries > 0
-
-            ) {
+            if (TYPE_BUY_EXIT_REVERSE.includes(lastTrend?.type) && flags.upwardTrendCurrent && flags.inputExecuted && flags.isOperation && flags.numberEntries > 0) {
                 if (lastPrice.Fechamento <= lastTrend.sell) {
 
                     console.log(`📉 [${symbol}] Condição EXIT BUY REVERSE:`, {
@@ -968,16 +997,18 @@ export const useOperatingInputs = () => {
                     flags.blockedTrendIdentity = null;
                     flags.numberEntries = 0;
 
+                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+
+                    // **Atualiza botões e estado de simbolos
+                    setButtonOperation({ buy: false, sell: false, exit: false });
+                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
+
                     console.log(`🚪 [${symbol}] SAÍDA DE COMPRA`);
                 }
             }
             //🔺 Saída de operações de venda
-            if (TYPE_SELL_EXIT_REVERSE.includes(lastTrend?.type) &&
-                flags.downwardTrendCurrent &&
-                flags.inputExecuted &&
-                flags.isOperation &&
-                flags.numberEntries > 0
-            ) {
+            if (TYPE_SELL_EXIT_REVERSE.includes(lastTrend?.type) && flags.downwardTrendCurrent && flags.inputExecuted && flags.isOperation && flags.numberEntries > 0) {
                 if (lastPrice.Fechamento >= lastTrend.buy) {
 
                     console.log(`📉 [${symbol}] Condição EXIT SELL REVERSE:`, {
@@ -1001,6 +1032,14 @@ export const useOperatingInputs = () => {
                     flags.exceededBand = false;
                     flags.blockedTrendIdentity = null;
                     flags.numberEntries = 0;
+
+                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+
+                    // **Atualiza botões e estado de simbolos
+                    setButtonOperation({ buy: false, sell: false, exit: false });
+                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
+
                     console.log(`🚪 [${symbol}] SAÍDA DE VENDA`);
                 }
             }
@@ -1037,6 +1076,14 @@ export const useOperatingInputs = () => {
                 flags.exceededBand = false;
                 flags.blockedTrendIdentity = null;
                 flags.numberEntries = 0;
+
+                // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+
+                // **Atualiza botões e estado de simbolos
+                setButtonOperation({ buy: false, sell: false, exit: false });
+                setSignalsBySymbolState({ ...signalsHistoryRef.current });
+
                 console.log(`🚪💲 [${symbol}] PARTIAL BUY`);
             }
             //🍰🔴 Parcial de venda
@@ -1070,6 +1117,13 @@ export const useOperatingInputs = () => {
                 flags.blockedTrendIdentity = null;
                 flags.numberEntries = 0;
 
+                // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+
+                // **Atualiza botões e estado de simbolos
+                setButtonOperation({ buy: false, sell: false, exit: false });
+                setSignalsBySymbolState({ ...signalsHistoryRef.current });
+
                 console.log(`🚪💲 [${symbol}] PARTIAL SELL`);
             };
 
@@ -1090,8 +1144,8 @@ export const useOperatingInputs = () => {
                         symbol,
                         action: "EXIT_BUY",
                         count: flags.numberEntries,
-                        expectedPriceExitBuy: lastTrend.stop,
-                        exitPrice: lastPrice?.Fechamento,
+                        expectedPriceExitBuy: lastTrend.stop.toFixed(2),
+                        exitPrice: lastPrice?.Fechamento.toFixed(2),
                         time: lastPrice?.Tempo || lastPrice?.time
                     };
                     flags.upwardTrendCurrent = false;
@@ -1101,6 +1155,14 @@ export const useOperatingInputs = () => {
                     flags.exceededBand = false;
                     flags.blockedTrendIdentity = null;
                     flags.numberEntries = 0;
+
+                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+
+                    // **Atualiza botões e estado de simbolos
+                    setButtonOperation({ buy: false, sell: false, exit: false });
+                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
+
                     console.log(`🚪 [${symbol}] SAÍDA DE COMPRA EM BREAK`);
                 }
             }
@@ -1117,8 +1179,8 @@ export const useOperatingInputs = () => {
                         symbol,
                         action: "EXIT_SELL",
                         count: flags.numberEntries,
-                        expectedPriceExitSell: lastTrend.stop,
-                        exitPrice: lastPrice?.Fechamento,
+                        expectedPriceExitSell: lastTrend.stop.toFixed(2),
+                        exitPrice: lastPrice?.Fechamento.toFixed(2),
                         time: lastPrice?.Tempo || lastPrice?.time
                     };
                     flags.downwardTrendCurrent = false;
@@ -1128,6 +1190,14 @@ export const useOperatingInputs = () => {
                     flags.exceededBand = false;
                     flags.blockedTrendIdentity = null;
                     flags.numberEntries = 0;
+
+                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+
+                    // **Atualiza botões e estado de simbolos
+                    setButtonOperation({ buy: false, sell: false, exit: false });
+                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
+
                     console.log(`🚪 [${symbol}] SAÍDA DE VENDA EM BREAK`);
                 }
             }
@@ -1147,7 +1217,7 @@ export const useOperatingInputs = () => {
                         symbol,
                         action: "EXIT_BUY",
                         count: flags.numberEntries,
-                        exitPrice: lastPrice?.Fechamento,
+                        exitPrice: lastPrice?.Fechamento.toFixed(2),
                         time: lastPrice?.Tempo || lastPrice?.time
                     };
                     flags.upwardTrendCurrent = false;
@@ -1157,13 +1227,22 @@ export const useOperatingInputs = () => {
                     flags.exceededBand = false;
                     flags.blockedTrendIdentity = null;
                     flags.numberEntries = 0;
+
+                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+
+                    // **Atualiza botões e estado de simbolos
+                    setButtonOperation({ buy: false, sell: false, exit: false });
+                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
+
                     console.log(`🚪 [${symbol}] SAÍDA DE COMPRA COM INVERSÃO DE VOLUME`);
                 }
             }
             //SAÍDA PARA VENDA PELO VOLUME
             if (flags.inputExecuted && flags.isOperation && flags.downwardTrendCurrent && flags.numberEntries > 0) {
                 const conditionExitSell =
-                    (lastVppr?.volumeEmaSignal === 'Volume BUY Increasing' ||
+                    (
+                        lastVppr?.volumeEmaSignal === 'Volume BUY Increasing' ||
                         lastVppr?.volumeEmaSignal === 'Volume BUY Weakly Increasing') &&
                     lastVppr?.volumeEmaSignal === 'Volume BUY Increasing' &&
                     lastVppr?.vpprTrend === 'buy' &&
@@ -1174,7 +1253,7 @@ export const useOperatingInputs = () => {
                         symbol,
                         action: "EXIT_SELL",
                         count: flags.numberEntries,
-                        exitPrice: lastPrice?.Fechamento,
+                        exitPrice: lastPrice?.Fechamento.toFixed(2),
                         time: lastPrice?.Tempo || lastPrice?.time
                     };
                     flags.downwardTrendCurrent = false;
@@ -1184,6 +1263,14 @@ export const useOperatingInputs = () => {
                     flags.exceededBand = false;
                     flags.blockedTrendIdentity = null;
                     flags.numberEntries = 0;
+
+                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+
+                    // **Atualiza botões e estado de simbolos
+                    setButtonOperation({ buy: false, sell: false, exit: false });
+                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
+
                     console.log(`🚪 [${symbol}] SAÍDA DE VENDA COM INVERSÃO DE VOLUME`);
                 }
             };
@@ -1251,8 +1338,6 @@ export const useOperatingInputs = () => {
         return lastAmrsiRef.current[symbol] || null;
     }
 
-    const operationResults = useMemo(() => calculateSignalResults(signalsHistoryRef.current), [signalsBySymbolState]);
-
     return {
         trend,
         trendPrimary,
@@ -1304,7 +1389,7 @@ const getSymbolInfo = async (lastSignal) => {
     }
 }
 // ==============================|Função principal para calcular o tamanho do lote|============================== //
-const calculatePositionSize = async (lastSignal) => {
+const calculatePositionSize = async (lastSignal, signalsBySymbolState = {}) => {
     try {
         if (!lastSignal) return null;
         const symbolInfor = await getSymbolInfo(lastSignal);
@@ -1408,6 +1493,183 @@ const calculatePositionSize = async (lastSignal) => {
             balance: balanceAndRisk.balance,
         });
 
+
+
+
+        //==================================|Calcula resultado das operações|=====================================//
+        const operations = [];
+        const perSymbol = {};
+        const toNumber = (value, fallback = 0) => {
+            const n = Number(value ?? fallback);
+            return Number.isFinite(n) ? n : fallback;
+        };
+
+        Object.entries(signalsBySymbolState).forEach(([symbol, signals]) => {
+            if (!Array.isArray(signals)) return;
+
+            let openPosition = null;
+
+            signals.forEach((signal) => {
+                const action = String(signal?.action || '').toUpperCase();
+
+                if (action === 'BUY') {
+                    const count = Math.max(1, Math.round(toNumber(signal?.count, 1)));
+                    const entryPrice = toNumber(signal?.entryPrice ?? signal?.avgEntryPrice ?? signal?.expectedPriceBuy, 0);
+                    // 🔥 Usar o stop do sinal, se existir
+                    const stopPrice = toNumber(
+                        signal?.stop ??
+                        signal?.expectedPriceStop ??
+                        signal?.stopPrice ??
+                        (entryPrice * 0.98),
+                        0
+                    );
+                    openPosition = {
+                        symbol,
+                        side: 'BUY',
+                        count,
+                        entryPrice,
+                        stopPrice,
+                        entrySignal: signal,
+                        entryTime: signal.time || null,
+                    };
+                    return;
+                }
+
+                if (action === 'SELL') {
+                    const count = Math.max(1, Math.round(toNumber(signal?.count, 1)));
+                    const entryPrice = toNumber(signal?.entryPrice ?? signal?.avgEntryPrice ?? signal?.expectedPriceSell, 0);
+                    // 🔥 CORREÇÃO: Usar o stop do sinal, se existir
+                    const stopPrice = toNumber(
+                        signal?.stop ??
+                        signal?.expectedPriceStop ??
+                        signal?.stopPrice ??
+                        (entryPrice * 1.02),
+                        0
+                    );
+                    openPosition = {
+                        symbol,
+                        side: 'SELL',
+                        count,
+                        entryPrice,
+                        stopPrice,
+                        entrySignal: signal,
+                        entryTime: signal.time || null,
+                    };
+                    return;
+                }
+
+                if (!openPosition) return;
+
+                const exitPrice = toNumber(
+                    signal?.exitPrice ??
+                    signal?.partialPrice ??
+                    signal?.avgExitPrice ??
+                    signal?.entryPrice ??
+                    signal?.expectedPriceExitBuy ??
+                    signal?.expectedPriceExitSell,
+                    0
+                );
+
+                if (action === 'EXIT_BUY' || action === 'STOP_BUY') {
+                    if (openPosition.side === 'BUY') {
+                        const realizedUnits = Math.max(1, Math.min(openPosition.count, Math.max(1, Math.round(toNumber(signal?.count, openPosition.count)))));
+
+                        // 🔥 CORREÇÃO: Calcular a distância do stop corretamente
+                        const stopDistance = Math.max(openPosition.entryPrice - openPosition.stopPrice, 0);
+                        const risk = stopDistance * realizedUnits;
+
+                        const pnl = (exitPrice - openPosition.entryPrice) * realizedUnits;
+
+                        operations.push({
+                            symbol,
+                            side: 'BUY',
+                            count: realizedUnits,
+                            entryPrice: openPosition.entryPrice,
+                            stopPrice: openPosition.stopPrice,
+                            stopDistance: stopDistance,
+                            exitPrice,
+                            pnl,
+                            risk,
+                            rr: risk > 0 ? pnl / risk : 0,
+                            action,
+                            entryTime: openPosition.entryTime,
+                            exitTime: signal.time || null,
+                        });
+                        openPosition = null;
+                    }
+                    return;
+                }
+
+                if (action === 'EXIT_SELL' || action === 'STOP_SELL') {
+                    if (openPosition.side === 'SELL') {
+                        const realizedUnits = Math.max(1, Math.min(openPosition.count, Math.max(1, Math.round(toNumber(signal?.count, openPosition.count)))));
+
+                        // 🔥 Calcular a distância do stop corretamente
+                        const stopDistance = Math.max(openPosition.stopPrice - openPosition.entryPrice, 0);
+                        const risk = stopDistance * realizedUnits;
+
+                        const pnl = (openPosition.entryPrice - exitPrice) * realizedUnits;
+
+                        operations.push({
+                            symbol,
+                            side: 'SELL',
+                            count: realizedUnits,
+                            entryPrice: openPosition.entryPrice,
+                            stopPrice: openPosition.stopPrice,
+                            stopDistance: stopDistance,
+                            exitPrice,
+                            pnl,
+                            risk,
+                            rr: risk > 0 ? pnl / risk : 0,
+                            action,
+                            entryTime: openPosition.entryTime,
+                            exitTime: signal.time || null,
+                        });
+                        openPosition = null;
+                    }
+                    return;
+                }
+            });
+
+            if (openPosition) {
+                perSymbol[symbol] = {
+                    symbol,
+                    openPosition,
+                    openPnl: null,
+                };
+            }
+        });
+
+        const totalProfit = operations.reduce((sum, item) => sum + (item.pnl > 0 ? item.pnl : 0), 0);
+        const totalLoss = operations.reduce((sum, item) => sum + (item.pnl < 0 ? item.pnl : 0), 0);
+        const netPnl = totalProfit + totalLoss;
+
+        // 🔥 Estatísticas detalhadas
+        const totalRisk = operations.reduce((sum, item) => sum + item.risk, 0);
+        const avgRisk = operations.length > 0 ? totalRisk / operations.length : 0;
+        const avgRr = operations.length > 0 ? operations.reduce((sum, item) => sum + item.rr, 0) / operations.length : 0;
+
+        console.log('📊 Resultado das operações', {
+            operations: operations.map(op => ({
+                ...op,
+                risk: op.risk.toFixed(2) * adjustedQty,
+                pnl: op.pnl.toFixed(2) * adjustedQty,
+                rr: op.rr.toFixed(2),
+            })),
+            totalOperations: operations.length,
+            winningOperations: operations.filter((item) => item.pnl > 0).length,
+            losingOperations: operations.filter((item) => item.pnl < 0).length,
+            totalProfit: totalProfit.toFixed(2) * adjustedQty,
+            totalLoss: totalLoss.toFixed(2) * adjustedQty,
+            netPnl: netPnl.toFixed(2) * adjustedQty,
+            totalRisk: totalRisk.toFixed(2) * adjustedQty,
+            avgRisk: avgRisk.toFixed(2) * adjustedQty,
+            avgRr: avgRr.toFixed(2),
+            perSymbol,
+        });
+
+
+
         return {
             symbol,
             count,
@@ -1429,202 +1691,27 @@ const calculatePositionSize = async (lastSignal) => {
                 stepSize,
                 tickSize: Number(symbolInfor.tickSize || 0),
                 minNotional: Number(symbolInfor.minNotional || 0)
-            }
+            },
+
+            operations,
+            totalOperations: operations.length,
+            winningOperations: operations.filter((item) => item.pnl > 0).length,
+            losingOperations: operations.filter((item) => item.pnl < 0).length,
+            totalProfit,
+            totalLoss,
+            netPnl,
+            totalRisk,
+            avgRisk,
+            avgRr,
+            perSymbol,
         };
     } catch (error) {
         console.error('Erro ao calcular tamanho da posição:', error);
         return null;
     }
 };
-// ==============================|Calcula o resultado das operações|============================== //
-const calculateSignalResults = (signalsBySymbolState = {}) => {
-    const operations = [];
-    const perSymbol = {};
-    const toNumber = (value, fallback = 0) => {
-        const n = Number(value ?? fallback);
-        return Number.isFinite(n) ? n : fallback;
-    };
-
-    Object.entries(signalsBySymbolState).forEach(([symbol, signals]) => {
-        if (!Array.isArray(signals)) return;
-
-        let openPosition = null;
-
-        signals.forEach((signal) => {
-            const action = String(signal?.action || '').toUpperCase();
-
-            if (action === 'BUY') {
-                const count = Math.max(1, Math.round(toNumber(signal?.count, 1)));
-                const entryPrice = toNumber(signal?.entryPrice ?? signal?.avgEntryPrice ?? signal?.expectedPriceBuy, 0);
-                // 🔥 Usar o stop do sinal, se existir
-                const stopPrice = toNumber(
-                    signal?.stop ??
-                    signal?.expectedPriceStop ??
-                    signal?.stopPrice ??
-                    (entryPrice * 0.98),
-                    0
-                );
-                openPosition = {
-                    symbol,
-                    side: 'BUY',
-                    count,
-                    entryPrice,
-                    stopPrice,
-                    entrySignal: signal,
-                    entryTime: signal.time || null,
-                };
-                return;
-            }
-
-            if (action === 'SELL') {
-                const count = Math.max(1, Math.round(toNumber(signal?.count, 1)));
-                const entryPrice = toNumber(signal?.entryPrice ?? signal?.avgEntryPrice ?? signal?.expectedPriceSell, 0);
-                // 🔥 CORREÇÃO: Usar o stop do sinal, se existir
-                const stopPrice = toNumber(
-                    signal?.stop ??
-                    signal?.expectedPriceStop ??
-                    signal?.stopPrice ??
-                    (entryPrice * 1.02),
-                    0
-                );
-                openPosition = {
-                    symbol,
-                    side: 'SELL',
-                    count,
-                    entryPrice,
-                    stopPrice,
-                    entrySignal: signal,
-                    entryTime: signal.time || null,
-                };
-                return;
-            }
-
-            if (!openPosition) return;
-
-            const exitPrice = toNumber(
-                signal?.exitPrice ??
-                signal?.partialPrice ??
-                signal?.avgExitPrice ??
-                signal?.entryPrice ??
-                signal?.expectedPriceExitBuy ??
-                signal?.expectedPriceExitSell,
-                0
-            );
-
-            if (action === 'EXIT_BUY' || action === 'STOP_BUY') {
-                if (openPosition.side === 'BUY') {
-                    const realizedUnits = Math.max(1, Math.min(openPosition.count, Math.max(1, Math.round(toNumber(signal?.count, openPosition.count)))));
-
-                    // 🔥 CORREÇÃO: Calcular a distância do stop corretamente
-                    const stopDistance = Math.max(openPosition.entryPrice - openPosition.stopPrice, 0);
-                    const risk = stopDistance * realizedUnits;
-
-                    const pnl = (exitPrice - openPosition.entryPrice) * realizedUnits;
-
-                    operations.push({
-                        symbol,
-                        side: 'BUY',
-                        count: realizedUnits,
-                        entryPrice: openPosition.entryPrice,
-                        stopPrice: openPosition.stopPrice,
-                        stopDistance: stopDistance,
-                        exitPrice,
-                        pnl,
-                        risk,
-                        rr: risk > 0 ? pnl / risk : 0,
-                        action,
-                        entryTime: openPosition.entryTime,
-                        exitTime: signal.time || null,
-                    });
-                    openPosition = null;
-                }
-                return;
-            }
-
-            if (action === 'EXIT_SELL' || action === 'STOP_SELL') {
-                if (openPosition.side === 'SELL') {
-                    const realizedUnits = Math.max(1, Math.min(openPosition.count, Math.max(1, Math.round(toNumber(signal?.count, openPosition.count)))));
-
-                    // 🔥 Calcular a distância do stop corretamente
-                    const stopDistance = Math.max(openPosition.stopPrice - openPosition.entryPrice, 0);
-                    const risk = stopDistance * realizedUnits;
-
-                    const pnl = (openPosition.entryPrice - exitPrice) * realizedUnits;
-
-                    operations.push({
-                        symbol,
-                        side: 'SELL',
-                        count: realizedUnits,
-                        entryPrice: openPosition.entryPrice,
-                        stopPrice: openPosition.stopPrice,
-                        stopDistance: stopDistance,
-                        exitPrice,
-                        pnl,
-                        risk,
-                        rr: risk > 0 ? pnl / risk : 0,
-                        action,
-                        entryTime: openPosition.entryTime,
-                        exitTime: signal.time || null,
-                    });
-                    openPosition = null;
-                }
-                return;
-            }
-        });
-
-        if (openPosition) {
-            perSymbol[symbol] = {
-                symbol,
-                openPosition,
-                openPnl: null,
-            };
-        }
-    });
-
-    const totalProfit = operations.reduce((sum, item) => sum + (item.pnl > 0 ? item.pnl : 0), 0);
-    const totalLoss = operations.reduce((sum, item) => sum + (item.pnl < 0 ? item.pnl : 0), 0);
-    const netPnl = totalProfit + totalLoss;
-
-    // 🔥 Estatísticas detalhadas
-    const totalRisk = operations.reduce((sum, item) => sum + item.risk, 0);
-    const avgRisk = operations.length > 0 ? totalRisk / operations.length : 0;
-    const avgRr = operations.length > 0 ? operations.reduce((sum, item) => sum + item.rr, 0) / operations.length : 0;
-
-    console.log('📊 Resultado das operações', {
-        operations: operations.map(op => ({
-            ...op,
-            risk: op.risk.toFixed(2),
-            pnl: op.pnl.toFixed(2),
-            rr: op.rr.toFixed(2),
-        })),
-        totalOperations: operations.length,
-        winningOperations: operations.filter((item) => item.pnl > 0).length,
-        losingOperations: operations.filter((item) => item.pnl < 0).length,
-        totalProfit: totalProfit.toFixed(2),
-        totalLoss: totalLoss.toFixed(2),
-        netPnl: netPnl.toFixed(2),
-        totalRisk: totalRisk.toFixed(2),
-        avgRisk: avgRisk.toFixed(2),
-        avgRr: avgRr.toFixed(2),
-        perSymbol,
-    });
-
-    return {
-        operations,
-        totalOperations: operations.length,
-        winningOperations: operations.filter((item) => item.pnl > 0).length,
-        losingOperations: operations.filter((item) => item.pnl < 0).length,
-        totalProfit,
-        totalLoss,
-        netPnl,
-        totalRisk,
-        avgRisk,
-        avgRr,
-        perSymbol,
-    };
-};
 
 export const useCalculateResults = (signalsBySymbolState = {}) => {
-    return useMemo(() => calculateSignalResults(signalsBySymbolState), [signalsBySymbolState]);
+    return useMemo(() => calculatePositionSize(signalsBySymbolState), [signalsBySymbolState]);
 };
 

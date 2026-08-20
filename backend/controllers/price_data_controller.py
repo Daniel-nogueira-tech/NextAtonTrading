@@ -6,7 +6,7 @@ from controllers.data_to_simulation_controllers import get_klines_data_simulatio
 
 
 # Função para pegar os dados de preço de um ativo, formatar e retornar
-def _get_price_data_single(symbol, mode, time="5m", total=5000):
+def _get_price_data_single(symbol, mode, time="15m", total=5000):
     try:
         if mode == "simulation":
             klines = get_klines_data_simulation(symbol)
@@ -30,7 +30,7 @@ def _get_price_data_single(symbol, mode, time="5m", total=5000):
     
 
 # Função para pegar os dados de preço dos ativos, formatar e retornar
-def get_price_data(symbol=None, time="5m", mode="real", total=5000):
+def get_price_data(symbol=None, time="15m", mode="real", total=5000):
     default_symbols = get_stored_symbols()
 
     if mode not in ["real", "simulation"]:

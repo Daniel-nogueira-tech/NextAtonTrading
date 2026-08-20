@@ -465,7 +465,9 @@ const GraphicsRenko = () => {
     setMovementTables,
     incrementalEngine,
     buttonOperation,
-    setButtonOperation
+    setButtonOperation,
+    isTrend,
+    setIsTrend
   } = React.useContext(ContextGraphics)
   const chartContainerRef = React.useRef(null);
   const chartRef = React.useRef(null);
@@ -475,7 +477,6 @@ const GraphicsRenko = () => {
   const lastChartSymbolRef = React.useRef(activeSymbol);
   const [dates, setDates] = React.useState(null);
   const [dateErro, setDateErro] = React.useState(null);
-  const [isTrend, setIsTrend] = React.useState(true);
   const [disabledButton, setDisabledButton] = React.useState(false);
 
   //===================/ Chama os hooks /===================//

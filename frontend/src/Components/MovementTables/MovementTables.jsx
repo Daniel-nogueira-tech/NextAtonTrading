@@ -95,17 +95,19 @@ const normalizeSymbol = (symbol) => {
 }
 
 const MovementTables = () => {
-    const { trend, activeSymbol } = React.useContext(ContextGraphics)
+    const { trend, trendPrimary, activeSymbol, isTrend, setIsTrend } = React.useContext(ContextGraphics)
     const [currentPage, setCurrentPage] = useState(1)
 
     const itemsPerPage = 15
 
     const selectedSymbol = normalizeSymbol(activeSymbol)
 
-    const dadosTables = useMemo(() => {
-        if (!Array.isArray(trend)) return []
+    const trends = isTrend ? trend : trendPrimary
 
-        const selectedTrend = trend.find(item => normalizeSymbol(item?.symbol) === selectedSymbol)
+    const dadosTables = useMemo(() => {
+        if (!Array.isArray(trends)) return []
+
+        const selectedTrend = trends.find(item => normalizeSymbol(item?.symbol) === selectedSymbol)
 
         if (!selectedTrend) return []
 
@@ -113,7 +115,7 @@ const MovementTables = () => {
             .filter(item => item?.closeTime && item?.tipo)
             .slice()
             .reverse()
-    }, [trend, selectedSymbol])
+    }, [trends, selectedSymbol])
 
     const linhas = useMemo(() => {
         return dadosTables.map(item => {
@@ -140,7 +142,7 @@ const MovementTables = () => {
 
     React.useEffect(() => {
         setCurrentPage(1)
-    }, [trend, selectedSymbol])
+    }, [trends, selectedSymbol])
 
     return (
         <div className='graphics-main'>

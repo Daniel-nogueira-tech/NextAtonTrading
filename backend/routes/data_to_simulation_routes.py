@@ -18,10 +18,10 @@ def data_to_simulation():
     days = int(days) if days.isdigit() else None
 
     try:
-        # Baixa 5m
+        # Baixa 15m
         download_and_save_klines(
             symbol,
-            "5m",
+            "15m",
             date_start,
             date_end,
             days

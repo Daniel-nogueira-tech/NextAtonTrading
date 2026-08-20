@@ -7,7 +7,7 @@ price_data_bp = Blueprint('price_data', __name__)
 def get_price_data_route():
     mode = request.args.get('mode', '')
     symbol = request.args.get('symbol', '').upper()
-    time = request.args.get('time', '5m')
+    time = request.args.get('time', '15m')
     mode = request.args.get('mode', 'real')
 
     print("recebido mode:",mode)

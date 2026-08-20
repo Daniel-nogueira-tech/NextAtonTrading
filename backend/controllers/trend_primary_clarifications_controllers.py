@@ -7,7 +7,7 @@ from controllers.data_to_simulation_controllers import get_klines_data_simulatio
 
 
 # Função para calcular o ATR móvel
-def calculate_atr_wilder(symbol, interval="1h", period=182):
+def calculate_atr_wilder(symbol, interval="5m", period=182):
     if period is None or period <= 0:
         raise ValueError("period deve ser um número inteiro positivo")
     
@@ -152,7 +152,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 2000):
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    verify_time_multiply = 6
+    verify_time_multiply = 8
     atr_period = 182
 
 
@@ -1213,7 +1213,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 2000):
     # devolve também confirmações para o frontend
     return movements 
 
-def trend_clarifications_atr(symbols, time="1h", mode="real"):
+def trend_clarifications_atr(symbols, time="5m", mode="real"):
     default_symbols = get_stored_symbols()
 
     if symbols is None or symbols == "":

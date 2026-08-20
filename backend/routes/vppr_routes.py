@@ -12,8 +12,9 @@ def get_vppr_route():
         elif not symbols:
             symbols = request.args.get("symbol")
 
-        time = request.args.get("time", "5m")
+        time = request.args.get("time", "15m")
         modo = request.args.get("modo") or request.args.get("mode", "real")
+        accumulation_period = request.args.get("accumulation_period", "month") # "week", "month"
 
         if symbols is not None and not isinstance(symbols, (str, list)):
             raise ValueError("symbols deve ser uma string ou uma lista válida")
@@ -21,8 +22,15 @@ def get_vppr_route():
             raise ValueError("time deve ser um intervalo válido")
         if modo not in ["real", "simulation"]:
             raise ValueError("modo deve ser 'real' ou 'simulation'")
+        if accumulation_period not in ["week", "month"]:
+            raise ValueError("accumulation_period deve ser 'week' ou 'month'")
 
-        vppr_data = get_vppr(symbols=symbols, time=time, modo=modo)
+        vppr_data = get_vppr(
+            symbols=symbols,
+            time=time,
+            modo=modo,
+            accumulation_period=accumulation_period,
+        )
 
         return jsonify({
             "status": "success",
@@ -30,6 +38,7 @@ def get_vppr_route():
             "symbols": symbols,
             "time": time,
             "modo": modo,
+            "accumulation_period": accumulation_period,
         })
 
     except Exception as e:

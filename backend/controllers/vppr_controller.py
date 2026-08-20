@@ -35,12 +35,49 @@ def _get_time(kline):
     return datetime.fromtimestamp(timestamp / 1000).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _get_datetime(kline):
+    if isinstance(kline, dict):
+        value = kline.get("Tempo") or kline.get("time") or kline.get("open_time")
+    else:
+        value = kline[0]
+
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value / 1000)
+
+    for date_format in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            return datetime.strptime(str(value), date_format)
+        except ValueError:
+            continue
+
+    raise ValueError(f"Formato de tempo inválido para VPPR: {value}")
+
+
+def _get_accumulation_period_key(kline, accumulation_period):
+    candle_datetime = _get_datetime(kline)
+    if accumulation_period == "week":
+        iso_calendar = candle_datetime.isocalendar()
+        return iso_calendar.year, iso_calendar.week
+    return candle_datetime.year, candle_datetime.month
+
+
 # Calcula Vppr
-def calculate_vppr(klines):
+def calculate_vppr(klines, accumulation_period="week"):
+    if accumulation_period not in ("week", "month"):
+        raise ValueError("accumulation_period deve ser 'week' ou 'month'")
+
     vppr_values = []
     vppr_acumulado = 0
+    current_period = None
 
     for i, k in enumerate(klines):
+        candle_period = _get_accumulation_period_key(k, accumulation_period)
+        if candle_period != current_period:
+            vppr_acumulado = 0
+            current_period = candle_period
+
         open_price = _get_open(k)
         close_price = _get_close(k)
         volume = _get_volume(k)
@@ -56,7 +93,7 @@ def calculate_vppr(klines):
 
     return vppr_values
 
-def _get_vppr_single(symbol, modo="real", time="5m",total=5000):
+def _get_vppr_single(symbol, modo="real", time="15m", total=5000, accumulation_period="week"):
 
     try:
         if modo == "simulation":
@@ -70,12 +107,12 @@ def _get_vppr_single(symbol, modo="real", time="5m",total=5000):
     if not klines:
         return []
 
-    vppr_values = calculate_vppr(klines)
+    vppr_values = calculate_vppr(klines, accumulation_period=accumulation_period)
 
     # transforma em Series
     vppr_series = pd.Series(vppr_values)
     # EMA do VPPR
-    vppr_ema = vppr_series.ewm(span=288, adjust=False).mean() # calcula média móvel exponencial com período de 288 (1 dia para gráficos de 5m)
+    vppr_ema = vppr_series.ewm(span=200, adjust=False).mean() # calcula média móvel exponencial com período de 96 (1 dia para gráficos de 15m)
 
     # formatar datas e price
     result = []
@@ -93,11 +130,13 @@ def _get_vppr_single(symbol, modo="real", time="5m",total=5000):
 
     return result
 
-def get_vppr(symbols=None, symbol=None, modo="real", time="5m"):
+def get_vppr(symbols=None, symbol=None, modo="real", time="15m", accumulation_period="week"):
     default_symbols = get_stored_symbols()
 
     if modo not in ["real", "simulation"]:
         raise ValueError("modo deve ser 'real' ou 'simulation'")
+    if accumulation_period not in ("week", "month"):
+        raise ValueError("accumulation_period deve ser 'week' ou 'month'")
 
     symbols_input = symbols if symbols is not None else symbol
 
@@ -125,6 +164,7 @@ def get_vppr(symbols=None, symbol=None, modo="real", time="5m"):
             symbol=current_symbol,
             modo=modo,
             time=time,
+            accumulation_period=accumulation_period,
         )
         return {
             "index": index,

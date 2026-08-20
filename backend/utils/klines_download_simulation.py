@@ -71,10 +71,10 @@ def download_and_save_klines(
 ):
     
     if clean_before:
-        if intervalo == "5m":
+        if intervalo == "15m":
            delete_klines_data_simulation()
            print("DELETANDO klines",intervalo)
-        elif intervalo == "1h":
+        elif intervalo == "5m":
            delete_klines_data_simulation_primary()
            print("DELETANDO klines",intervalo)
 
@@ -158,7 +158,7 @@ def download_and_save_klines(
     # formata os dados
     format_klines = format_raw_data(all_klines)
     #salva os dados
-    if intervalo == "5m":
+    if intervalo == "15m":
         create_klines_simulation(symbol, format_klines)
-    elif intervalo == "1h":
+    elif intervalo == "5m":
         create_klines_simulation_Primary(symbol, format_klines)

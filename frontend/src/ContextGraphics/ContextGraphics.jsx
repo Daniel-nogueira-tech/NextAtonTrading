@@ -53,6 +53,9 @@ export const ContextGraphicsProvider = ({ children }) => {
         exit: false,
     });
 
+    // alternar entre dados de tendência primários e secundários
+    const [isTrend, setIsTrend] = React.useState(true);
+
     const incrementalEngine = useIncrementalMarketEngine({
         initialSpeed: mode === 'simulation' ? 500 : 150,
         maxSnapshotPoints: 1200,
@@ -488,7 +491,11 @@ export const ContextGraphicsProvider = ({ children }) => {
 
         // Botão de compra e venda
         buttonOperation,
-        setButtonOperation
+        setButtonOperation,
+
+        //Notão para alternar dados de tendência no gráfico
+        isTrend,
+        setIsTrend
     }
 
     return (
