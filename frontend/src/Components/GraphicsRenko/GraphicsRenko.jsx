@@ -123,6 +123,58 @@ const buildReferenceLineData = (baseData, value) => {
   }))
 }
 
+const RETEST_LEVELS = [
+  { name: 'buy', label: 'Buy', color: '#22ab50' },
+  { name: 'sell', label: 'Sell', color: '#fc5b5b' },
+  { name: 'pivot', label: 'Pivot', color: '#ffffff' },
+  { name: 'stop', label: 'Stop', color: '#414141' },
+]
+const MAX_RETEST_LEVELS = 2;
+
+const operationToObject = (operation) => {
+  if (!Array.isArray(operation)) return null
+
+  return operation.reduce((result, item) => {
+    if (item?.name) result[item.name] = item.value
+    return result
+  }, {})
+}
+
+const buildRetestLevelSegments = (operations, chartEndTime) => {
+  console.log('operations:>',operations)
+  const points = operations
+    .map(operationToObject)
+    .filter(point => point && point.time != null)
+    .map((point, index) => ({
+      ...point,
+      time: parseChartTime(point.time, index),
+    }))
+    .filter(point => typeof point.time === 'number')
+    .sort((first, second) => first.time - second.time)
+
+  return RETEST_LEVELS.flatMap(({ name, label, color }) => points
+    .filter(point => Number.isFinite(Number(point[name])))
+    .slice(-MAX_RETEST_LEVELS)
+    .flatMap((point, index, visiblePoints) => {
+    const value = Number(point[name])
+    const nextTime = visiblePoints[index + 1]?.time ?? chartEndTime
+
+    if (!Number.isFinite(value) || !Number.isFinite(nextTime) || nextTime <= point.time) {
+      return []
+    }
+
+    return [{
+      key: `${name}-${point.time}-${index}`,
+      label,
+      color,
+      data: [
+        { time: point.time, value },
+        { time: nextTime, value },
+      ],
+    }]
+  }))
+}
+
 // Constrói marcadores de sinal para o gráfico
 const normalizeSignalTime = (value, fallbackIndex) => {
   if (value == null) return fallbackIndex + 1
@@ -136,7 +188,6 @@ const normalizeSignalTime = (value, fallbackIndex) => {
   }
   return parseChartTime(value, fallbackIndex)
 }
-
 const buildSignalMarkers = (signals = []) => {
   return signals
     .filter(signal => signal && (signal.time != null || signal.Time != null || signal.Tempo != null))
@@ -472,12 +523,15 @@ const GraphicsRenko = () => {
   const chartContainerRef = React.useRef(null);
   const chartRef = React.useRef(null);
   const candlestickSeriesRef = React.useRef(null);
+  const retestLevelSeriesRef = React.useRef(new Map());
+  const retestLevelMarkersRef = React.useRef(new Map());
   const candlestickSeriesMetaRef = React.useRef(null);
   const hadRenkoCandlesRef = React.useRef(false);
   const lastChartSymbolRef = React.useRef(activeSymbol);
   const [dates, setDates] = React.useState(null);
   const [dateErro, setDateErro] = React.useState(null);
   const [disabledButton, setDisabledButton] = React.useState(false);
+
 
   //===================/ Chama os hooks /===================//
   const { retestPointsStateRef } = useOperatingData(trend);
@@ -487,7 +541,7 @@ const GraphicsRenko = () => {
   const { signalsBySymbol, getLastTrendBySymbol, getLastTrendPrimaryBySymbol, getLastVpprBySymbol, getLastAmrsiBySymbol } = useOperatingInputs();
   //===================//===================//
 
-
+    console.log('retestLevelSeriesRef >',retestPointsStateRef.current)
   // alterna entre dados classificados de primário e secundário
   const trendCurrent = isTrend ? trend : trendPrimary;
 
@@ -644,6 +698,10 @@ const GraphicsRenko = () => {
     candlestickSeriesRef.current.chartMarkers = chartMarkersRef
 
     return () => {
+      retestLevelMarkersRef.current.forEach((markers) => markers.setMarkers([]))
+      retestLevelMarkersRef.current.clear()
+      retestLevelSeriesRef.current.forEach((series) => chartRef.current?.removeSeries(series))
+      retestLevelSeriesRef.current.clear()
       chartRef.current?.remove()
       chartRef.current = null
       candlestickSeriesRef.current = null
@@ -663,6 +721,55 @@ const GraphicsRenko = () => {
 
     updateSeriesData(candlestickSeriesRef.current, renkoCandles, candlestickSeriesMetaRef)
 
+    const activeRetestGroup = retestPointsStateRef.current?.find(
+      group => normalizeSymbol(group?.symbol) === normalizeSymbol(activeSymbol)
+    )
+    const chartEndTime = renkoCandles[renkoCandles.length - 1]?.time
+    const retestSegments = buildRetestLevelSegments(
+      activeRetestGroup?.operations || [],
+      chartEndTime
+    )
+    const visibleSegmentKeys = new Set(retestSegments.map(segment => segment.key))
+
+    retestLevelSeriesRef.current.forEach((series, key) => {
+      if (!visibleSegmentKeys.has(key)) {
+        retestLevelMarkersRef.current.get(key)?.setMarkers([])
+        retestLevelMarkersRef.current.delete(key)
+        chartRef.current.removeSeries(series)
+        retestLevelSeriesRef.current.delete(key)
+      }
+    })
+
+    retestSegments.forEach(({ key, label, color, data }) => {
+      let levelSeries = retestLevelSeriesRef.current.get(key)
+      let levelMarkers = retestLevelMarkersRef.current.get(key)
+
+      if (!levelSeries) {
+        levelSeries = chartRef.current.addSeries(LineSeries, {
+          color,
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        })
+        retestLevelSeriesRef.current.set(key, levelSeries)
+        levelMarkers = createSeriesMarkers(levelSeries, [], {
+          position: 'aboveBar',
+          size: 1,
+        })
+        retestLevelMarkersRef.current.set(key, levelMarkers)
+      }
+
+      levelSeries.setData(data)
+      levelMarkers?.setMarkers([{
+        time: data[0].time,
+        position: 'aboveBar',
+        color,
+        shape: 'circle',
+        text: label,
+        size: 1,
+      }])
+    })
+
     const activeSignals = signalsBySymbol?.[activeSymbol] || []
     const markers = buildSignalMarkers(activeSignals)
     candlestickSeriesRef.current.chartMarkers?.setMarkers(markers)
@@ -671,7 +778,7 @@ const GraphicsRenko = () => {
       chartRef.current.timeScale().fitContent()
     }
     hadRenkoCandlesRef.current = renkoCandles.length > 0
-  }, [renkoCandles, activeSymbol, signalsBySymbol])
+  }, [renkoCandles, activeSymbol, signalsBySymbol, trend, retestPointsStateRef])
 
   //-------------------------/Calendário/-------------------------
   // Função para formatar quando precisar salvar ou mostrar

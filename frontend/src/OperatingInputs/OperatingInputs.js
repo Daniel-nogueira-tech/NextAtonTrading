@@ -336,7 +336,7 @@ export const useOperatingInputs = () => {
                 lastPrice.Fechamento <= lastTrend?.buy + lastTrend?.limite &&
                 lastPrice.Fechamento >= lastTrend?.buy - lastTrend?.limite &&  //banda
                 lastVppr?.vpprTrend === 'buy' &&
-                lastVppr?.major === 'MajorBuy' &&
+               // lastVppr?.major === 'MajorBuy' &&
                 lastVppr?.volumeEmaSignal === 'Volume BUY Increasing';
 
 
@@ -459,7 +459,7 @@ export const useOperatingInputs = () => {
                 lastPrice.Fechamento <= lastTrend?.sell + lastTrend?.limite && //Banda acima
                 lastPrice.Fechamento >= lastTrend?.sell - lastTrend?.limite &&
                 lastVppr?.vpprTrend === 'sell' &&
-                lastVppr?.major === 'MajorSell' &&
+                //lastVppr?.major === 'MajorSell' &&
                 lastVppr?.volumeEmaSignal === 'Volume SELL Increasing';
 
             console.log('>>',  )

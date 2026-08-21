@@ -1009,7 +1009,7 @@ export const useOperatingData = (trend) => {
             setRetestPoints([
               { name: "pivot", value: TrendPivot.closePrice },
               { name: "time", value: naturalRally.closeTime },
-              { name: "stop", value: buyExit },
+              { name: "stop", value: sellExit },
               { name: "type", value: "PIVOT_EXIT_BUY_TREND" },
               { name: "BandLow", value: low },
               { name: "BandHigh", value: high }
@@ -1033,7 +1033,7 @@ export const useOperatingData = (trend) => {
             setRetestPoints([
               { name: "pivot", value: TrendPivot.closePrice },
               { name: "time", value: naturalRally.closeTime },
-              { name: "stop", value: sellExit },
+              { name: "stop", value: buyExit },
               { name: "type", value: "PIVOT_EXIT_SELL_TREND" },
               { name: "BandLow", value: low },
               { name: "BandHigh", value: high }
@@ -1054,7 +1054,7 @@ export const useOperatingData = (trend) => {
       // ======================|RETEST NO PIVO DE RALLY EM UMA REAÇÃO SECUNDÁRIA (pullback pós-breakout)|====================== //
       if (pivoRallyPrimary && naturalReactionSec && canExecuteReactionSecRef.current && !state.executeEntrieRallySec) {
         const limite = pivoRallyPrimary.limite;
-        const tolerance = limite / 3;
+        const tolerance = limite / 3.5;
         const high = pivoRallyPrimary.closePrice + tolerance;
         const low = pivoRallyPrimary.closePrice - tolerance;
 
@@ -1174,7 +1174,7 @@ export const useOperatingData = (trend) => {
       // ======================|RETEST NO PIVÔ DE RALLY EM UMA REAÇÃO SECUNDÁRIA EM UMA LATERALIZAÇÃO|====================== //
       if (pivoRallySec2 && naturalReactionSec && canExecuteReactionSecRef.current && !state.executeEntrieRallySec2) {
         const limite = pivoRallySec2?.limite;
-        const tolerance = limite / 3;
+        const tolerance = limite / 3.5;
         const high = pivoRallySec2?.closePrice + tolerance;
         const low = pivoRallySec2?.closePrice - tolerance;
 
@@ -1419,8 +1419,8 @@ export const useOperatingData = (trend) => {
         const pivoSell = pivotBreak.closePrice + (limite / 2);
 
         // stop abaixo(Tendência alta) ou acima(Tendência baixa) do pivot 
-        const stopPivotBuy = pivoRallyPrimary?.closePrice - (limite / 2);
-        const stopPivotSell = pivoRallyPrimary?.closePrice + (limite / 2);
+        const stopPivotBuy =  pivoBuy - (limite / 2);
+        const stopPivotSell = pivoSell + (limite / 2);
 
         if (state.lastBreakoutId !== pivotId) {
           state.lastBreakoutId = pivotId;
@@ -1431,7 +1431,6 @@ export const useOperatingData = (trend) => {
             setRetestPoints([
               { name: "pivot", value: pivoBuy },
               { name: "time", value: pivotBreak.closeTime },
-              { name: "buy", value: pivotBreak.closePrice },
               { name: "stop", value: stopPivotBuy },
               { name: "type", value: "PIVOT_BREAK_BUY" },
               { name: "limite", value: limite }
@@ -1453,7 +1452,6 @@ export const useOperatingData = (trend) => {
             setRetestPoints([
               { name: "pivot", value: pivoSell },
               { name: "time", value: pivotBreak.closeTime },
-              { name: "sell", value: pivotBreak.closePrice },
               { name: "stop", value: stopPivotSell },
               { name: "type", value: "PIVOT_BREAK_SELL" },
               { name: "limite", value: limite }
@@ -1481,8 +1479,8 @@ export const useOperatingData = (trend) => {
         const pivoSell = pivotRallyReturn.closePrice + (limite / 2);
 
         // stop abaixo(Tendência alta) ou acima(Tendência baixa) do pivot 
-        const stopPivotBuy = pivoRallyPrimary?.closePrice - (limite / 2);
-        const stopPivotSell = pivoRallyPrimary?.closePrice + (limite / 2);
+        const stopPivotBuy = pivoBuy - (limite / 2);
+        const stopPivotSell = pivoSell + (limite / 2);
 
         if (state.lastBreakoutReturnId !== pivotId) {
           state.lastBreakoutReturnId = pivotId;
@@ -1493,7 +1491,6 @@ export const useOperatingData = (trend) => {
             setRetestPoints([
               { name: "pivot", value: pivoBuy },
               { name: "time", value: pivotRallyReturn.closeTime },
-              { name: "buy", value: pivotRallyReturn.closePrice },
               { name: "stop", value: stopPivotBuy },
               { name: "type", value: "PIVOT_BREAK_RALLY_BUY" },
               { name: "limite", value: limite }
@@ -1508,7 +1505,6 @@ export const useOperatingData = (trend) => {
             setRetestPoints([
               { name: "pivot", value: pivoSell },
               { name: "time", value: pivotRallyReturn.closeTime },
-              { name: "sell", value: pivotRallyReturn.closePrice },
               { name: "stop", value: stopPivotSell },
               { name: "type", value: "PIVOT_BREAK_RALLY-SELL" },
               { name: "limite", value: limite }
