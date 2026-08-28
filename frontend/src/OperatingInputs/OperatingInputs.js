@@ -1,8 +1,8 @@
 // useOperatingInputs.js
 import { useMemo, useEffect, useContext, useRef, useState } from 'react';
 import { ContextGraphics } from '../ContextGraphics/ContextGraphics';
-import axios from 'axios';
 import Swal from 'sweetalert2'
+import { calculatePositionSize } from '../CalculateOperation/CalculateOperation.js'
 
 // Função genérica que aceita arrays diretos, arrays de arrays, objetos com result/operations/signals e preços.
 const normalizeCollection = (collection, symbolPrefix, keys = ["buy"], dataKey = "result") => {
@@ -119,7 +119,7 @@ const normalizeItem = (item, keys) => {
 };
 
 export const useOperatingInputs = () => {
-    const { retestPointsStateRef, retestPointsStatePrimaryRef, amrsiData, vpprData, fullPrice, buttonOperation, setButtonOperation } = useContext(ContextGraphics);
+    const { signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, retestPointsStatePrimaryRef, amrsiData, vpprData, fullPrice, buttonOperation, setButtonOperation, setResultOperations } = useContext(ContextGraphics);
 
     const getTrendBandBounds = (trendItem) => {
         if (!trendItem) return { low: NaN, high: NaN };
@@ -169,8 +169,7 @@ export const useOperatingInputs = () => {
 
     // Usar useRef para persistir as flags entre renders
     const flagsBySymbolRef = useRef({});
-    const signalsHistoryRef = useRef({});
-    const [signalsBySymbolState, setSignalsBySymbolState] = useState({});
+    const signalsHistoryRef = useRef(signalsBySymbolState || {});
 
     //Usar useRef para armazenar o último trend de cada símbolo
     const lastTrendRef = useRef({});
@@ -181,8 +180,44 @@ export const useOperatingInputs = () => {
     const [lastVpprState, setLastVpprState] = useState({});
     const lastAmrsiRef = useRef({});
     const [lastAmrsiState, setLastAmrsiState] = useState({});
+    const operationCalculationIdRef = useRef(0);
     const operationResults = {};
 
+    useEffect(() => {
+        const allSignals = Object.values(signalsBySymbolState || {}).flatMap(signals => (
+            Array.isArray(signals) ? signals : []
+        ));
+        
+        
+        const entries = allSignals.filter(signal => (
+            ['BUY', 'SELL'].includes(String(signal?.action).toUpperCase())
+        ));
+        const lastEntry = entries.sort((first, second) => (
+            new Date(second?.timestamp || second?.time || 0).getTime() -
+            new Date(first?.timestamp || first?.time || 0).getTime()
+        ))[0];
+
+        if (!lastEntry) {
+            return;
+        }
+
+        const calculationId = ++operationCalculationIdRef.current;
+        let cancelled = false;
+
+        calculatePositionSize(lastEntry, signalsBySymbolState)
+            .then(result => {
+                if (!cancelled && calculationId === operationCalculationIdRef.current && result) {
+                    setResultOperations(result);
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao atualizar resultado das operações:', error);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [signalsBySymbolState, setResultOperations]);
 
     useEffect(() => {
         if (price.length === 0 || trend.length === 0 || trendPrimary.length === 0 || amrsi.length === 0 || vppr.length === 0) {
@@ -305,8 +340,8 @@ export const useOperatingInputs = () => {
             const isTrendBlocked = flags.blockedTrendIdentity === currentTrendIdentity;
             const { low: bandLow, high: bandHigh } = getTrendBandBounds(lastTrend);
             const isOutsideBand = lastTrend && Number.isFinite(bandLow) && Number.isFinite(bandHigh)
-                ? (!flags.inputExecuted && TYPE_BUY.includes(lastTrend.type) && lastPrice?.Fechamento < bandLow) ||
-                (!flags.inputExecuted && TYPE_SELL.includes(lastTrend.type) && lastPrice?.Fechamento > bandHigh)
+                ? (!flags.inputExecuted && TYPE_BUY.includes(lastTrend.type) && lastPrice?.Fechamento < bandLow - (lastTrend?.limite / 2)) ||
+                (!flags.inputExecuted && TYPE_SELL.includes(lastTrend.type) && lastPrice?.Fechamento > bandHigh + (lastTrend?.limite / 2))
                 : false;
 
             if (isOutsideBand && !isTrendBlocked) {
@@ -336,7 +371,7 @@ export const useOperatingInputs = () => {
                 lastPrice.Fechamento <= lastTrend?.buy + lastTrend?.limite &&
                 lastPrice.Fechamento >= lastTrend?.buy - lastTrend?.limite &&  //banda
                 lastVppr?.vpprTrend === 'buy' &&
-               // lastVppr?.major === 'MajorBuy' &&
+                // lastVppr?.major === 'MajorBuy' &&
                 lastVppr?.volumeEmaSignal === 'Volume BUY Increasing';
 
 
@@ -462,7 +497,6 @@ export const useOperatingInputs = () => {
                 //lastVppr?.major === 'MajorSell' &&
                 lastVppr?.volumeEmaSignal === 'Volume SELL Increasing';
 
-            console.log('>>',  )
 
             //🔴 Entrada de venda
             if (!flags.exceededBand && flags.blockedTrendIdentity !== currentTrendIdentity) {
@@ -1304,8 +1338,9 @@ export const useOperatingInputs = () => {
         }
         console.log("📊 Histórico de sinais por símbolo:", signalsHistoryRef.current);
 
-        setSignalsBySymbolState({ ...signalsHistoryRef.current });
-        console.log('signalsBySymbolStat:>', signalsBySymbolState)
+        if (Object.keys(signalsBySymbol).length > 0) {
+            setSignalsBySymbolState({ ...signalsHistoryRef.current });
+        }
 
         // Atualiza os estados de lastTrend e lastTrendPrimary apenas se houver mudanças
         if (Object.keys(newLastTrends).length > 0) {
@@ -1338,6 +1373,8 @@ export const useOperatingInputs = () => {
         return lastAmrsiRef.current[symbol] || null;
     }
 
+    console.log('signalsBySymbolState >>>', signalsBySymbolState)
+    
     return {
         trend,
         trendPrimary,
@@ -1362,356 +1399,5 @@ export const useOperatingInputs = () => {
     };
 };
 
-// ==============================|Função para calcular tamanho do lote e risco da operação|============================== //
-const getSymbolInfo = async (lastSignal) => {
-    const symbol = lastSignal.symbol;
-    //  Passando o parâmetro diretamente na URL (mais simples)
-    const url = `https://api.binance.com/api/v3/exchangeInfo?symbol=${symbol}`;
 
-    try {
-        const response = await axios.get(url);
-        const data = response.data;
-        const symbolInfo = data.symbols.find(s => s.symbol === symbol);
-        console.log('data:', data)
-        if (!symbolInfo) throw new Error(`Simbol ${symbol} not found`)
-
-        return {
-            minQty: parseFloat(symbolInfo.filters.find(f => f.filterType === 'LOT_SIZE')?.minQty || 0),
-            maxQty: parseFloat(symbolInfo.filters.find(f => f.filterType === 'LOT_SIZE')?.maxQty || 0),
-            stepSize: parseFloat(symbolInfo.filters.find(f => f.filterType === 'LOT_SIZE')?.stepSize || 0),
-            tickSize: parseFloat(symbolInfo.filters.find(f => f.filterType === 'PRICE_FILTER')?.tickSize || 0),
-            minNotional: parseFloat(symbolInfo.filters.find(f => f.filterType === 'MIN_NOTIONAL')?.minNotional || 0)
-        }
-
-    } catch (error) {
-        console.error('Erro ao buscar dados da Binance:', error.message);
-        return null;
-    }
-}
-// ==============================|Função principal para calcular o tamanho do lote|============================== //
-const calculatePositionSize = async (lastSignal, signalsBySymbolState = {}) => {
-    try {
-        if (!lastSignal) return null;
-        const symbolInfor = await getSymbolInfo(lastSignal);
-
-        const balanceAndRisk = {
-            balance: 10000,
-            risk: 0.02
-        };
-        const symbol = lastSignal.symbol || symbolInfor.symbol || 'UNKNOWN';
-        const stopPoint = Number(lastSignal?.stop ?? 0);
-        const entryPrice = Number(lastSignal?.avgEntryPrice ?? 0);
-        const count = Number(lastSignal?.count ?? 1);
-
-
-        if (!entryPrice || !stopPoint) return null;
-
-        const isLong = lastSignal?.action === 'BUY'
-        const isShort = lastSignal?.action === 'SELL';
-
-        // 🔥 Distância do stop em PONTOS (não percentual)
-        const stopDistancePoints = Math.abs(entryPrice - stopPoint);
-
-        // 🔥 Risco total da operação (2% do saldo)
-        const riskBudget = Number(balanceAndRisk.balance) * Number(balanceAndRisk.risk); // 200 USDT
-
-        // 🔥 Divide pelo número de entradas parciais
-        const riskBudgetPerPartial = riskBudget / count;
-
-        // 🔥 Quantidade por entrada = Risco / Distância do Stop
-        const qtyPerPartial = riskBudgetPerPartial / stopDistancePoints;
-
-        // 🔥 Quantidade total = Quantidade por entrada * número de entradas
-        const totalQty = qtyPerPartial * count;
-
-        console.log('teste:', {
-            stopPoint: stopPoint,
-            entryPrice: entryPrice,
-            count: count,
-            symbol: symbol,
-            isLong: isLong,
-            isShort: isShort,
-            stopDistancePoints: stopDistancePoints,
-            riskBudget: riskBudget,
-            riskBudgetPerPartial: riskBudgetPerPartial,
-            qtyPerPartial: qtyPerPartial,
-            totalQty: totalQty,
-
-        })
-
-        const stepSize = Number(symbolInfor.stepSize || 0);
-        const minQty = Number(symbolInfor.minQty || 0);
-        const maxQty = Number(symbolInfor.maxQty || 0);
-
-        console.log('symbolInfor:', {
-            symbolInfor,
-            stepSize: symbolInfor.stepSize,
-            minQty: symbolInfor.minQty,
-            maxQty: symbolInfor.maxQty
-        })
-
-        if (!stepSize || !minQty) return null;
-        console.log('📊 Cálculo detalhado:', {
-            stopDistancePoints: stopDistancePoints.toFixed(2),
-            riskBudget: riskBudget.toFixed(2),
-            riskBudgetPerPartial: riskBudgetPerPartial.toFixed(2),
-            qtyPerPartial: qtyPerPartial.toFixed(8),
-            totalQty: totalQty.toFixed(8),
-            totalValue: (totalQty * entryPrice).toFixed(2),
-            stepSize: stepSize
-        });
-
-        // 🔥 Ajustar para o stepSize da Binance
-        let adjustedQty = Math.floor(totalQty / stepSize) * stepSize;
-
-        if (adjustedQty < minQty) {
-            adjustedQty = minQty;
-            console.warn(`Quantidade ajustada para o mínimo: ${minQty}`);
-        }
-
-        if (maxQty && adjustedQty > maxQty) {
-            adjustedQty = maxQty;
-            console.warn(`Quantidade ajustada para o máximo: ${maxQty}`);
-        }
-
-        // 🔥Calcular risco real
-        const actualRisk = adjustedQty * stopDistancePoints;
-        const riskPercentage = (actualRisk / balanceAndRisk.balance) * 100;
-
-        console.log('✅ Resultado final:', {
-            symbol,
-            count,
-            side: isLong ? 'LONG' : isShort ? 'SHORT' : 'UNKNOWN',
-            entryPrice,
-            stop: stopPoint,
-            stopDistance: stopDistancePoints.toFixed(2),
-            stopPercent: ((stopDistancePoints / entryPrice) * 100).toFixed(2) + '%',
-            positionSize: adjustedQty.toFixed(8),
-            totalValue: (adjustedQty * entryPrice).toFixed(2),
-            riskAmount: actualRisk.toFixed(2),
-            riskPercentage: riskPercentage.toFixed(2) + '%',
-            balance: balanceAndRisk.balance,
-        });
-
-
-
-
-        //==================================|Calcula resultado das operações|=====================================//
-        const operations = [];
-        const perSymbol = {};
-        const toNumber = (value, fallback = 0) => {
-            const n = Number(value ?? fallback);
-            return Number.isFinite(n) ? n : fallback;
-        };
-
-        Object.entries(signalsBySymbolState).forEach(([symbol, signals]) => {
-            if (!Array.isArray(signals)) return;
-
-            let openPosition = null;
-
-            signals.forEach((signal) => {
-                const action = String(signal?.action || '').toUpperCase();
-
-                if (action === 'BUY') {
-                    const count = Math.max(1, Math.round(toNumber(signal?.count, 1)));
-                    const entryPrice = toNumber(signal?.entryPrice ?? signal?.avgEntryPrice ?? signal?.expectedPriceBuy, 0);
-                    // 🔥 Usar o stop do sinal, se existir
-                    const stopPrice = toNumber(
-                        signal?.stop ??
-                        signal?.expectedPriceStop ??
-                        signal?.stopPrice ??
-                        (entryPrice * 0.98),
-                        0
-                    );
-                    openPosition = {
-                        symbol,
-                        side: 'BUY',
-                        count,
-                        entryPrice,
-                        stopPrice,
-                        entrySignal: signal,
-                        entryTime: signal.time || null,
-                    };
-                    return;
-                }
-
-                if (action === 'SELL') {
-                    const count = Math.max(1, Math.round(toNumber(signal?.count, 1)));
-                    const entryPrice = toNumber(signal?.entryPrice ?? signal?.avgEntryPrice ?? signal?.expectedPriceSell, 0);
-                    // 🔥 CORREÇÃO: Usar o stop do sinal, se existir
-                    const stopPrice = toNumber(
-                        signal?.stop ??
-                        signal?.expectedPriceStop ??
-                        signal?.stopPrice ??
-                        (entryPrice * 1.02),
-                        0
-                    );
-                    openPosition = {
-                        symbol,
-                        side: 'SELL',
-                        count,
-                        entryPrice,
-                        stopPrice,
-                        entrySignal: signal,
-                        entryTime: signal.time || null,
-                    };
-                    return;
-                }
-
-                if (!openPosition) return;
-
-                const exitPrice = toNumber(
-                    signal?.exitPrice ??
-                    signal?.partialPrice ??
-                    signal?.avgExitPrice ??
-                    signal?.entryPrice ??
-                    signal?.expectedPriceExitBuy ??
-                    signal?.expectedPriceExitSell,
-                    0
-                );
-
-                if (action === 'EXIT_BUY' || action === 'STOP_BUY') {
-                    if (openPosition.side === 'BUY') {
-                        const realizedUnits = Math.max(1, Math.min(openPosition.count, Math.max(1, Math.round(toNumber(signal?.count, openPosition.count)))));
-
-                        // 🔥 CORREÇÃO: Calcular a distância do stop corretamente
-                        const stopDistance = Math.max(openPosition.entryPrice - openPosition.stopPrice, 0);
-                        const risk = stopDistance * realizedUnits;
-
-                        const pnl = (exitPrice - openPosition.entryPrice) * realizedUnits;
-
-                        operations.push({
-                            symbol,
-                            side: 'BUY',
-                            count: realizedUnits,
-                            entryPrice: openPosition.entryPrice,
-                            stopPrice: openPosition.stopPrice,
-                            stopDistance: stopDistance,
-                            exitPrice,
-                            pnl,
-                            risk,
-                            rr: risk > 0 ? pnl / risk : 0,
-                            action,
-                            entryTime: openPosition.entryTime,
-                            exitTime: signal.time || null,
-                        });
-                        openPosition = null;
-                    }
-                    return;
-                }
-
-                if (action === 'EXIT_SELL' || action === 'STOP_SELL') {
-                    if (openPosition.side === 'SELL') {
-                        const realizedUnits = Math.max(1, Math.min(openPosition.count, Math.max(1, Math.round(toNumber(signal?.count, openPosition.count)))));
-
-                        // 🔥 Calcular a distância do stop corretamente
-                        const stopDistance = Math.max(openPosition.stopPrice - openPosition.entryPrice, 0);
-                        const risk = stopDistance * realizedUnits;
-
-                        const pnl = (openPosition.entryPrice - exitPrice) * realizedUnits;
-
-                        operations.push({
-                            symbol,
-                            side: 'SELL',
-                            count: realizedUnits,
-                            entryPrice: openPosition.entryPrice,
-                            stopPrice: openPosition.stopPrice,
-                            stopDistance: stopDistance,
-                            exitPrice,
-                            pnl,
-                            risk,
-                            rr: risk > 0 ? pnl / risk : 0,
-                            action,
-                            entryTime: openPosition.entryTime,
-                            exitTime: signal.time || null,
-                        });
-                        openPosition = null;
-                    }
-                    return;
-                }
-            });
-
-            if (openPosition) {
-                perSymbol[symbol] = {
-                    symbol,
-                    openPosition,
-                    openPnl: null,
-                };
-            }
-        });
-
-        const totalProfit = operations.reduce((sum, item) => sum + (item.pnl > 0 ? item.pnl : 0), 0);
-        const totalLoss = operations.reduce((sum, item) => sum + (item.pnl < 0 ? item.pnl : 0), 0);
-        const netPnl = totalProfit + totalLoss;
-
-        // 🔥 Estatísticas detalhadas
-        const totalRisk = operations.reduce((sum, item) => sum + item.risk, 0);
-        const avgRisk = operations.length > 0 ? totalRisk / operations.length : 0;
-        const avgRr = operations.length > 0 ? operations.reduce((sum, item) => sum + item.rr, 0) / operations.length : 0;
-
-        console.log('📊 Resultado das operações', {
-            operations: operations.map(op => ({
-                ...op,
-                risk: op.risk.toFixed(2) * adjustedQty,
-                pnl: op.pnl.toFixed(2) * adjustedQty,
-                rr: op.rr.toFixed(2),
-            })),
-            totalOperations: operations.length,
-            winningOperations: operations.filter((item) => item.pnl > 0).length,
-            losingOperations: operations.filter((item) => item.pnl < 0).length,
-            totalProfit: totalProfit.toFixed(2) * adjustedQty,
-            totalLoss: totalLoss.toFixed(2) * adjustedQty,
-            netPnl: netPnl.toFixed(2) * adjustedQty,
-            totalRisk: totalRisk.toFixed(2) * adjustedQty,
-            avgRisk: avgRisk.toFixed(2) * adjustedQty,
-            avgRr: avgRr.toFixed(2),
-            perSymbol,
-        });
-
-
-
-        return {
-            symbol,
-            count,
-            side: isLong ? 'LONG' : isShort ? 'SHORT' : 'UNKNOWN',
-            entryPrice: entryPrice,
-            stop: stopPoint,
-            stopDistance: stopDistancePoints,
-            stopPercent: ((stopDistancePoints / entryPrice) * 100).toFixed(2),
-            positionSize: adjustedQty,
-            positionSizePerEntry: adjustedQty / count,
-            totalValue: adjustedQty * entryPrice,
-            riskAmount: actualRisk,
-            riskPercentage: riskPercentage.toFixed(2),
-            balance: balanceAndRisk.balance,
-            riskPerTrade: balanceAndRisk.risk * 100,
-            symbolInfo: {
-                minQty,
-                maxQty,
-                stepSize,
-                tickSize: Number(symbolInfor.tickSize || 0),
-                minNotional: Number(symbolInfor.minNotional || 0)
-            },
-
-            operations,
-            totalOperations: operations.length,
-            winningOperations: operations.filter((item) => item.pnl > 0).length,
-            losingOperations: operations.filter((item) => item.pnl < 0).length,
-            totalProfit,
-            totalLoss,
-            netPnl,
-            totalRisk,
-            avgRisk,
-            avgRr,
-            perSymbol,
-        };
-    } catch (error) {
-        console.error('Erro ao calcular tamanho da posição:', error);
-        return null;
-    }
-};
-
-export const useCalculateResults = (signalsBySymbolState = {}) => {
-    return useMemo(() => calculatePositionSize(signalsBySymbolState), [signalsBySymbolState]);
-};
 

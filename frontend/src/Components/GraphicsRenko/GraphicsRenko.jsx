@@ -14,6 +14,7 @@ import { useAmrsiData } from '../../OperationDataAmrsi/OperationDataAmrsi.js';
 import { useOperatingInputs } from '../../OperatingInputs/OperatingInputs.js';
 
 
+
 const UP_COLOR = '#22AB94'
 const DOWN_COLOR = '#fc5b5b'
 const MIN_ENGINE_SPEED = 100
@@ -129,7 +130,7 @@ const RETEST_LEVELS = [
   { name: 'pivot', label: 'Pivot', color: '#ffffff' },
   { name: 'stop', label: 'Stop', color: '#414141' },
 ]
-const MAX_RETEST_LEVELS = 2;
+const MAX_RETEST_LEVELS = 1;
 
 const operationToObject = (operation) => {
   if (!Array.isArray(operation)) return null
@@ -141,7 +142,7 @@ const operationToObject = (operation) => {
 }
 
 const buildRetestLevelSegments = (operations, chartEndTime) => {
-  console.log('operations:>',operations)
+  console.log('operations:>', operations)
   const points = operations
     .map(operationToObject)
     .filter(point => point && point.time != null)
@@ -154,25 +155,36 @@ const buildRetestLevelSegments = (operations, chartEndTime) => {
 
   return RETEST_LEVELS.flatMap(({ name, label, color }) => points
     .filter(point => Number.isFinite(Number(point[name])))
+    .reduce((uniquePoints, point) => {
+      const previousPoint = uniquePoints[uniquePoints.length - 1]
+
+      if (previousPoint?.time === point.time) {
+        uniquePoints[uniquePoints.length - 1] = point
+      } else {
+        uniquePoints.push(point)
+      }
+
+      return uniquePoints
+    }, [])
     .slice(-MAX_RETEST_LEVELS)
     .flatMap((point, index, visiblePoints) => {
-    const value = Number(point[name])
-    const nextTime = visiblePoints[index + 1]?.time ?? chartEndTime
+      const value = Number(point[name])
+      const nextTime = visiblePoints[index + 1]?.time ?? chartEndTime
 
-    if (!Number.isFinite(value) || !Number.isFinite(nextTime) || nextTime <= point.time) {
-      return []
-    }
+      if (!Number.isFinite(value) || !Number.isFinite(nextTime) || nextTime <= point.time) {
+        return []
+      }
 
-    return [{
-      key: `${name}-${point.time}-${index}`,
-      label,
-      color,
-      data: [
-        { time: point.time, value },
-        { time: nextTime, value },
-      ],
-    }]
-  }))
+      return [{
+        key: `${name}-${point.time}`,
+        label,
+        color,
+        data: [
+          { time: point.time, value },
+          { time: nextTime, value },
+        ],
+      }]
+    }))
 }
 
 // Constrói marcadores de sinal para o gráfico
@@ -188,6 +200,7 @@ const normalizeSignalTime = (value, fallbackIndex) => {
   }
   return parseChartTime(value, fallbackIndex)
 }
+
 const buildSignalMarkers = (signals = []) => {
   return signals
     .filter(signal => signal && (signal.time != null || signal.Time != null || signal.Tempo != null))
@@ -515,10 +528,10 @@ const GraphicsRenko = () => {
     movementTables,
     setMovementTables,
     incrementalEngine,
-    buttonOperation,
     setButtonOperation,
     isTrend,
-    setIsTrend
+    setIsTrend,
+    resultOperations
   } = React.useContext(ContextGraphics)
   const chartContainerRef = React.useRef(null);
   const chartRef = React.useRef(null);
@@ -541,7 +554,7 @@ const GraphicsRenko = () => {
   const { signalsBySymbol, getLastTrendBySymbol, getLastTrendPrimaryBySymbol, getLastVpprBySymbol, getLastAmrsiBySymbol } = useOperatingInputs();
   //===================//===================//
 
-    console.log('retestLevelSeriesRef >',retestPointsStateRef.current)
+
   // alterna entre dados classificados de primário e secundário
   const trendCurrent = isTrend ? trend : trendPrimary;
 
@@ -717,6 +730,11 @@ const GraphicsRenko = () => {
       candlestickSeriesMetaRef.current = null
       hadRenkoCandlesRef.current = false
       lastChartSymbolRef.current = activeSymbol
+
+      retestLevelMarkersRef.current.forEach((markers) => markers.setMarkers([]))
+      retestLevelMarkersRef.current.clear()
+      retestLevelSeriesRef.current.forEach((series) => chartRef.current.removeSeries(series))
+      retestLevelSeriesRef.current.clear()
     }
 
     updateSeriesData(candlestickSeriesRef.current, renkoCandles, candlestickSeriesMetaRef)
@@ -943,6 +961,7 @@ const GraphicsRenko = () => {
     }, 200);
   };
 
+  //=======================|Retorna resultaddo da operação|==========================//
 
   return (
     <section className="graphics-renko">
@@ -1190,15 +1209,25 @@ const GraphicsRenko = () => {
               className="btn btn-exit"
               onClick={() => handleClick("exit")}
               disabled={disabledButton}
-            >Exit</button>
+            >Exit
+            </button>
+
             <div className="result">
               <div className="result-panel">
                 <span>Result:</span>
-                <span className="result-value">150.00</span>
+                <span className="result-value">{Number(resultOperations?.results?.netPnl ?? 0).toFixed(2)} </span>
               </div>
               <div className="result-panel">
-                <span>Saldo:</span>
-                <span className="result-value">10.150,00</span>
+                <span>Balance:</span>
+                <span className="result-value">{Number(resultOperations?.capital?.balance ?? 0).toFixed(2)}</span>
+              </div>
+              <div className="result-panel">
+                <span>Risk:</span>
+                <span className="result-value">{Number(resultOperations?.capital?.risk?.percentage ?? 0)}</span>
+              </div>
+              <div className="result-panel">
+                <span>Size:</span>
+                <span className="result-value">{Number(resultOperations?.capital?.positionSize ?? 0)}</span>
               </div>
             </div>
           </div>

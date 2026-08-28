@@ -6,6 +6,21 @@ import { useRef } from 'react';
 
 export const ContextGraphics = React.createContext(null);
 
+const readStoredJson = (key, fallback) => {
+    try {
+        const saved = localStorage.getItem(key);
+        return saved ? JSON.parse(saved) : fallback;
+    } catch (error) {
+        console.error(`Erro ao restaurar ${key}:`, error);
+        return fallback;
+    }
+};
+
+const hasStoredData = (value) => {
+    if (Array.isArray(value)) return value.length > 0;
+    return value != null && typeof value === 'object' && Object.keys(value).length > 0;
+};
+
 // Helper para calcular o delay até o próximo limite de 5 minutos
 const getNextFiveMinuteBoundaryDelay = () => {
     const now = new Date();
@@ -52,6 +67,14 @@ export const ContextGraphicsProvider = ({ children }) => {
         sell: false,
         exit: false,
     });
+
+    // Retorna os sinais de entrada
+    const [signalsBySymbolState, setSignalsBySymbolState] = React.useState(() => (
+        readStoredJson('signalsBySymbolState', {})
+    ));
+    const [resultOperations, setResultOperations] = React.useState(() => (
+        readStoredJson('resultOperations', null)
+    ));
 
     // alternar entre dados de tendência primários e secundários
     const [isTrend, setIsTrend] = React.useState(true);
@@ -180,9 +203,9 @@ export const ContextGraphicsProvider = ({ children }) => {
         }
     };
 
-
     // Pega os dados de preço e indicadores
     const marketData = async ({ preserveEngine = false } = {}) => {
+
         const requestFeed = async (name, url) => {
             try {
                 const response = await axios.get(url)
@@ -364,6 +387,19 @@ export const ContextGraphicsProvider = ({ children }) => {
         }
     }
 
+    // Salva dados da operação no localStorage
+    React.useEffect(() => {
+        if (hasStoredData(resultOperations)) {
+            localStorage.setItem("resultOperations", JSON.stringify(resultOperations));
+        }
+        if (hasStoredData(signalsBySymbolState)) {
+            localStorage.setItem("signalsBySymbolState", JSON.stringify(signalsBySymbolState));
+        }
+    }, [resultOperations, signalsBySymbolState]);
+
+
+    // Salva dados da operação no localStorage
+    console.log('signalsBySymbolState >>>>>>>>>>>>>>>>>>>', signalsBySymbolState)
 
     // Carrega os dados quando o componente é montado
     React.useEffect(() => {
@@ -495,7 +531,15 @@ export const ContextGraphicsProvider = ({ children }) => {
 
         //Notão para alternar dados de tendência no gráfico
         isTrend,
-        setIsTrend
+        setIsTrend,
+
+        // Sinais de operações
+        signalsBySymbolState,
+        setSignalsBySymbolState,
+
+        // Pega os resultados das operações
+        resultOperations,
+        setResultOperations,
     }
 
     return (

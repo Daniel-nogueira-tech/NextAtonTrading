@@ -501,16 +501,16 @@
 
 /*=======================|Botão de compra e venda|=======================*/
 .button-buy-sell {
-  position: absolute;
   display: flex;
+  justify-content: center;
   align-items: center;
+  position: absolute;
   width: 100px;
   right: 0;
-  left: 40%;
-  bottom: 0%;
-  margin-right: 80px;
-  margin-bottom: 30px;
-
+  left: 45%;
+  bottom: 0;
+  padding: 10px;
+  margin-bottom: 15px;
 }
 
 .button-buy-sell {
@@ -613,17 +613,23 @@
 /*=======================|Resultado e saldo das operações|=======================*/
 .result {
   display: flex;
-  gap: 10px;
-  background-color: rgba(0, 0, 0, 0.103);
-  border: solid 1px #8a5cf65b;
-  border-radius: 4px;
-  padding: 5px;
+  justify-content: space-between;
+  align-items: center;
+  position: absolute;
+  gap: 2px;
+  z-index: -1;
 }
 
 .result .result-panel {
-  font-size: 15px;
+  display: flex;
+  font-size: 8px;
   width: 100%;
-
+  gap: 2px;
+  background-color: rgba(0, 0, 0, 0.103);
+  border: solid 1px #8a5cf65b;
+  border-radius: 4px;
+  padding: 0px 5px;
+  margin-bottom: 80px;
 }
 
 @keyframes renkoFadeInUp {

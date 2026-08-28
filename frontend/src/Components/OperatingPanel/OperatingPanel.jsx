@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { createChart, AreaSeries } from 'lightweight-charts';
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx';
 import {
-  useOperatingData,
   mockStats,
   mockProbabilityDistribution,
   mockCapitalEvolution,
@@ -14,7 +13,7 @@ import './OperatingPanel.css';
 import PopUpConfirm from '../PopUpConfirm/PopUpConfirm.jsx';
 
 const OperatingPanel = () => {
-  const { trend, fullTrend, retestPointsState, logoutUser, showPopUp, actionType, setActionType, setShowPopUp, openLogoutConfirm } = React.useContext(ContextGraphics);
+  const { resultOperations, trend, fullTrend, retestPointsState, logoutUser, showPopUp, actionType, setActionType, setShowPopUp, openLogoutConfirm } = React.useContext(ContextGraphics);
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
 
@@ -122,6 +121,7 @@ const OperatingPanel = () => {
     closePopup()
   }
 
+
   return (
     <div className="op-panel-container">
 
@@ -168,26 +168,58 @@ const OperatingPanel = () => {
       <div className="op-stats-grid">
         <div className="op-card">
           <span className="op-card-title">Taxa de Acerto</span>
-          <div className="op-card-value purple">{mockStats.winRate}%</div>
+          <div className="op-card-value purple">{resultOperations?.history?.summary?.winRate ?? 0}%</div>
           <div className="op-progress-bar-wrapper">
-            <div className="op-progress-bar-fill" style={{ width: `${mockStats.winRate}%` }}></div>
+            <div className="op-progress-bar-fill" style={{ width: `${resultOperations?.history?.summary?.winRate ?? 0}%` }}></div>
           </div>
+        </div>
+        <div className="op-card">
+          <span className="op-card-title">Capital</span>
+          <div className="op-card-value">${(resultOperations?.capital?.balance + resultOperations?.results?.totalProfit).toFixed(2)}</div>
+        </div>
+        <div className="op-card">
+          <span className="op-card-title">Total Profit</span>
+          <div className="op-card-value">{resultOperations?.results?.totalProfit.toFixed(2) ?? 0}</div>
         </div>
 
         <div className="op-card">
           <span className="op-card-title">Total de Operações</span>
-          <div className="op-card-value">{mockStats.totalOperations}</div>
+          <div className="op-card-value">{resultOperations?.history?.summary?.totalOperations ?? 0}</div>
         </div>
 
         <div className="op-card">
           <span className="op-card-title win">Acertos (Wins)</span>
-          <div className="op-card-value green">{mockStats.totalWins}</div>
+          <div className="op-card-value green">{resultOperations?.history?.summary?.wins ?? 0}</div>
         </div>
 
         <div className="op-card">
           <span className="op-card-title loss">Erros (Losses)</span>
-          <div className="op-card-value red">{mockStats.totalLosses}</div>
+          <div className="op-card-value red">{resultOperations?.history?.summary?.losses ?? 0}</div>
         </div>
+
+        {/**Results */}
+        <div className="op-card">
+          <span className="op-card-title">Average Risk</span>
+          <div className="op-card-value">{resultOperations?.results?.avgRisk.toFixed(2) ?? 0}</div>
+        </div>
+        <div className="op-card">
+          <span className="op-card-title">Amount Risk</span>
+          <div className="op-card-value">{resultOperations?.capital?.risk?.amount?.toFixed(2) ?? 0}</div>
+        </div>
+        <div className="op-card">
+          <span className="op-card-title">Risk Percentage Per Trade</span>
+          <div className="op-card-value">{resultOperations?.capital?.risk?.percentage ?? 0}%</div>
+        </div>
+        <div className="op-card">
+          <span className="op-card-title">Average Risk-Return</span>
+          <div className="op-card-value">{resultOperations?.results?.avgRr ?? 0}</div>
+        </div>
+        <div className="op-card">
+          <span className="op-card-title">Total Risk</span>
+          <div className="op-card-value">{resultOperations?.results?.totalRisk.toFixed(2) ?? 0}</div>
+        </div>
+
+
       </div>
 
       {/* Gráficos */}
@@ -227,7 +259,7 @@ const OperatingPanel = () => {
           <h3 className="op-chart-title">
             Latest Modulated Operations
             <span style={{ fontSize: '0.9rem', color: '#888', marginLeft: '12px' }}>
-              ({tableOperations.length} operations)
+              ({resultOperations?.history?.operations?.length ?? 0} operations)
             </span>
           </h3>
           <p className="op-chart-subtitle">Real-time signals from multiple assets</p>
@@ -237,46 +269,48 @@ const OperatingPanel = () => {
           <table className="op-table">
             <thead>
               <tr>
-                <th>Time</th>
-                <th>Symbol</th>
-                <th>Strategy</th>
-                <th className="text-right">Pivot</th>
-                <th className="text-right">Entry</th>
-                <th className="text-right">Stop Loss</th>
+                <th>symbol</th>
+                <th>Entry Time</th>
+                <th>Exit Time</th>
+                <th>Type</th>
+                <th>Entry Price</th>
+                <th>exit Price</th>
+                <th>stop Price</th>
+                <th>pnl</th>
               </tr>
             </thead>
             <tbody>
-              {tableOperations.map(({ symbol, operation, id }) => {
-                const type = getOpValue(operation, 'type');
-                const time = getOpValue(operation, 'time');
-                const pivo = getOpValue(operation, 'pivot') || getOpValue(operation, 'pivo');
-                const buy = getOpValue(operation, 'buy') || getOpValue(operation, 'buyExit');
-                const sell = getOpValue(operation, 'sell') || getOpValue(operation, 'sellExit');
-                const stop = getOpValue(operation, 'stop');
+              {resultOperations?.history?.operations.map((op, index) => {
+                const { symbol, action, entryTime, exitTime, entryPrice, exitPrice, stopPrice, side, pnl } = op;
 
-                const entry = buy !== 'N/A' ? buy : sell;
-                const entryClass = buy !== 'N/A' ? 'text-win' : 'text-loss';
+                // Definir classes de estilo
+                const entryClass = side === "BUY" ? "text-win" : "text-loss";
 
                 return (
-                  <tr key={id}>
-                    <td className="font-mono text-muted">{time}</td>
+                  <tr key={index}>
                     <td className="font-mono text-accent">{symbol}</td>
+                    <td className="font-mono text-muted">{entryTime}</td>
+                    <td className="font-mono text-muted">{exitTime}</td>
                     <td>
-                      <span className="op-badge font-mono">{type}</span>
+                      <span className="op-badge font-mono">{side}</span>
                     </td>
-                    <td className="text-right font-mono text-muted">
-                      {Number(pivo).toFixed(2)}
+                    <td className="font-mono text-muted">
+                      {Number(entryPrice).toFixed(2)}
                     </td>
-                    <td className={`text-right font-mono ${entryClass}`}>
-                      {Number(entry).toFixed(2)}
+                    <td className={`font-mono ${entryClass}`}>
+                      {Number(exitPrice).toFixed(2)}
                     </td>
-                    <td className="text-right font-mono text-loss">
-                      {Number(stop).toFixed(2)}
+                    <td className="font-mono text-loss">
+                      {Number(stopPrice).toFixed(2)}
+                    </td>
+                    <td className="font-mono">
+                      {Number(pnl).toFixed(2)}
                     </td>
                   </tr>
                 );
               })}
             </tbody>
+
           </table>
         </div>
       </div>
