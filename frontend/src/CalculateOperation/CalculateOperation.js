@@ -1,6 +1,7 @@
-import { useMemo, useContext, useEffect } from 'react';
+import {  useContext, useEffect } from 'react';
 import { getSymbolInfo } from '../BinanceInforApi/BinanceInforApi.js'
 import { ContextGraphics } from '../ContextGraphics/ContextGraphics';
+import { calculateProbabilityDistribution } from '../ProbabilityDistribution/ProbabilityDistribution.js'
 
 
 // Função auxiliar para ajustar o valor ao stepSize exato
@@ -27,7 +28,6 @@ const roundDecimal = (value, decimals = 8) => {
 export const calculatePositionSize = async (lastSignal, signalsBySymbolState) => {
     if (!lastSignal) return null;
     const symbolInfor = await getSymbolInfo(lastSignal);
-    console.log('symbolInfor:>', symbolInfor)
 
     const balanceAndRisk = {
         balance: 10000,
@@ -61,42 +61,11 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
         // 🔥 Quantidade total = Quantidade por entrada * número de entradas
         const totalQty = qtyPerPartial * count;
 
-        console.log('teste:', {
-            stopPoint: stopPoint,
-            entryPrice: roundDecimal(entryPrice),
-            count: count,
-            symbol: symbol,
-            isLong: isLong,
-            isShort: isShort,
-            stopDistancePoints: stopDistancePoints,
-            riskBudget: riskBudget,
-            riskBudgetPerPartial: riskBudgetPerPartial,
-            qtyPerPartial: qtyPerPartial,
-            totalQty: totalQty,
-
-        })
-
         const stepSize = Number(symbolInfor?.stepSize || 0);
         const minQty = Number(symbolInfor?.minQty || 0);
         const maxQty = Number(symbolInfor?.maxQty || 0);
 
-        console.log('symbolInfor:', {
-            symbolInfor,
-            stepSize: symbolInfor?.stepSize,
-            minQty: symbolInfor?.minQty,
-            maxQty: symbolInfor?.maxQty
-        })
-
         if (!stepSize || !minQty) return null;
-        console.log('📊 Cálculo detalhado:', {
-            stopDistancePoints: stopDistancePoints.toFixed(2),
-            riskBudget: riskBudget.toFixed(2),
-            riskBudgetPerPartial: riskBudgetPerPartial.toFixed(2),
-            qtyPerPartial: qtyPerPartial.toFixed(8),
-            totalQty: totalQty.toFixed(8),
-            totalValue: (totalQty * entryPrice).toFixed(2),
-            stepSize: stepSize
-        });
 
         // 🔥 Ajustar para o stepSize da Binance
         let adjustedQty = formatByStepSize(totalQty, stepSize);
@@ -349,6 +318,8 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
 
         const openRisk = roundDecimal(openPositions.reduce((sum, position) => sum + position.risk, 0));
 
+        const probabilityData = calculateProbabilityDistribution(operations, entryPrice);
+
         console.log('📊 Resultado das operações', {
             // === DADOS PRINCIPAIS ===
             symbol,
@@ -359,11 +330,17 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
             config: {
                 entryPrice: roundDecimal(entryPrice),
                 stop: stopPoint,
-                stopDistance: roundDecimal(stopDistancePoints),
                 stopDistance: {
                     points: roundDecimal(stopDistancePoints),
                     percent: roundDecimal((stopDistancePoints / entryPrice) * 100, 2),
                 }
+            },
+
+            // === DISTRIBUIÇÃO DE PROBABILIDADES ===
+            probabilityDistribution: {
+                distribution: probabilityData.distribution,
+                summary: probabilityData.summary,
+                rawReturns: probabilityData.rawReturns,
             },
 
             // === GESTÃO DE CAPITAL ===
@@ -444,13 +421,18 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
             config: {
                 entryPrice: roundDecimal(entryPrice),
                 stop: stopPoint,
-                stopDistance: roundDecimal(stopDistancePoints),
                 stopDistance: {
                     points: roundDecimal(stopDistancePoints),
                     percent: roundDecimal((stopDistancePoints / entryPrice) * 100, 2),
                 }
             },
 
+            // === DISTRIBUIÇÃO DE PROBABILIDADES ===
+            probabilityDistribution: {
+                distribution: probabilityData.distribution,
+                summary: probabilityData.summary,
+                rawReturns: probabilityData.rawReturns,
+            },
             // === GESTÃO DE CAPITAL ===
             capital: {
                 balance: balanceAndRisk.balance,

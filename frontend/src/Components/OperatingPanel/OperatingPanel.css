@@ -6,15 +6,15 @@
   --bg-card: #121214;
   --bg-track: #1f1f23;
   --bg-progress-empty: #18181b;
-  
+
   --text-primary: #f4f4f5;
   --text-secondary: #a1a1aa;
   --text-muted: #71717a;
-  
+
   --purple-main: #a855f7;
   --purple-dark: #3b0764;
   --purple-border: #6b21a8;
-  
+
   --green-glow: #4ade80;
   --red-glow: #f87171;
 }
@@ -56,7 +56,7 @@
 /* Grid de Cards de Métricas */
 .op-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 10px;
   margin-bottom: 24px;
 }
@@ -77,17 +77,30 @@
   color: var(--text-secondary);
 }
 
-.op-card-title.win { color: var(--green-glow); }
-.op-card-title.loss { color: var(--red-glow); }
+.op-card-title.win {
+  color: var(--green-glow);
+}
+
+.op-card-title.loss {
+  color: var(--red-glow);
+}
 
 .op-card-value {
   font-size: 1.275rem;
   font-weight: 600;
 }
 
-.op-card-value.purple { color: var(--purple-main); }
-.op-card-value.green { color: var(--green-glow); }
-.op-card-value.red { color: var(--red-glow); }
+.op-card-value.purple {
+  color: var(--purple-main);
+}
+
+.op-card-value.green {
+  color: var(--green-glow);
+}
+
+.op-card-value.red {
+  color: var(--red-glow);
+}
 
 /* Barra de Progresso Interna do Card */
 .op-progress-bar-wrapper {
@@ -114,7 +127,7 @@
 }
 
 /* Botão de Voltar */
-.op-back-button{
+.op-back-button {
   background-color: var(--bg-card);
   color: var(--text-primary);
   padding: 8px 16px;
@@ -127,10 +140,12 @@
   position: absolute;
   transition: background-color 0.2s ease, color 0.2s ease
 }
+
 .op-back-button:hover {
   background-color: var(--purple-main);
   color: var(--bg-card);
 }
+
 /* Botão de Logout */
 #logout-button {
   position: absolute;
@@ -139,6 +154,7 @@
   display: flex;
   gap: 8px;
 }
+
 #logout-button:hover {
   background-color: red;
   color: var(--bg-card);
@@ -160,7 +176,7 @@
   flex-direction: column;
   height: 420px;
   overflow-y: auto;
-  
+
 }
 
 .op-chart-title {
@@ -245,12 +261,14 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  text-align: center;
 }
 
 .op-table td {
   padding: 12px 16px;
   border-bottom: 1px solid var(--bg-track);
   font-size: 0.675rem;
+  text-align: center;
 }
 
 .op-table tr:hover td {
@@ -286,4 +304,112 @@
   border-radius: 4px;
   font-size: 0.55rem;
   font-weight: 700;
+}
+
+
+
+
+
+
+/* =================|Container principal|=============== */
+.summary-container {
+  background: #1a102533;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 20px 0;
+  box-shadow: 0 4px 20px rgba(76, 0, 130, 0.274);
+  border: 1px solid #3d1f5e;
+  margin-top: 40px
+}
+
+/* Título */
+.summary-title {
+  color: #c084fc;
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #3d1f5e;
+  letter-spacing: 0.5px;
+}
+
+/* Tabela */
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #e2d1f9;
+}
+
+/* Cabeçalho */
+.summary-table thead tr {
+  background: #2a1740;
+  border-bottom: 2px solid #4a2b6b;
+}
+
+.summary-table thead th {
+  padding: 5px 15px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #a78bfa;
+}
+
+/* Corpo da tabela */
+.summary-table tbody tr {
+  border-bottom: 1px solid #2a1740;
+  transition: background 0.2s ease;
+}
+
+.summary-table tbody tr:hover {
+  background: #251535;
+}
+
+.summary-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+/* Células */
+.summary-table td {
+  padding: 5px 10px;
+  font-size: 0.65rem;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Label das métricas */
+.metric-label {
+  color: #c4b5d4;
+  font-weight: 500;
+}
+
+/* Valor das métricas */
+.metric-value {
+  color: #e2d1f9;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
+/* Valores positivos e negativos (opcional) */
+.metric-value.positive {
+  color: #6ee7b7;
+}
+
+.metric-value.negative {
+  color: #fca5a5;
+}
+
+/* Responsivo */
+@media (max-width: 600px) {
+  .summary-container {
+    padding: 12px;
+  }
+
+  .summary-table thead th,
+  .summary-table td {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
 }

@@ -47,7 +47,26 @@ const OperatingPanel = () => {
     return allOps;
   }, [retestPointsState]);
 
+
   // ====================== GRÁFICO ======================
+  const buildCapitalEvolution = (operationsEvolution, initialCapital = 10000) => {
+    // Ordenar por tempo de saída
+    const sortedOps = [...operationsEvolution].sort(
+      (a, b) => new Date(a.exitTime) - new Date(b.exitTime)
+    );
+    let capital = initialCapital;
+
+    return sortedOps.map(op => {
+      capital += op.pnl;
+      return {
+        time: op.exitTime.split(" ")[0],
+        value: Number(capital.toFixed(2))
+      };
+    });
+  }
+  const operationsEvolution = resultOperations?.history?.operations;
+  const capitalEvolution = buildCapitalEvolution(operationsEvolution, 10000)
+
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
@@ -68,7 +87,7 @@ const OperatingPanel = () => {
       lineWidth: 2,
     });
 
-    areaSeries.setData(mockCapitalEvolution);
+    areaSeries.setData(capitalEvolution);
     chart.timeScale().fitContent();
     chartRef.current = chart;
 
@@ -121,6 +140,15 @@ const OperatingPanel = () => {
     closePopup()
   }
 
+  const summaryFields = [
+    { key: 'stdDeviation', label: 'Standard Deviation' },
+    { key: 'skewness', label: 'Skewness' },
+    { key: 'maxReturn', label: 'Maximum Return' },
+    { key: 'minReturn', label: 'Minimum Return' },
+    { key: 'avgReturn', label: 'Average Return' },
+    { key: 'avgPositiveReturn', label: 'Average Positive Return' },
+    { key: 'avgNegativeReturn', label: 'Average Negative Return' }
+  ];
 
   return (
     <div className="op-panel-container">
@@ -167,7 +195,7 @@ const OperatingPanel = () => {
       {/* Grid Principal - Cards de Métricas */}
       <div className="op-stats-grid">
         <div className="op-card">
-          <span className="op-card-title">Taxa de Acerto</span>
+          <span className="op-card-title">Win Rate</span>
           <div className="op-card-value purple">{resultOperations?.history?.summary?.winRate ?? 0}%</div>
           <div className="op-progress-bar-wrapper">
             <div className="op-progress-bar-fill" style={{ width: `${resultOperations?.history?.summary?.winRate ?? 0}%` }}></div>
@@ -181,19 +209,23 @@ const OperatingPanel = () => {
           <span className="op-card-title">Total Profit</span>
           <div className="op-card-value">{resultOperations?.results?.totalProfit.toFixed(2) ?? 0}</div>
         </div>
+        <div className="op-card">
+          <span className="op-card-title">Position Size</span>
+          <div className="op-card-value">{resultOperations?.capital?.positionSize.toFixed(2) ?? 0}</div>
+        </div>
 
         <div className="op-card">
-          <span className="op-card-title">Total de Operações</span>
+          <span className="op-card-title">Total Operations</span>
           <div className="op-card-value">{resultOperations?.history?.summary?.totalOperations ?? 0}</div>
         </div>
 
         <div className="op-card">
-          <span className="op-card-title win">Acertos (Wins)</span>
+          <span className="op-card-title win">Number of Wins</span>
           <div className="op-card-value green">{resultOperations?.history?.summary?.wins ?? 0}</div>
         </div>
 
         <div className="op-card">
-          <span className="op-card-title loss">Erros (Losses)</span>
+          <span className="op-card-title loss">Number of Losses</span>
           <div className="op-card-value red">{resultOperations?.history?.summary?.losses ?? 0}</div>
         </div>
 
@@ -212,14 +244,12 @@ const OperatingPanel = () => {
         </div>
         <div className="op-card">
           <span className="op-card-title">Average Risk-Return</span>
-          <div className="op-card-value">{resultOperations?.results?.avgRr ?? 0}</div>
+          <div className="op-card-value">{resultOperations?.results?.avgRr.toFixed(2) ?? 0}</div>
         </div>
         <div className="op-card">
           <span className="op-card-title">Total Risk</span>
           <div className="op-card-value">{resultOperations?.results?.totalRisk.toFixed(2) ?? 0}</div>
         </div>
-
-
       </div>
 
       {/* Gráficos */}
@@ -238,7 +268,7 @@ const OperatingPanel = () => {
             <p className="op-chart-subtitle">Frequency by return ranges</p>
           </div>
           <div className="op-distribution-list">
-            {mockProbabilityDistribution.map((item, index) => (
+            {resultOperations?.probabilityDistribution?.distribution.map((item, index) => (
               <div key={index} className="op-dist-item">
                 <div className="op-dist-info">
                   <span className="op-dist-range">{item.range}</span>
@@ -250,6 +280,32 @@ const OperatingPanel = () => {
               </div>
             ))}
           </div>
+          {/* ====================== Dados adicionais ====================== */}
+          <div className="summary-container">
+
+            <table className="summary-table">
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summaryFields.map(({ key, label }) => {
+                  const value = resultOperations?.probabilityDistribution?.summary?.[key];
+                  return (
+                    <tr key={key}>
+                      <td className="metric-label">{label}</td>
+                      <td className="metric-value">
+                        {value !== undefined && value !== null ? value : 'N/A'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
         </div>
       </div>
 
@@ -276,12 +332,13 @@ const OperatingPanel = () => {
                 <th>Entry Price</th>
                 <th>exit Price</th>
                 <th>stop Price</th>
+                <th>Risk-Return</th>
                 <th>pnl</th>
               </tr>
             </thead>
             <tbody>
               {resultOperations?.history?.operations.map((op, index) => {
-                const { symbol, action, entryTime, exitTime, entryPrice, exitPrice, stopPrice, side, pnl } = op;
+                const { symbol, action, entryTime, exitTime, entryPrice, exitPrice, stopPrice, side, rr, pnl } = op;
 
                 // Definir classes de estilo
                 const entryClass = side === "BUY" ? "text-win" : "text-loss";
@@ -302,6 +359,9 @@ const OperatingPanel = () => {
                     </td>
                     <td className="font-mono text-loss">
                       {Number(stopPrice).toFixed(2)}
+                    </td>
+                    <td className="font-mono">
+                      {Number(rr).toFixed(2)}
                     </td>
                     <td className="font-mono">
                       {Number(pnl).toFixed(2)}
