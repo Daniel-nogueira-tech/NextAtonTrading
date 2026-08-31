@@ -48,10 +48,10 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [fullSources, setFullSources] = React.useState(null);
 
     // Indicadores para operações
-    const [vpprData, setVpprData] = React.useState([]);
+    const vpprDataRef = useRef([]);
     const retestPointsStateRef = useRef([]);
     const retestPointsStatePrimaryRef = useRef([]);
-    const [amrsiData, setAmrsiData] = React.useState([]);
+    const amrsiDataRef = useRef([]);
 
     // Dados do usuário
     const [userData, setUserData] = React.useState(null);
@@ -75,12 +75,15 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [resultOperations, setResultOperations] = React.useState(() => (
         readStoredJson('resultOperations', null)
     ));
+    const [signal, setSignal] = React.useState(() => (
+        readStoredJson('signal', {})
+    ));
 
     // alternar entre dados de tendência primários e secundários
     const [isTrend, setIsTrend] = React.useState(true);
 
     const incrementalEngine = useIncrementalMarketEngine({
-        initialSpeed: mode === 'simulation' ? 500 : 150,
+        initialSpeed: mode === 'simulation' ? 500 : 200,
         maxSnapshotPoints: 1200,
     });
     const {
@@ -395,11 +398,10 @@ export const ContextGraphicsProvider = ({ children }) => {
         if (hasStoredData(signalsBySymbolState)) {
             localStorage.setItem("signalsBySymbolState", JSON.stringify(signalsBySymbolState));
         }
-    }, [resultOperations, signalsBySymbolState]);
-
-
-    // Salva dados da operação no localStorage
-    console.log('signalsBySymbolState >>>>>>>>>>>>>>>>>>>', signalsBySymbolState)
+        if (hasStoredData(signal)) {
+            localStorage.setItem("signal", JSON.stringify(signal))
+        }
+    }, [resultOperations, signalsBySymbolState, signal]);
 
     // Carrega os dados quando o componente é montado
     React.useEffect(() => {
@@ -515,15 +517,13 @@ export const ContextGraphicsProvider = ({ children }) => {
 
         // Indicadores para operações
         // vppr
-        vpprData,
-        setVpprData,
+        vpprDataRef,
         // Classificação primária
         retestPointsStatePrimaryRef,
         // classificação secundaria
         retestPointsStateRef,
         // Amrsi
-        amrsiData,
-        setAmrsiData,
+        amrsiDataRef,
 
         // Botão de compra e venda
         buttonOperation,
@@ -540,6 +540,8 @@ export const ContextGraphicsProvider = ({ children }) => {
         // Pega os resultados das operações
         resultOperations,
         setResultOperations,
+        signal,
+        setSignal
     }
 
     return (

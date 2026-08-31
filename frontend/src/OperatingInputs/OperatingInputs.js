@@ -119,7 +119,7 @@ const normalizeItem = (item, keys) => {
 };
 
 export const useOperatingInputs = () => {
-    const { signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, retestPointsStatePrimaryRef, amrsiData, vpprData, fullPrice, buttonOperation, setButtonOperation, setResultOperations } = useContext(ContextGraphics);
+    const { signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, retestPointsStatePrimaryRef, amrsiDataRef, vpprDataRef, fullPrice, buttonOperation, setButtonOperation, setResultOperations } = useContext(ContextGraphics);
 
     const getTrendBandBounds = (trendItem) => {
         if (!trendItem) return { low: NaN, high: NaN };
@@ -158,13 +158,13 @@ export const useOperatingInputs = () => {
     );
 
     const vppr = useMemo(
-        () => normalizeCollection(vpprData, "VPPR", ["type", "vpprTrend", "time", "major", "volumeEmaSignal"], "signals"),
-        [vpprData]
+        () => normalizeCollection(vpprDataRef.current, "VPPR", ["type", "vpprTrend", "time", "major", "volumeEmaSignal"], "signals"),
+        [vpprDataRef.current]
     );
 
     const amrsi = useMemo(
-        () => normalizeCollection(amrsiData, "AMRSI", ["type", "time"], "signals"),
-        [amrsiData]
+        () => normalizeCollection(amrsiDataRef.current, "AMRSI", ["type", "time"], "signals"),
+        [amrsiDataRef.current]
     );
 
     // Usar useRef para persistir as flags entre renders
@@ -187,8 +187,7 @@ export const useOperatingInputs = () => {
         const allSignals = Object.values(signalsBySymbolState || {}).flatMap(signals => (
             Array.isArray(signals) ? signals : []
         ));
-        
-        
+
         const entries = allSignals.filter(signal => (
             ['BUY', 'SELL'].includes(String(signal?.action).toUpperCase())
         ));
@@ -1310,7 +1309,7 @@ export const useOperatingInputs = () => {
             };
 
 
-
+console.log('signal :>',signal)
             //==============================|📗Armazena o sinal se existir|==============================//
             if (signal) {
                 // Inicializa histórico do símbolo se não existir
@@ -1374,7 +1373,7 @@ export const useOperatingInputs = () => {
     }
 
     console.log('signalsBySymbolState >>>', signalsBySymbolState)
-    
+
     return {
         trend,
         trendPrimary,

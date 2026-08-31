@@ -16,7 +16,7 @@ const TIME_KEYS = ['Tempo', 'time', 'closeTime', 'openTime', 'open_time']
 
 
 const DEFAULT_SNAPSHOT_WINDOW = 1200 // 1200 pontos máximo no histórico para evitar sobrecarga de memória 
-const MIN_TIMER_SPEED = 150 // Velocidade mínima: 150ms
+const MIN_TIMER_SPEED = 200 // Velocidade mínima: 200ms
 
 const createEmptySources = () => ({
   ...DEFAULT_FEEDS,
@@ -268,7 +268,6 @@ export const useIncrementalMarketEngine = ({
   const statusRef = React.useRef('idle')
 
   // Estado React para expor o cursor, status, maxCursor e controle de velocidade
-  const [cursor, setCursor] = React.useState(0)
   const [status, setStatus] = React.useState('idle')
   const [maxCursor, setMaxCursor] = React.useState(0)
   const [speed, setSpeedState] = React.useState(initialSpeed)
@@ -280,11 +279,12 @@ export const useIncrementalMarketEngine = ({
       setStatus((currentStatus) => {
         const resolvedStatus = nextStatus(currentStatus)
         statusRef.current = resolvedStatus
-        return resolvedStatus
+        return resolvedStatus === currentStatus ? currentStatus : resolvedStatus
       })
       return
     }
 
+    if (statusRef.current === nextStatus) return
     statusRef.current = nextStatus
     setStatus(nextStatus)
   }, [])
@@ -304,8 +304,6 @@ export const useIncrementalMarketEngine = ({
     snapshotRef.current = buildSnapshot(sourcesRef.current, nextCursor, maxSnapshotPoints)
 
     if (nextCursor !== previousCursor) {
-      setCursor(nextCursor)
-    } else {
       setSnapshotVersion(version => version + 1)
     }
   }, [maxSnapshotPoints])
@@ -348,7 +346,7 @@ export const useIncrementalMarketEngine = ({
   const reset = React.useCallback(() => {
       localStorage.removeItem('signalsBySymbolState');
       localStorage.removeItem('resultOperations');
-
+      localStorage.removeItem('signal');
     location.reload();
 
     stopTimer()
@@ -356,8 +354,8 @@ export const useIncrementalMarketEngine = ({
     statusRef.current = 'idle'
     snapshotRef.current = buildSnapshot(sourcesRef.current, 0, maxSnapshotPoints)
 
-    setCursor(0)
-    setMaxCursor(maxCursorRef.current)
+    setSnapshotVersion(version => version + 1)
+    setMaxCursor(current => current === maxCursorRef.current ? current : maxCursorRef.current)
     setEngineStatus('idle')
   }, [maxSnapshotPoints, setEngineStatus, stopTimer])
 
@@ -373,7 +371,7 @@ export const useIncrementalMarketEngine = ({
     // Recalcula o maxCursor com base nos dados carregados e publica o cursor inicial. O status é definido como 'ready' se houver dados para reproduzir, caso contrário, permanece 'idle'.
     const nextMaxCursor = getMaxCursor(sourcesRef.current)
     maxCursorRef.current = nextMaxCursor
-    setMaxCursor(nextMaxCursor)
+    setMaxCursor(current => current === nextMaxCursor ? current : nextMaxCursor)
     publishCursor(0)
     setEngineStatus(nextMaxCursor > 0 ? 'ready' : 'idle')
 
@@ -399,7 +397,7 @@ export const useIncrementalMarketEngine = ({
     // Recalcula o maxCursor com base nos dados atualizados
     const nextMaxCursor = getMaxCursor(sourcesRef.current)
     maxCursorRef.current = nextMaxCursor
-    setMaxCursor(nextMaxCursor)
+    setMaxCursor(current => current === nextMaxCursor ? current : nextMaxCursor)
 
     const nextCursor = options.followLatest && wasFollowingLatest
       ? nextMaxCursor
@@ -432,7 +430,7 @@ export const useIncrementalMarketEngine = ({
       : initialSpeed
 
     speedRef.current = normalizedSpeed
-    setSpeedState(normalizedSpeed)
+    setSpeedState(current => current === normalizedSpeed ? current : normalizedSpeed)
 
     if (timerRef.current) {
       stopTimer()
@@ -448,7 +446,7 @@ export const useIncrementalMarketEngine = ({
       : 1
 
     stepRef.current = normalizedStep
-    setStepState(normalizedStep)
+    setStepState(current => current === normalizedStep ? current : normalizedStep)
   }, [])
 
   //  Limpa timer ao desmontar o componente, Evita memory leaks quando o componente é destruído.

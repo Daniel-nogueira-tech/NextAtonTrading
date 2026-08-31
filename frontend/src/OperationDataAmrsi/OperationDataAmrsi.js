@@ -99,7 +99,7 @@ const getPriceAtSignalTime = (series, signalTime) => {
 };
 
 export const useAmrsiData = (rsi) => {
-    const { amrsiData, setAmrsiData, fullPrice } = useContext(ContextGraphics)
+    const { amrsiDataRef, fullPrice } = useContext(ContextGraphics)
 
     const amrsiHistoryRef = useRef({});
     const symbolsStateRef = useRef({});
@@ -162,7 +162,7 @@ export const useAmrsiData = (rsi) => {
                 if (state.lastSignalState === 'OVERBOUGHT' && amrsi <= 90) {
                     signalType = 'POTENTIAL_SELL';
                     signalSide = 'buy';
-                } else if (state.lastSignalState === 'OVERSOLD' && amrsi >= 10 ) {
+                } else if (state.lastSignalState === 'OVERSOLD' && amrsi >= 10) {
                     signalType = 'POTENTIAL_BUY';
                     signalSide = 'sell';
                 } else if (state.lastSignalState === 'POTENTIAL_BUY' && amrsi >= 20) {
@@ -226,10 +226,9 @@ export const useAmrsiData = (rsi) => {
             signals: signals.map(item => item.signals)
         }));
 
-        setAmrsiData(signalsArray);
-
+        amrsiDataRef.current = signalsArray;
 
     }, [amrsiGroups]);
 
-    return { amrsiData };
+    return { amrsiDataRef };
 };

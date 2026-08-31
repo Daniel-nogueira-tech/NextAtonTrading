@@ -2,50 +2,15 @@ import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createChart, AreaSeries } from 'lightweight-charts';
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx';
-import {
-  mockStats,
-  mockProbabilityDistribution,
-  mockCapitalEvolution,
-  mockLastOperations,
-} from '../../OperatingData/operatingData.js';
+
 
 import './OperatingPanel.css';
 import PopUpConfirm from '../PopUpConfirm/PopUpConfirm.jsx';
 
 const OperatingPanel = () => {
-  const { resultOperations, trend, fullTrend, retestPointsState, logoutUser, showPopUp, actionType, setActionType, setShowPopUp, openLogoutConfirm } = React.useContext(ContextGraphics);
+  const { resultOperations, logoutUser, showPopUp, actionType, setActionType, setShowPopUp, openLogoutConfirm } = React.useContext(ContextGraphics);
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
-
-  // Helper para extrair valor
-  const getOpValue = (opArray, key) => {
-    if (!Array.isArray(opArray)) return 'N/A';
-    const item = opArray.find(obj => obj?.name === key);
-    return item ? item.value : 'N/A';
-  };
-
-  // Normaliza os dados para a tabela (flattening com símbolo)
-  const tableOperations = useMemo(() => {
-    if (!retestPointsState || retestPointsState.length === 0) {
-      return mockLastOperations;
-    }
-
-    const allOps = [];
-
-    retestPointsState.forEach(({ symbol, operations }) => {
-      if (!operations || !Array.isArray(operations)) return;
-
-      operations.forEach((opArray, idx) => {
-        allOps.push({
-          symbol,
-          operation: opArray,
-          id: `${symbol}-${idx}` // para key única
-        });
-      });
-    });
-
-    return allOps;
-  }, [retestPointsState]);
 
 
   // ====================== GRÁFICO ======================

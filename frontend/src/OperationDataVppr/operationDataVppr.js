@@ -24,7 +24,7 @@ const normalizeVpprData = (vppr) => {
 };
 
 export const useVpprData = (vppr) => {
-    const { vpprData, setVpprData } = useContext(ContextGraphics)
+    const { vpprDataRef  } = useContext(ContextGraphics)
 
     const vpprHistoryRef = useRef({});
     const symbolsStateRef = useRef({});
@@ -401,11 +401,11 @@ export const useVpprData = (vppr) => {
             signals: signals.map(item => item.signals)
         }));
 
-        setVpprData(signalsArray);
+        vpprDataRef.current = signalsArray;
         console.log('📊 [VPPR] Dados atualizados:', signalsArray);
 
     }, [vpprGroups]);
 
-    return { vpprData };
+    return { vpprDataRef };
 };
 

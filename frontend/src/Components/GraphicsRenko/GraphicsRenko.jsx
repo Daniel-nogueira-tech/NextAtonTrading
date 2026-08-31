@@ -549,8 +549,8 @@ const GraphicsRenko = () => {
   //===================/ Chama os hooks /===================//
   const { retestPointsStateRef } = useOperatingData(trend);
   const { retestPointsStatePrimaryRef } = useOperatingDataPrimary(trendPrimary);
-  const { vpprData } = useVpprData(vppr);
-  const { amrsiData } = useAmrsiData(rsi);
+  const { vpprDataRef } = useVpprData(vppr);
+  const { amrsiDataRef } = useAmrsiData(rsi);
   const { signalsBySymbol, getLastTrendBySymbol, getLastTrendPrimaryBySymbol, getLastVpprBySymbol, getLastAmrsiBySymbol } = useOperatingInputs();
   //===================//===================//
 
