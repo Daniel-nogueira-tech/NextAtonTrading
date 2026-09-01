@@ -344,9 +344,9 @@ export const useIncrementalMarketEngine = ({
 
   // Continua a reprodução automática se estiver pausada.
   const reset = React.useCallback(() => {
-      localStorage.removeItem('signalsBySymbolState');
-      localStorage.removeItem('resultOperations');
-      localStorage.removeItem('signal');
+    localStorage.removeItem('signalsBySymbolState');
+    localStorage.removeItem('resultOperations');
+    localStorage.removeItem('flagsBySymbol');
     location.reload();
 
     stopTimer()

@@ -168,7 +168,7 @@ export const useOperatingInputs = () => {
     );
 
     // Usar useRef para persistir as flags entre renders
-    const flagsBySymbolRef = useRef({});
+    const flagsBySymbolRef = useRef(JSON.parse(localStorage.getItem("flagsBySymbol")) || {});
     const signalsHistoryRef = useRef(signalsBySymbolState || {});
 
     //Usar useRef para armazenar o último trend de cada símbolo
@@ -182,6 +182,9 @@ export const useOperatingInputs = () => {
     const [lastAmrsiState, setLastAmrsiState] = useState({});
     const operationCalculationIdRef = useRef(0);
     const operationResults = {};
+
+
+
 
     useEffect(() => {
         const allSignals = Object.values(signalsBySymbolState || {}).flatMap(signals => (
@@ -263,6 +266,8 @@ export const useOperatingInputs = () => {
                     entryPoints: {},
                 };
             }
+            // salva no localStorage
+            localStorage.setItem("flagsBySymbol", JSON.stringify(flagsBySymbolRef.current));
 
             // Busca correta usando o symbol
             const lastTrendArray = trend.find(item => item.symbol === symbol)?.result || [];
@@ -1309,7 +1314,7 @@ export const useOperatingInputs = () => {
             };
 
 
-console.log('signal :>',signal)
+            console.log('signal :>', signal)
             //==============================|📗Armazena o sinal se existir|==============================//
             if (signal) {
                 // Inicializa histórico do símbolo se não existir
@@ -1354,6 +1359,7 @@ console.log('signal :>',signal)
         if (Object.keys(newLastAmrsi).length > 0) {
             setLastAmrsiState({ ...newLastAmrsi });
         }
+
 
     }, [trend, trendPrimary, amrsi, vppr, price, buttonOperation]);
 
