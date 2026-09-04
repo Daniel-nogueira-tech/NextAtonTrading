@@ -106,7 +106,7 @@ def _get_atr_for_candle(atrs, candle_index, period):
     return atrs[atr_index]
 
 # Função principal para obter as clarificações de tendência usando ATR
-def _trend_clarifications_atr_single(symbol, time, mode , total = 2000):
+def _trend_clarifications_atr_single(symbol, time, mode , total = 15000):
     print(f"Calculating trend clarifications for {symbol} with time {time} and mode {mode}")
     #  Busca os klines na Binance
     try:
@@ -152,7 +152,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 2000):
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    verify_time_multiply = 15
+    verify_time_multiply = 6
     atr_period = 182
 
 

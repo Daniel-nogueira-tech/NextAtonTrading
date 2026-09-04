@@ -15,10 +15,16 @@ const OperatingPanel = () => {
 
   // ====================== GRÁFICO ======================
   const buildCapitalEvolution = (operationsEvolution, initialCapital = 10000) => {
+  // se não for array ou estiver vazio, retorna array vazio
+  if (!Array.isArray(operationsEvolution) || operationsEvolution.length === 0) {
+    return [];
+  }
+
     // Ordenar por tempo de saída
     const sortedOps = [...operationsEvolution].sort(
       (a, b) => new Date(a.exitTime) - new Date(b.exitTime)
     );
+
     let capital = initialCapital;
 
     return sortedOps.map(op => {
@@ -33,7 +39,7 @@ const OperatingPanel = () => {
   const capitalEvolution = buildCapitalEvolution(operationsEvolution, 10000)
 
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    if (!chartContainerRef.current && !capitalEvolution ) return;
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -115,6 +121,11 @@ const OperatingPanel = () => {
     { key: 'avgNegativeReturn', label: 'Average Negative Return' }
   ];
 
+  const sumCapital = 
+  Number(resultOperations?.capital?.balance ?? 0) + 
+  Number(resultOperations?.results?.totalProfit ?? 0);
+
+
   return (
     <div className="op-panel-container">
 
@@ -168,7 +179,7 @@ const OperatingPanel = () => {
         </div>
         <div className="op-card">
           <span className="op-card-title">Capital</span>
-          <div className="op-card-value">${(resultOperations?.capital?.balance + resultOperations?.results?.totalProfit).toFixed(2)}</div>
+          <div className="op-card-value">$ {(sumCapital).toFixed(2) ?? 0}</div>
         </div>
         <div className="op-card">
           <span className="op-card-title">Total Profit</span>

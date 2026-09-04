@@ -119,7 +119,7 @@ const normalizeItem = (item, keys) => {
 };
 
 export const useOperatingInputs = () => {
-    const { signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, retestPointsStatePrimaryRef, amrsiDataRef, vpprDataRef, fullPrice, buttonOperation, setButtonOperation, setResultOperations } = useContext(ContextGraphics);
+    const { sendOperationData, signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, retestPointsStatePrimaryRef, amrsiDataRef, vpprDataRef, fullPrice, buttonOperation, setButtonOperation, setResultOperations } = useContext(ContextGraphics);
 
     const getTrendBandBounds = (trendItem) => {
         if (!trendItem) return { low: NaN, high: NaN };
@@ -323,8 +323,8 @@ export const useOperatingInputs = () => {
             // Tipos para entrada
             const TYPE_BUY = ["PIVOT_BUY_TREND", "PIVOT_BUY_RALLY", "PIVOT_BUY_RALLY_REVERSE", "PIVOT_BUY_RALLY_SEC", "PIVOT_BUY_RALLY_REACT_SEC", "PIVOT_BUY_RALLY_SEC_LATE"];//"ENTRY_BUY_RALLY_SEC", "ENTRY_BUY_RALLY_SEC_LATE"
             const TYPE_SELL = ["PIVOT_SELL_TREND", "PIVOT_SELL_RALLY", "PIVOT_SELL_RALLY_REVERSE", "PIVOT_SELL_RALLY_SEC", "PIVOT_SELL_RALLY_REACT_SEC", "PIVOT_SELL_RALLY_SEC_LATE"]; //"ENTRY_SELL_RALLY_SEC",, "ENTRY_SELL_RALLY_SEC_LATE"
-            const TYPE_BUY_PRI = ["PIVOT_BUY_TREND", "PIVOT_BUY_RALLY", "PIVOT_BUY_RALLY_SEC", "PIVOT_BUY_RALLY_REVERSE", "PIVOT_BREAK_BUY", "PIVOT_BUY_RALLY_REACT_SEC", "PIVOT_BUY_RALLY_SEC_LATE"];
-            const TYPE_SELL_PRI = ["PIVOT_SELL_TREND", "PIVOT_SELL_RALLY", "PIVOT_SELL_RALLY_SEC", "PIVOT_SELL_RALLY_REVERSE", "PIVOT_BREAK_SELL", "PIVOT_SELL_RALLY_REACT_SEC", "PIVOT_SELL_RALLY_SEC_LATE"];
+            const TYPE_BUY_PRI = ["PIVOT_BUY_TREND", "PIVOT_BUY_RALLY", "PIVOT_BUY_RALLY_SEC", "PIVOT_BUY_RALLY_REVERSE", "PIVOT_BREAK_BUY"," PIVOT_BREAK_RALLY_BUY", "PIVOT_BUY_RALLY_REACT_SEC", "PIVOT_BUY_RALLY_SEC_LATE"];
+            const TYPE_SELL_PRI = ["PIVOT_SELL_TREND", "PIVOT_SELL_RALLY", "PIVOT_SELL_RALLY_SEC", "PIVOT_SELL_RALLY_REVERSE", "PIVOT_BREAK_SELL"," PIVOT_BREAK_RALLY_SELL", "PIVOT_SELL_RALLY_REACT_SEC", "PIVOT_SELL_RALLY_SEC_LATE"];
 
             // Tipos para saída
             const TYPE_BUY_EXIT = ["PIVOT_EXIT_BUY_TREND", "PIVOT_EXIT_BUY_SEC"];
@@ -344,14 +344,14 @@ export const useOperatingInputs = () => {
             const isTrendBlocked = flags.blockedTrendIdentity === currentTrendIdentity;
             const { low: bandLow, high: bandHigh } = getTrendBandBounds(lastTrend);
             const isOutsideBand = lastTrend && Number.isFinite(bandLow) && Number.isFinite(bandHigh)
-                ? (!flags.inputExecuted && TYPE_BUY.includes(lastTrend.type) && lastPrice?.Fechamento < bandLow - (lastTrend?.limite / 2)) ||
-                (!flags.inputExecuted && TYPE_SELL.includes(lastTrend.type) && lastPrice?.Fechamento > bandHigh + (lastTrend?.limite / 2))
+                ? (!flags.inputExecuted && TYPE_BUY.includes(lastTrend.type) && lastPrice?.Fechamento < bandLow ) ||
+                (!flags.inputExecuted && TYPE_SELL.includes(lastTrend.type) && lastPrice?.Fechamento > bandHigh )
                 : false;
 
             if (isOutsideBand && !isTrendBlocked) {
                 flags.exceededBand = true;
                 flags.blockedTrendIdentity = currentTrendIdentity;
-                console.log(`⛔ [${symbol}] Tendência excedeu banda e ficará bloqueada até novo trend:`, { bandLow, bandHigh, price: lastPrice?.Fechamento, trend: lastTrend?.type });
+                 console.log(`⛔ [${symbol}] Tendência excedeu banda e ficará bloqueada até novo trend:`, { bandLow, bandHigh, price: lastPrice?.Fechamento, trend: lastTrend?.type });
                 return;
             };
 
@@ -366,7 +366,6 @@ export const useOperatingInputs = () => {
                 flags.exceededBand = false;
                 flags.inputExecuted = false;
                 flags.blockedTrendIdentity = null;
-                console.log(`🔄 [${symbol}] Flag resetada por ${lastTrend?.type}`);
                 return;
             };
 
@@ -389,18 +388,6 @@ export const useOperatingInputs = () => {
                 // ***Muda as  classe dos butão
                 const btnBuy = document.querySelector('.btn-buy');
                 conditionBuyMain ? btnBuy.classList.add('btn-pulse-buy') : btnBuy.classList.remove('btn-pulse-buy');
-
-                console.log(`📈 [${symbol}] Condição BUY:`, {
-                    secondaryOk: TYPE_BUY.includes(lastTrend?.type),
-                    priceOk: lastPrice.Fechamento <= lastTrend?.buy,
-                    vpprOk: lastVppr?.vpprTrend === 'buy',
-                    vpprMajorOk: lastVppr?.major === 'MajorBuy',
-                    volumeEmaSignal: lastVppr?.volumeEmaSignal === 'Volume BUY Increasing',
-                    exceededBandOk: !flags.exceededBand,
-                    bandaOk: lastPrice.Fechamento >= lastTrend?.buy - lastTrend?.limite,
-                    buttonOperationOk: buttonOperation.buy,
-                    result: conditionBuy
-                });
 
                 if (conditionBuy) {
                     if (!flags.confirmationPending) {
@@ -473,7 +460,11 @@ export const useOperatingInputs = () => {
                                     }
 
                                     // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+                                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                                    // **Chama função e passa os parametros para enviar ao beckend
+                                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
+
                                     // **Atualiza botões e estado de simbolos
                                     setButtonOperation({ buy: false, sell: false, exit: false });
                                     setSignalsBySymbolState({ ...signalsHistoryRef.current });
@@ -508,24 +499,10 @@ export const useOperatingInputs = () => {
                 const btnSell = document.querySelector('.btn-sell');
                 conditionSellMain ? btnSell.classList.add('btn-pulse-sell') : btnSell.classList.remove('btn-pulse-sell');
 
-                console.log('conditionSellMain>>', conditionSellMain)
                 const conditionSell =
                     conditionSellMain &&
                     buttonOperation.sell
 
-
-                console.log(`📉 [${symbol}] Condição SELL:`, {
-                    secondaryOk: TYPE_SELL.includes(lastTrend?.type),
-                    priceOk: lastPrice.Fechamento >= lastTrend?.sell,
-                    vpprOk: lastVppr?.vpprTrend === 'sell',
-                    vpprMajorOk: lastVppr?.major === "MajorSell",
-                    volumeEmaSignal: lastVppr?.volumeEmaSignal === 'Volume SELL Increasing',
-                    buttonOperationOk: buttonOperation.sell,
-                    exceededBandOk: !flags.exceededBand,
-                    bandaOk: lastPrice.Fechamento <= lastTrend?.sell + lastTrend?.limite,
-                    bandaPrice: lastPrice.Fechamento >= lastTrend?.sell,
-                    result: conditionSell
-                });
 
                 if (conditionSell) {
                     if (!flags.confirmationPending) {
@@ -602,7 +579,10 @@ export const useOperatingInputs = () => {
                                     }
 
                                     // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+                                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                                    // **Chama função e passa os parametros para enviar ao beckend
+                                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
 
                                     // **Atualiza botões e estado de simbolos
                                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -652,12 +632,6 @@ export const useOperatingInputs = () => {
                     conditionExitBuyMain &&
                     buttonOperation?.exit;
 
-                console.log(`📉 [${symbol}] Condição EXIT BUY:`, {
-                    upwardTrendCurrentOk: flags.upwardTrendCurrent,
-                    secondaryOk: TYPE_BUY_EXIT.includes(lastTrend?.type),
-                    priceOk: lastPrice.Fechamento <= lastTrend?.sell,
-                    result: TYPE_BUY_EXIT.includes(lastTrend?.type) && flags.upwardTrendCurrent
-                });
 
                 if (conditionExitBuy) {
                     if (!flags.confirmationPending) {
@@ -777,7 +751,11 @@ export const useOperatingInputs = () => {
                                     if (history.length > 100) signalsHistoryRef.current[symbol] = history.slice(-100);
 
                                     // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+                                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                                    // **Chama função e passa os parametros para enviar ao beckend
+                                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
+
 
                                     // **Atualiza botões e estado de simbolos
                                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -919,7 +897,10 @@ export const useOperatingInputs = () => {
                                     if (historyS.length > 100) signalsHistoryRef.current[symbol] = historyS.slice(-100);
 
                                     // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+                                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                                    // **Chama função e passa os parametros para enviar ao beckend
+                                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
 
                                     // **Atualiza botões e estado de simbolos
                                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -968,7 +949,10 @@ export const useOperatingInputs = () => {
                     flags.numberEntries = 0;
 
                     // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                    // **Chama função e passa os parametros para enviar ao beckend
+                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -998,7 +982,10 @@ export const useOperatingInputs = () => {
                     flags.numberEntries = 0;
 
                     // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                    // **Chama função e passa os parametros para enviar ao beckend
+                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1036,7 +1023,10 @@ export const useOperatingInputs = () => {
                     flags.numberEntries = 0;
 
                     // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                    // **Chama função e passa os parametros para enviar ao beckend
+                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1072,7 +1062,10 @@ export const useOperatingInputs = () => {
                     flags.numberEntries = 0;
 
                     // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                    // **Chama função e passa os parametros para enviar ao beckend
+                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1116,7 +1109,10 @@ export const useOperatingInputs = () => {
                 flags.numberEntries = 0;
 
                 // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+                const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                // **Chama função e passa os parametros para enviar ao beckend
+                sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
 
                 // **Atualiza botões e estado de simbolos
                 setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1156,7 +1152,10 @@ export const useOperatingInputs = () => {
                 flags.numberEntries = 0;
 
                 // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+                const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                // **Chama função e passa os parametros para enviar ao beckend
+                sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
 
                 // **Atualiza botões e estado de simbolos
                 setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1195,7 +1194,10 @@ export const useOperatingInputs = () => {
                     flags.numberEntries = 0;
 
                     // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                    // **Chama função e passa os parametros para enviar ao beckend
+                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1230,7 +1232,10 @@ export const useOperatingInputs = () => {
                     flags.numberEntries = 0;
 
                     // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                    // **Chama função e passa os parametros para enviar ao beckend
+                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1267,7 +1272,10 @@ export const useOperatingInputs = () => {
                     flags.numberEntries = 0;
 
                     // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                    // **Chama função e passa os parametros para enviar ao beckend
+                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1303,7 +1311,10 @@ export const useOperatingInputs = () => {
                     flags.numberEntries = 0;
 
                     // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                    calculatePositionSize(flags.lastSignal, signalsHistoryRef.current), [signalsBySymbolState];
+                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                    // **Chama função e passa os parametros para enviar ao beckend
+                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1314,7 +1325,6 @@ export const useOperatingInputs = () => {
             };
 
 
-            console.log('signal :>', signal)
             //==============================|📗Armazena o sinal se existir|==============================//
             if (signal) {
                 // Inicializa histórico do símbolo se não existir
@@ -1335,12 +1345,12 @@ export const useOperatingInputs = () => {
                 flags.lastSignal = signal;
             }
         });
-
+        console.log('📊 Histórico de sinais por símbolo:', signalsHistoryRef.current);
         // Retorna os sinais para uso externo se necessário
         if (Object.keys(signalsBySymbol).length > 0) {
             console.log("🎯 Novos sinais detectados:", Object.keys(signalsBySymbol));
         }
-        console.log("📊 Histórico de sinais por símbolo:", signalsHistoryRef.current);
+        //console.log("📊 Histórico de sinais por símbolo:", signalsHistoryRef.current);
 
         if (Object.keys(signalsBySymbol).length > 0) {
             setSignalsBySymbolState({ ...signalsHistoryRef.current });
@@ -1378,7 +1388,6 @@ export const useOperatingInputs = () => {
         return lastAmrsiRef.current[symbol] || null;
     }
 
-    console.log('signalsBySymbolState >>>', signalsBySymbolState)
 
     return {
         trend,

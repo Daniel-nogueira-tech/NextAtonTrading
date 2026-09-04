@@ -137,7 +137,6 @@ export const useVpprData = (vppr) => {
                     state.majortrendDown = vppr < 0;
                     state.majorTrendInitialized = true;
                     majorityTrendChanged = true;
-                    console.log(`🎯 [${symbol}] MAJOR TREND INICIAL: ${currentMajorityTrend}`);
                 }
                 // 2: Verifica cruzamento do zero (só se já foi inicializado)
                 else if (state.majorTrendInitialized) {
@@ -157,13 +156,11 @@ export const useVpprData = (vppr) => {
                             state.majortrendUp = true;
                             state.majortrendDown = false;
                             majorityTrendChanged = true;
-                            console.log(`📈 [${symbol}] MAJOR TREND → BUY (cruzou para positivo): ${vppr.toFixed(4)}`);
                         } else if (vppr < 0) {
                             currentMajorityTrend = 'MAJOR_SELL';
                             state.majortrendUp = false;
                             state.majortrendDown = true;
                             majorityTrendChanged = true;
-                            console.log(`📉 [${symbol}] MAJOR TREND → SELL (cruzou para negativo): ${vppr.toFixed(4)}`);
                         }
                     } else {
                         // 3: Mantém a tendência majoritária atual
@@ -308,8 +305,6 @@ export const useVpprData = (vppr) => {
                             bandTop: bandTop,
                             bandBottom: bandBottom
                         });
-
-                        console.log(`🚀 [${symbol}] NOVO SINAL: ${signalType} | Major: ${majorValue}`);
                     }
                 }
 
@@ -332,7 +327,6 @@ export const useVpprData = (vppr) => {
                             isMajorSignal: true
                         });
 
-                        console.log(`🎯 [${symbol}] NOVO SINAL MAJOR: ${signalType} | Major: ${majorValue}`);
                     }
                 }
                 // Sinal de Volume EMA
@@ -402,7 +396,6 @@ export const useVpprData = (vppr) => {
         }));
 
         vpprDataRef.current = signalsArray;
-        console.log('📊 [VPPR] Dados atualizados:', signalsArray);
 
     }, [vpprGroups]);
 

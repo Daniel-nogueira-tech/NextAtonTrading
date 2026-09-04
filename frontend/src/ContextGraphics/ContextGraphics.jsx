@@ -63,18 +63,42 @@ export const ContextGraphicsProvider = ({ children }) => {
 
     // Botão de operação
     const [buttonOperation, setButtonOperation] = React.useState({
-        buy: false,
+        buy: true,
         sell: false,
         exit: false,
     });
 
     // Retorna os sinais de entrada
-    const [signalsBySymbolState, setSignalsBySymbolState] = React.useState(() => (
-        readStoredJson('signalsBySymbolState', {})
-    ));
-    const [resultOperations, setResultOperations] = React.useState(() => (
-        readStoredJson('resultOperations', null)
-    ));
+    const [signalsBySymbolStateRealTime, setSignalsBySymbolStateRealTime] = React.useState({});
+    const [resultOperationsRealTime, setResultOperationsRealTime] = React.useState({});
+
+    const [signalsBySymbolState, setSignalsBySymbolState] = React.useState(
+        mode === "simulation"
+            ? () => readStoredJson("signalsBySymbolState", {})
+            : signalsBySymbolStateRealTime);
+    const [resultOperations, setResultOperations] = React.useState(
+        mode === "simulation"
+            ? () => readStoredJson("resultOperations", null)
+            : resultOperationsRealTime
+    );
+
+    // Effect para sincronizar dados de sinais
+    React.useEffect(() => {
+        if (mode === "simulation") {
+            setSignalsBySymbolState(readStoredJson("signalsBySymbolState", {}));
+            setResultOperations(readStoredJson("resultOperations", null));
+            return;
+        }
+
+        setSignalsBySymbolState(signalsBySymbolStateRealTime);
+        setResultOperations(resultOperationsRealTime);
+    }, [
+        mode,
+        signalsBySymbolStateRealTime,
+        resultOperationsRealTime,
+    ]);
+
+
     const [signal, setSignal] = React.useState(() => (
         readStoredJson('signal', {})
     ));
@@ -390,13 +414,104 @@ export const ContextGraphicsProvider = ({ children }) => {
         }
     }
 
+
+    // Envia dados da operação para o backend
+    const buildOrderPayload = (lastSignal, sizeOperation) => {
+        if (!lastSignal) return null;
+
+        const { symbol, action, timestamp } = lastSignal;
+
+        const baseOrder = {
+            symbol,
+            type: 'MARKET',
+            timestamp,
+            signature: 'KEY_BINANCE_SECRET',
+        };
+
+        switch (action) {
+            case 'BUY':
+                return { order: { ...baseOrder, side: 'BUY', quoteOrderQty: sizeOperation } };
+            case 'SELL':
+                return { order: { ...baseOrder, side: 'SELL', quantity: sizeOperation } };
+            case 'EXIT_BUY':
+                return { order: { ...baseOrder, side: 'SELL', quantity: sizeOperation } };
+            case 'EXIT_SELL':
+                return { order: { ...baseOrder, side: 'BUY', quoteOrderQty: sizeOperation } };
+            default:
+                return null;
+        }
+    };
+
+    const sendOperationData = async (resultOperations, signalsBySymbolState, lastSignal) => {
+        try {
+            const operations = await resultOperations;
+
+            const sizeOperation = operations?.capital?.positionSize;
+
+            const payloadOperation = operations && signalsBySymbolState
+                ? {
+                    signalsBySymbolState: signalsBySymbolState,
+                    resultOperations: operations
+                }
+                : null;
+
+            const payloadSignal = buildOrderPayload(lastSignal, sizeOperation);
+
+            console.log('Dados:', payloadOperation);
+
+            const [responseOperation, responseOrder] = await Promise.all([
+                axios.post(`${urlBackend}/api/operations`, {
+                    operation: payloadOperation
+                }),
+                axios.post(`${urlBackend}/api/operations-order`, {
+                    payloadSignal: payloadSignal
+                }),
+            ]);
+
+            return responseOrder.data || responseOperation.data;
+        } catch (error) {
+            console.error('Error sending operation data:', error);
+            throw error;
+        }
+    };
+
+    // Função para pegar dados de resultOperations, signalsBySymbolState salvos no banco
+    const getDataOperation = async () => {
+        if (mode === 'simulation') return;
+        try {
+            // Limpa localStorage se estiver em Real time
+            localStorage.removeItem('signalsBySymbolState');
+            localStorage.removeItem('resultOperations');
+            localStorage.removeItem('flagsBySymbol');
+
+            const response = await axios.get(`${urlBackend}/api/get-operations`)
+            const getOperations = response.data
+
+            setSignalsBySymbolStateRealTime(getOperations.signalsBySymbolState)
+            setResultOperationsRealTime(getOperations.resultOperations)
+
+            console.log('>', {
+                signalsBySymbolState: getOperations.signalsBySymbolState,
+                resultOperations: getOperations.resultOperations
+            })
+
+        } catch (error) {
+            console.error('Error sending operation data:', error);
+        }
+    };
+
+    console.log('resultOperationsRealTime:', resultOperationsRealTime)
+    console.log('signalsBySymbolStateRealTime:', signalsBySymbolStateRealTime)
+
     // Salva dados da operação no localStorage
     React.useEffect(() => {
-        if (hasStoredData(resultOperations)) {
-            localStorage.setItem("resultOperations", JSON.stringify(resultOperations));
-        }
-        if (hasStoredData(signalsBySymbolState)) {
-            localStorage.setItem("signalsBySymbolState", JSON.stringify(signalsBySymbolState));
+        if (mode === 'simulation') {
+            if (hasStoredData(resultOperations)) {
+                localStorage.setItem("resultOperations", JSON.stringify(resultOperations));
+            }
+            if (hasStoredData(signalsBySymbolState)) {
+                localStorage.setItem("signalsBySymbolState", JSON.stringify(signalsBySymbolState));
+            }
         }
         if (hasStoredData(signal)) {
             localStorage.setItem("signal", JSON.stringify(signal))
@@ -410,6 +525,7 @@ export const ContextGraphicsProvider = ({ children }) => {
                 await Promise.all([
                     getSymbols(),
                     marketData(),
+                    getDataOperation()
                 ])
             } catch (error) {
                 console.error('Error loading data:', error)
@@ -541,7 +657,9 @@ export const ContextGraphicsProvider = ({ children }) => {
         resultOperations,
         setResultOperations,
         signal,
-        setSignal
+        setSignal,
+        sendOperationData
+
     }
 
     return (

@@ -142,7 +142,6 @@ const operationToObject = (operation) => {
 }
 
 const buildRetestLevelSegments = (operations, chartEndTime) => {
-  console.log('operations:>', operations)
   const points = operations
     .map(operationToObject)
     .filter(point => point && point.time != null)
@@ -905,6 +904,8 @@ const GraphicsRenko = () => {
     "PIVOT_SELL_RALLY_REACT_SEC": 'red',
     "PIVOT_SELL_RALLY_SEC_LATE": 'red',
     "PIVOT_BREAK_SELL": 'red',
+    "PIVOT_BREAK_RALLY_BUY": 'green',
+    "PIVOT_BREAK_RALLY_SELL": 'red'
   }
 
   const colorMapAmrsi = {
@@ -914,6 +915,7 @@ const GraphicsRenko = () => {
     "OVERSOLD": '#aaffaa',
     "NEUTRAL": 'gray',
   }
+
 
   if (lastTrend) {
     const signalColor = colorMapTrend[lastTrend?.type] || 'gray';
@@ -962,7 +964,7 @@ const GraphicsRenko = () => {
   };
 
   //=======================|Retorna resultaddo da operação|==========================//
-
+console.log('resultOperations :',resultOperations )
   return (
     <section className="graphics-renko">
 

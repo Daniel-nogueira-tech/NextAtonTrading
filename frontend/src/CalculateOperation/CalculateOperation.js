@@ -1,4 +1,4 @@
-import {  useContext, useEffect } from 'react';
+import { useContext, useEffect } from 'react';
 import { getSymbolInfo } from '../BinanceInforApi/BinanceInforApi.js'
 import { ContextGraphics } from '../ContextGraphics/ContextGraphics';
 import { calculateProbabilityDistribution } from '../ProbabilityDistribution/ProbabilityDistribution.js'
@@ -515,10 +515,12 @@ export const useCalculatePositionSize = (lastSignal, signalsBySymbolState) => {
         if (!lastSignal) {
             return undefined;
         }
-
         calculatePositionSize(lastSignal, signalsBySymbolState)
             .then(result => {
-                if (!cancelled && result) setResultOperations(result);
+                if (!cancelled && result) {
+                    setResultOperations(result);
+                }
+
             })
             .catch(error => {
                 console.error('Erro ao atualizar resultado das operações:', error);
@@ -527,10 +529,10 @@ export const useCalculatePositionSize = (lastSignal, signalsBySymbolState) => {
         return () => {
             cancelled = true;
         };
+
+
     }, [lastSignal, signalsBySymbolState, setResultOperations]);
 
     return null;
 };
-
-
 

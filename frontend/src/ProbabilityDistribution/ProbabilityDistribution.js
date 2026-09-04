@@ -23,9 +23,9 @@ export const calculateProbabilityDistribution = (operations, entryPrice) => {
         // Para operações LONG: (exitPrice - entryPrice) / entryPrice * 100
         // Para operações SHORT: (entryPrice - exitPrice) / entryPrice * 100
         let returnPercent;
-        if (op.side === 'BUY' || op.side === 'LONG') {
+        if ((op.side || "").toUpperCase() === 'BUY' || (op.side || "").toUpperCase() === 'LONG') {
             returnPercent = ((op.exitPrice - op.entryPrice) / op.entryPrice) * 100;
-        } else if (op.side === 'SELL' || op.side === 'SHORT') {
+        } else if ((op.side || "").toUpperCase() === 'SELL' || (op.side || "").toUpperCase() === 'SHORT') {
             returnPercent = ((op.entryPrice - op.exitPrice) / op.entryPrice) * 100;
         } else {
             returnPercent = (op.pnl / (op.quantity * op.entryPrice)) * 100;

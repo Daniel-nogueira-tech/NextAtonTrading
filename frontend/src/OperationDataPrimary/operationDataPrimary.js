@@ -777,7 +777,6 @@ export const useOperatingDataPrimary = (trend) => {
 
       // **Reteste no mais resente pivô de um rally sec
       const lastPivotRallySec = state.penultimopivoRallySec[state.penultimopivoRallySec.length - 1];
-      console.log('lastPivotRallySec', lastPivotRallySec);
 
 
       // Garante que o rally execute apenas em uma reversão(ENTRY_BUY_RALLY_REVERSE)
