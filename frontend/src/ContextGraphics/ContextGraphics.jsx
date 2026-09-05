@@ -107,7 +107,7 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [isTrend, setIsTrend] = React.useState(true);
 
     const incrementalEngine = useIncrementalMarketEngine({
-        initialSpeed: mode === 'simulation' ? 500 : 200,
+        initialSpeed: mode === 'simulation' ? 500 : 10,
         maxSnapshotPoints: 1200,
     });
     const {
@@ -414,40 +414,10 @@ export const ContextGraphicsProvider = ({ children }) => {
         }
     }
 
-
-    // Envia dados da operação para o backend
-    const buildOrderPayload = (lastSignal, sizeOperation) => {
-        if (!lastSignal) return null;
-
-        const { symbol, action, timestamp } = lastSignal;
-
-        const baseOrder = {
-            symbol,
-            type: 'MARKET',
-            timestamp,
-            signature: 'KEY_BINANCE_SECRET',
-        };
-
-        switch (action) {
-            case 'BUY':
-                return { order: { ...baseOrder, side: 'BUY', quoteOrderQty: sizeOperation } };
-            case 'SELL':
-                return { order: { ...baseOrder, side: 'SELL', quantity: sizeOperation } };
-            case 'EXIT_BUY':
-                return { order: { ...baseOrder, side: 'SELL', quantity: sizeOperation } };
-            case 'EXIT_SELL':
-                return { order: { ...baseOrder, side: 'BUY', quoteOrderQty: sizeOperation } };
-            default:
-                return null;
-        }
-    };
-
-    const sendOperationData = async (resultOperations, signalsBySymbolState, lastSignal) => {
+    const sendOperationData = async (resultOperations, signalsBySymbolState) => {
+        if (mode === 'simulation') return;
         try {
             const operations = await resultOperations;
-
-            const sizeOperation = operations?.capital?.positionSize;
-
             const payloadOperation = operations && signalsBySymbolState
                 ? {
                     signalsBySymbolState: signalsBySymbolState,
@@ -455,20 +425,15 @@ export const ContextGraphicsProvider = ({ children }) => {
                 }
                 : null;
 
-            const payloadSignal = buildOrderPayload(lastSignal, sizeOperation);
-
-            console.log('Dados:', payloadOperation);
-
-            const [responseOperation, responseOrder] = await Promise.all([
-                axios.post(`${urlBackend}/api/operations`, {
+            const responseOperation = await axios.post(`${urlBackend}/api/operations`,
+                {
                     operation: payloadOperation
-                }),
-                axios.post(`${urlBackend}/api/operations-order`, {
-                    payloadSignal: payloadSignal
-                }),
-            ]);
+                })
 
-            return responseOrder.data || responseOperation.data;
+                console.log('TESTE API:',responseOperation.data)
+
+            return responseOperation.data;
+
         } catch (error) {
             console.error('Error sending operation data:', error);
             throw error;
@@ -500,8 +465,6 @@ export const ContextGraphicsProvider = ({ children }) => {
         }
     };
 
-    console.log('resultOperationsRealTime:', resultOperationsRealTime)
-    console.log('signalsBySymbolStateRealTime:', signalsBySymbolStateRealTime)
 
     // Salva dados da operação no localStorage
     React.useEffect(() => {

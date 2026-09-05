@@ -964,7 +964,6 @@ const GraphicsRenko = () => {
   };
 
   //=======================|Retorna resultaddo da operação|==========================//
-console.log('resultOperations :',resultOperations )
   return (
     <section className="graphics-renko">
 

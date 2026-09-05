@@ -8,9 +8,9 @@ data_operation_bp = Blueprint('data_operation', __name__)
 @data_operation_bp.route('/api/operations', methods=['POST'])
 def data_operation():
     data = request.get_json()
-    payloadOperation = str(data.get("operation","")).strip()
+    payloadOperation = data.get("operation")
 
-    if not payloadOperation:
+    if not isinstance(payloadOperation, dict) or not payloadOperation:
         return jsonify({"Error": "The parameters operation are required."}),400
     
     try:

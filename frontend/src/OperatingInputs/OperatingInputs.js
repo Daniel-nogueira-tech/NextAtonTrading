@@ -119,7 +119,7 @@ const normalizeItem = (item, keys) => {
 };
 
 export const useOperatingInputs = () => {
-    const { sendOperationData, signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, retestPointsStatePrimaryRef, amrsiDataRef, vpprDataRef, fullPrice, buttonOperation, setButtonOperation, setResultOperations } = useContext(ContextGraphics);
+    const { sendOperationData: sendOperationDataToContext, signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, retestPointsStatePrimaryRef, amrsiDataRef, vpprDataRef, fullPrice, buttonOperation, setButtonOperation, setResultOperations } = useContext(ContextGraphics);
 
     const getTrendBandBounds = (trendItem) => {
         if (!trendItem) return { low: NaN, high: NaN };
@@ -170,6 +170,14 @@ export const useOperatingInputs = () => {
     // Usar useRef para persistir as flags entre renders
     const flagsBySymbolRef = useRef(JSON.parse(localStorage.getItem("flagsBySymbol")) || {});
     const signalsHistoryRef = useRef(signalsBySymbolState || {});
+
+    useEffect(() => {
+        signalsHistoryRef.current = signalsBySymbolState || {};
+    }, [signalsBySymbolState]);
+
+    const sendOperationData = (operation, _signals, lastSignal) => (
+        sendOperationDataToContext(operation, signalsHistoryRef.current, lastSignal)
+    );
 
     //Usar useRef para armazenar o último trend de cada símbolo
     const lastTrendRef = useRef({});
@@ -460,10 +468,9 @@ export const useOperatingInputs = () => {
                                     }
 
                                     // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+                                   calculatePositionSize(flags.lastSignal, signalsHistoryRef.current),[s]
 
-                                    // **Chama função e passa os parametros para enviar ao beckend
-                                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
+       
 
                                     // **Atualiza botões e estado de simbolos
                                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -754,7 +761,7 @@ export const useOperatingInputs = () => {
                                     const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
 
                                     // **Chama função e passa os parametros para enviar ao beckend
-                                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
+                                    sendOperationData(getSizeOperation, signalsBySymbolState);
 
 
                                     // **Atualiza botões e estado de simbolos
@@ -900,7 +907,7 @@ export const useOperatingInputs = () => {
                                     const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
 
                                     // **Chama função e passa os parametros para enviar ao beckend
-                                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
+                                    sendOperationData(getSizeOperation, signalsBySymbolState);
 
                                     // **Atualiza botões e estado de simbolos
                                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -952,7 +959,7 @@ export const useOperatingInputs = () => {
                     const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
 
                     // **Chama função e passa os parametros para enviar ao beckend
-                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
+                    sendOperationData(getSizeOperation, signalsBySymbolState);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -985,7 +992,7 @@ export const useOperatingInputs = () => {
                     const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
 
                     // **Chama função e passa os parametros para enviar ao beckend
-                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
+                    sendOperationData(getSizeOperation, signalsBySymbolState);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1026,7 +1033,7 @@ export const useOperatingInputs = () => {
                     const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
 
                     // **Chama função e passa os parametros para enviar ao beckend
-                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
+                    sendOperationData(getSizeOperation, signalsBySymbolState);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1065,7 +1072,7 @@ export const useOperatingInputs = () => {
                     const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
 
                     // **Chama função e passa os parametros para enviar ao beckend
-                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
+                    sendOperationData(getSizeOperation, signalsBySymbolState);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1112,7 +1119,7 @@ export const useOperatingInputs = () => {
                 const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
 
                 // **Chama função e passa os parametros para enviar ao beckend
-                sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
+                sendOperationData(getSizeOperation, signalsBySymbolState);
 
                 // **Atualiza botões e estado de simbolos
                 setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1155,7 +1162,7 @@ export const useOperatingInputs = () => {
                 const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
 
                 // **Chama função e passa os parametros para enviar ao beckend
-                sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
+                sendOperationData(getSizeOperation, signalsBySymbolState);
 
                 // **Atualiza botões e estado de simbolos
                 setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1197,7 +1204,7 @@ export const useOperatingInputs = () => {
                     const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
 
                     // **Chama função e passa os parametros para enviar ao beckend
-                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
+                    sendOperationData(getSizeOperation, signalsBySymbolState);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1235,7 +1242,7 @@ export const useOperatingInputs = () => {
                     const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
 
                     // **Chama função e passa os parametros para enviar ao beckend
-                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
+                    sendOperationData(getSizeOperation, signalsBySymbolState);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1275,7 +1282,7 @@ export const useOperatingInputs = () => {
                     const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
 
                     // **Chama função e passa os parametros para enviar ao beckend
-                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
+                    sendOperationData(getSizeOperation, signalsBySymbolState);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });
@@ -1314,7 +1321,7 @@ export const useOperatingInputs = () => {
                     const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
 
                     // **Chama função e passa os parametros para enviar ao beckend
-                    sendOperationData(getSizeOperation, signalsBySymbolState, flags.lastSignal);
+                    sendOperationData(getSizeOperation, si);
 
                     // **Atualiza botões e estado de simbolos
                     setButtonOperation({ buy: false, sell: false, exit: false });

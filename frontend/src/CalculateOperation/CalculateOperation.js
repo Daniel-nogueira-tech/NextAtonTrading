@@ -519,6 +519,7 @@ export const useCalculatePositionSize = (lastSignal, signalsBySymbolState) => {
             .then(result => {
                 if (!cancelled && result) {
                     setResultOperations(result);
+
                 }
 
             })
