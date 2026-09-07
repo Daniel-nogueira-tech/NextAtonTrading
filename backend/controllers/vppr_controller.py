@@ -64,7 +64,7 @@ def _get_accumulation_period_key(kline, accumulation_period):
 
 
 # Calcula Vppr
-def calculate_vppr(klines, accumulation_period="week"):
+def calculate_vppr(klines, accumulation_period="month"):
     if accumulation_period not in ("week", "month"):
         raise ValueError("accumulation_period deve ser 'week' ou 'month'")
 
@@ -93,7 +93,7 @@ def calculate_vppr(klines, accumulation_period="week"):
 
     return vppr_values
 
-def _get_vppr_single(symbol, modo="real", time="15m", total=5000, accumulation_period="week"):
+def _get_vppr_single(symbol, modo="real", time="15m", total=5000, accumulation_period="month"):
 
     try:
         if modo == "simulation":
@@ -130,7 +130,7 @@ def _get_vppr_single(symbol, modo="real", time="15m", total=5000, accumulation_p
 
     return result
 
-def get_vppr(symbols=None, symbol=None, modo="real", time="15m", accumulation_period="week"):
+def get_vppr(symbols=None, symbol=None, modo="real", time="15m", accumulation_period="month"):
     default_symbols = get_stored_symbols()
 
     if modo not in ["real", "simulation"]:
