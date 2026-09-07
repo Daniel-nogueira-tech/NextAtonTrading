@@ -43,9 +43,14 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [activeSymbol, setActiveSymbol] = React.useState(() => { return localStorage.getItem('symbol') || 'BTCUSDT' });
     const [mode, setMode] = React.useState(() => { return localStorage.getItem('mode') || 'real' });
     const [download, setDownload] = React.useState(false);
-    const [loading, setLoading] = React.useState(true);
+    const [loading, setLoading] = React.useState(() => readStoredJson("loading", true));
     const [movementTables, setMovementTables] = React.useState(false);
     const [fullSources, setFullSources] = React.useState(null);
+    const [dates, setDates] = React.useState(() => {
+        const saved = localStorage.getItem("dates");
+        return saved ? JSON.parse(saved).map(d => new Date(d)) : null;
+    });
+
 
     // Indicadores para operações
     const vpprDataRef = useRef([]);
@@ -63,7 +68,7 @@ export const ContextGraphicsProvider = ({ children }) => {
 
     // Botão de operação
     const [buttonOperation, setButtonOperation] = React.useState({
-        buy: true,
+        buy: false,
         sell: false,
         exit: false,
     });
@@ -430,7 +435,7 @@ export const ContextGraphicsProvider = ({ children }) => {
                     operation: payloadOperation
                 })
 
-                console.log('TESTE API:',responseOperation.data)
+            console.log('TESTE API:', responseOperation.data)
 
             return responseOperation.data;
 
@@ -466,7 +471,7 @@ export const ContextGraphicsProvider = ({ children }) => {
     };
 
 
-    // Salva dados da operação no localStorage
+    // Salva dados da operação no localStorage e data de simulação
     React.useEffect(() => {
         if (mode === 'simulation') {
             if (hasStoredData(resultOperations)) {
@@ -479,7 +484,17 @@ export const ContextGraphicsProvider = ({ children }) => {
         if (hasStoredData(signal)) {
             localStorage.setItem("signal", JSON.stringify(signal))
         }
-    }, [resultOperations, signalsBySymbolState, signal]);
+        if (hasStoredData(dates)) {
+            localStorage.setItem("dates", JSON.stringify(
+                Array.isArray(dates) ? dates.map(d => new Date(d).toISOString()) : new Date(dates).toISOString()
+            ));
+        }
+
+
+        localStorage.setItem("loading", JSON.stringify(loading))
+
+
+    }, [resultOperations, signalsBySymbolState, signal, dates, loading]);
 
     // Carrega os dados quando o componente é montado
     React.useEffect(() => {
@@ -549,6 +564,9 @@ export const ContextGraphicsProvider = ({ children }) => {
         mode,
         tabs,
         setTabs,
+        // Datas para simular
+        dates,
+        setDates,
 
         // Seleção de símbolos
         activeSymbol,

@@ -1,6 +1,6 @@
 import { useContext } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ContextGraphics } from '../ContextGraphics/ContextGraphics'
+import { ContextGraphics } from '../../ContextGraphics/ContextGraphics'
 
 
 // Função para normalizar os dados de tendência, 

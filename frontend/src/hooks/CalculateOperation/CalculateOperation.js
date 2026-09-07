@@ -1,6 +1,6 @@
 import { useContext, useEffect } from 'react';
-import { getSymbolInfo } from '../BinanceInforApi/BinanceInforApi.js'
-import { ContextGraphics } from '../ContextGraphics/ContextGraphics';
+import { getSymbolInfo } from '../../BinanceInforApi/BinanceInforApi.js'
+import { ContextGraphics } from '../../ContextGraphics/ContextGraphics';
 import { calculateProbabilityDistribution } from '../ProbabilityDistribution/ProbabilityDistribution.js'
 
 
@@ -24,6 +24,37 @@ const roundDecimal = (value, decimals = 8) => {
     return Number.isFinite(numberValue) ? Number(numberValue.toFixed(decimals)) : 0;
 };
 
+const normalizeNumber = (val, fallback = 0) => {
+    const n = Number(val);
+    return Number.isFinite(n) ? n : fallback;
+};
+
+const calculateQuantityForSignal = (signal, symbolInfo, balanceAndRisk) => {
+    const entryPrice = normalizeNumber(
+        signal?.entryPrice ?? signal?.avgEntryPrice ?? signal?.expectedPriceBuy ?? signal?.expectedPriceSell
+    );
+    const stopPrice = normalizeNumber(
+        signal?.stop ?? signal?.expectedPriceStop ?? signal?.stopPrice
+    );
+    const count = Math.max(1, Math.round(normalizeNumber(signal?.count, 1)));
+    const stepSize = Number(symbolInfo?.stepSize || 0);
+    const minQty = Number(symbolInfo?.minQty || 0);
+    const maxQty = Number(symbolInfo?.maxQty || 0);
+
+    if (!entryPrice || !stopPrice || !stepSize || !minQty) return 0;
+
+    const stopDistance = Math.abs(entryPrice - stopPrice);
+    if (!stopDistance) return 0;
+
+    const riskBudgetPerPartial = (balanceAndRisk.balance * balanceAndRisk.risk) / count;
+    const totalQty = (riskBudgetPerPartial / stopDistance) * count;
+    let quantity = formatByStepSize(totalQty, stepSize);
+
+    if (quantity < minQty) quantity = minQty;
+    if (maxQty && quantity > maxQty) quantity = maxQty;
+
+    return quantity;
+};
 // ==============================|Função principal para calcular o tamanho do lote|============================== //
 export const calculatePositionSize = async (lastSignal, signalsBySymbolState) => {
     if (!lastSignal) return null;
@@ -34,11 +65,16 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
         risk: 0.02
     };
 
+    console.log('Dados:', {
+        lastSignal: lastSignal,
+        signalsBySymbolState: signalsBySymbolState
+    })
+
     try {
         const symbol = lastSignal.symbol || symbolInfor?.symbol || 'UNKNOWN';
-        const stopPoint = Number(lastSignal?.stop ?? 0);
-        const entryPrice = Number(lastSignal?.avgEntryPrice ?? 0);
-        const count = Number(lastSignal?.count ?? 1);
+        const entryPrice = normalizeNumber(lastSignal?.avgEntryPrice ?? lastSignal?.entryPrice);
+        const stopPoint = normalizeNumber(lastSignal?.stop);
+        const count = normalizeNumber(lastSignal?.count, 1);
 
 
         if (!entryPrice || !stopPoint) return null;
@@ -48,6 +84,8 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
 
         // 🔥 Distância do stop em PONTOS (não percentual)
         const stopDistancePoints = Math.abs(entryPrice - stopPoint);
+        // Quantidade = Risco / (Distância do Stop em % do preço)
+        const stopDistancePercent = stopDistancePoints / entryPrice;
 
         // 🔥 Risco total da operação (2% do saldo)
         const riskBudget = Number(balanceAndRisk.balance) * Number(balanceAndRisk.risk); // 200 USDT
@@ -56,7 +94,7 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
         const riskBudgetPerPartial = riskBudget / count;
 
         // 🔥 Quantidade por entrada = Risco / Distância do Stop
-        const qtyPerPartial = riskBudgetPerPartial / stopDistancePoints;
+        const qtyPerPartial = riskBudgetPerPartial / (entryPrice * stopDistancePercent);
 
         // 🔥 Quantidade total = Quantidade por entrada * número de entradas
         const totalQty = qtyPerPartial * count;
@@ -80,12 +118,12 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
             console.warn(`Quantidade ajustada para o máximo: ${maxQty}`);
         }
 
-        const quantityPerEntry = adjustedQty * count;
+        const quantityPerEntry = adjustedQty;
         const valuePerEntry = roundDecimal(quantityPerEntry * entryPrice);
         const totalPositionValue = roundDecimal(valuePerEntry * count);
 
         // 🔥Calcular risco real
-        const actualRisk = roundDecimal(adjustedQty * stopDistancePoints);
+        const actualRisk = roundDecimal(quantityPerEntry * stopDistancePoints);
         const riskPercentage = (actualRisk / balanceAndRisk.balance) * 100;
 
         console.log('✅ Resultado final:', {
@@ -111,8 +149,14 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
             const n = Number(value ?? fallback);
             return Number.isFinite(n) ? n : fallback;
         };
+        const symbolInfoBySymbol = Object.fromEntries(
+            await Promise.all(Object.keys(signalsBySymbolState || {}).map(async (signalSymbol) => [
+                signalSymbol,
+                signalSymbol === symbol ? symbolInfor : await getSymbolInfo({ symbol: signalSymbol }),
+            ]))
+        );
 
-        Object.entries(signalsBySymbolState).forEach(([symbol, signals]) => {
+        Object.entries(signalsBySymbolState || {}).forEach(([signalSymbol, signals]) => {
             if (!Array.isArray(signals)) return;
 
             let openPosition = null;
@@ -122,21 +166,26 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
 
                 if (action === 'BUY') {
                     const count = Math.max(1, Math.round(toNumber(signal?.count, 1)));
-                    const entryPrice = toNumber(signal?.entryPrice ?? signal?.avgEntryPrice ?? signal?.expectedPriceBuy, 0);
+                    const entryPrice = normalizeNumber(signal?.entryPrice ?? signal?.avgEntryPrice ?? signal?.expectedPriceBuy, 0);
                     // 🔥 Usar o stop do sinal, se existir
-                    const stopPrice = toNumber(
+                    const stopPrice = normalizeNumber(
                         signal?.stop ??
                         signal?.expectedPriceStop ??
                         signal?.stopPrice ??
                         (entryPrice * 0.98),
                         0
                     );
+                    const entryQuantityPerEntry = calculateQuantityForSignal(
+                        signal,
+                        symbolInfoBySymbol[signalSymbol],
+                        balanceAndRisk
+                    );
                     openPosition = {
-                        symbol,
+                        symbol: signalSymbol,
                         side: 'BUY',
                         count,
-                        quantityPerEntry,
-                        totalValue: totalPositionValue,
+                        quantityPerEntry: entryQuantityPerEntry,
+                        totalValue: roundDecimal(entryQuantityPerEntry * entryPrice * count),
                         entryPrice,
                         stopPrice,
                         entrySignal: signal,
@@ -147,21 +196,26 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
 
                 if (action === 'SELL') {
                     const count = Math.max(1, Math.round(toNumber(signal?.count, 1)));
-                    const entryPrice = toNumber(signal?.entryPrice ?? signal?.avgEntryPrice ?? signal?.expectedPriceSell, 0);
+                    const entryPrice = normalizeNumber(signal?.entryPrice ?? signal?.avgEntryPrice ?? signal?.expectedPriceSell, 0);
                     // 🔥 Usar o stop do sinal, se existir
-                    const stopPrice = toNumber(
+                    const stopPrice = normalizeNumber(
                         signal?.stop ??
                         signal?.expectedPriceStop ??
                         signal?.stopPrice ??
                         (entryPrice * 1.02),
                         0
                     );
+                    const entryQuantityPerEntry = calculateQuantityForSignal(
+                        signal,
+                        symbolInfoBySymbol[signalSymbol],
+                        balanceAndRisk
+                    );
                     openPosition = {
-                        symbol,
+                        symbol: signalSymbol,
                         side: 'SELL',
                         count,
-                        quantityPerEntry,
-                        totalValue: totalPositionValue,
+                        quantityPerEntry: entryQuantityPerEntry,
+                        totalValue: roundDecimal(entryQuantityPerEntry * entryPrice * count),
                         entryPrice,
                         stopPrice,
                         entrySignal: signal,
@@ -172,7 +226,7 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
 
                 if (!openPosition) return;
 
-                const exitPrice = toNumber(
+                const exitPrice = normalizeNumber(
                     signal?.exitPrice ??
                     signal?.partialPrice ??
                     signal?.avgExitPrice ??
@@ -196,7 +250,7 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
                         const pnl = roundDecimal((exitPrice - openPosition.entryPrice) * realizedQty);
 
                         operations.push({
-                            symbol,
+                            symbol: signalSymbol,
                             side: 'BUY',
                             count: realizedUnits,
                             quantity: roundDecimal(realizedQty),
@@ -231,7 +285,7 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
                         const pnl = roundDecimal((openPosition.entryPrice - exitPrice) * realizedQty);
 
                         operations.push({
-                            symbol,
+                            symbol: signalSymbol,
                             side: 'SELL',
                             count: realizedUnits,
                             quantity: roundDecimal(realizedQty),
@@ -254,8 +308,8 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
             });
 
             if (openPosition) {
-                perSymbol[symbol] = {
-                    symbol,
+                perSymbol[signalSymbol] = {
+                    symbol: signalSymbol,
                     openPosition,
                     openPnl: null,
                 };
@@ -536,4 +590,3 @@ export const useCalculatePositionSize = (lastSignal, signalsBySymbolState) => {
 
     return null;
 };
-

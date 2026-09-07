@@ -1,7 +1,7 @@
 // operatingData.js
 import { useContext } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ContextGraphics } from '../ContextGraphics/ContextGraphics'
+import { ContextGraphics } from '../../ContextGraphics/ContextGraphics'
 
 // ======================|FUNÇÃO PARA NORMALIZAR OS DADOS DE TENDÊNCIA|====================== //
 const normalizeTrendGroups = (trend) => {

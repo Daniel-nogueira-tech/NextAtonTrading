@@ -1,5 +1,5 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { ContextGraphics } from '../ContextGraphics/ContextGraphics';
+import { ContextGraphics } from '../../ContextGraphics/ContextGraphics';
 
 const normalizeVpprData = (vppr) => {
     if (!vppr) return [];
@@ -79,7 +79,7 @@ export const useVpprData = (vppr) => {
                 if (state.vpprHistory.length > 12) state.vpprHistory.shift();
 
                 // ====================== BANDAS DE TENDÊNCIA ======================
-                const percentage = Math.abs(vpprEma) * 0.001;
+                const percentage = Math.abs(vpprEma) * 0.05;
                 const bandTop = vpprEma + percentage;
                 const bandBottom = vpprEma - percentage;
 

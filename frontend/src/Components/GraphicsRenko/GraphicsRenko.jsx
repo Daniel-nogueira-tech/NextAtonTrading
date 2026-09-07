@@ -7,11 +7,11 @@ import { Calendar } from 'primereact/calendar';
 import { Button } from 'primereact/button';
 import MovementTables from '../MovementTables/MovementTables.jsx';
 
-import { useOperatingData } from '../../OperatingData/OperatingData.js';
-import { useOperatingDataPrimary } from '../../OperationDataPrimary/OperationDataPrimary.js';
-import { useVpprData } from '../../OperationDataVppr/OperationDataVppr.js';
-import { useAmrsiData } from '../../OperationDataAmrsi/OperationDataAmrsi.js';
-import { useOperatingInputs } from '../../OperatingInputs/OperatingInputs.js';
+import { useOperatingData } from '../../hooks/OperatingData/OperatingData.js';
+import { useOperatingDataPrimary } from '../../hooks/OperationDataPrimary/OperationDataPrimary.js';
+import { useVpprData } from '../../hooks/OperationDataVppr/OperationDataVppr.js';
+import { useAmrsiData } from '../../hooks/OperationDataAmrsi/OperationDataAmrsi.js';
+import { useOperatingInputs } from '../../hooks/OperatingInputs/OperatingInputs.js';
 
 
 
@@ -370,15 +370,6 @@ const hasInvalidDateRange = (range) => {
   return Boolean(start && end && start > end)
 }
 
-const parseFormattedDate = (date) => {
-  if (typeof date !== 'string') return null
-
-  const [day, month, year] = date.split('/').map(Number)
-  if (!day || !month || !year) return null
-
-  return new Date(year, month - 1, day)
-}
-
 const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
   const containerRef = React.useRef(null)
   const chartRef = React.useRef(null)
@@ -530,7 +521,8 @@ const GraphicsRenko = () => {
     setButtonOperation,
     isTrend,
     setIsTrend,
-    resultOperations
+    resultOperations,
+    dates, setDates
   } = React.useContext(ContextGraphics)
   const chartContainerRef = React.useRef(null);
   const chartRef = React.useRef(null);
@@ -540,10 +532,8 @@ const GraphicsRenko = () => {
   const candlestickSeriesMetaRef = React.useRef(null);
   const hadRenkoCandlesRef = React.useRef(false);
   const lastChartSymbolRef = React.useRef(activeSymbol);
-  const [dates, setDates] = React.useState(null);
   const [dateErro, setDateErro] = React.useState(null);
   const [disabledButton, setDisabledButton] = React.useState(false);
-
 
   //===================/ Chama os hooks /===================//
   const { retestPointsStateRef } = useOperatingData(trend);
@@ -1005,7 +995,7 @@ const GraphicsRenko = () => {
                 <div className='lastTrend' >
                   <h4>Vppr:</h4>
                   {lastVppr && <span className='lastTrend-primary'>
-                    {lastVppr?.major === 'MajorSell' ? 'Trend Major Sell' : 'Trend Major Buy'}
+                    {lastVppr?.major === 'MajorSell' ? 'Volume Major Sell' : 'Volume Major Buy'}
 
                     <div className='signal-circle-vppr' ></div>
                   </span>}
