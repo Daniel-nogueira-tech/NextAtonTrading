@@ -15,8 +15,8 @@ const ARRAY_KEYS = ['movements', 'result', 'prices', 'data']
 const TIME_KEYS = ['Tempo', 'time', 'closeTime', 'openTime', 'open_time']
 
 
-const DEFAULT_SNAPSHOT_WINDOW = 1200 // 1200 pontos máximo no histórico para evitar sobrecarga de memória 
-const MIN_TIMER_SPEED = 200 // Velocidade mínima: 200ms
+const DEFAULT_SNAPSHOT_WINDOW = 400 // 400 pontos máximo no histórico para evitar sobrecarga de memória 
+const MIN_TIMER_SPEED = 150 // Velocidade mínima: 200ms
 
 const createEmptySources = () => ({
   ...DEFAULT_FEEDS,
@@ -254,7 +254,7 @@ const getMaxCursor = (sources) => {
 
 // Gerencia a reprodução temporal sincronizada de múltiplos feeds de dados (preços, indicadores).
 export const useIncrementalMarketEngine = ({
-  initialSpeed = 120,
+  initialSpeed = 150,
   maxSnapshotPoints = DEFAULT_SNAPSHOT_WINDOW,
 } = {}) => {
   // Refs para armazenar o estado interno do motor sem causar re-renderizações desnecessárias
@@ -347,6 +347,7 @@ export const useIncrementalMarketEngine = ({
     localStorage.removeItem('signalsBySymbolState');
     localStorage.removeItem('resultOperations');
     localStorage.removeItem('flagsBySymbol');
+    clearInterval(timerRef.current)
     location.reload();
 
     stopTimer()

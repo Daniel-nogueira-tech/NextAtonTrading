@@ -254,7 +254,7 @@ export const useOperatingInputs = () => {
 
         // salva no localStorage
         localStorage.setItem("flagsBySymbol", JSON.stringify(flagsBySymbolRef.current));
-        
+
         // Intera sobre os indicadores para verificar entradas
         allSymbols.forEach(symbol => {
             // Inicializa flags para cada símbolo
@@ -1036,7 +1036,7 @@ export const useOperatingInputs = () => {
                     console.log(`🚪 [${symbol}] SAÍDA DE VENDA`);
                 }
             }
-            //=============================//PARCIAIS OU SAÍDAS//=============================//
+            //=============================//PARCIAIS OU SAÍDAS rsi//=============================//
             let trendUpPivotPlusLimit = lastTrend?.buy + (lastTrend?.limite * 4);
             let trendDownPivotPlusLimit = lastTrend?.sell - (lastTrend?.limite * 4);
             //🍰🟢 Parcial compra 

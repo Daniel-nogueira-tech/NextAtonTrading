@@ -998,7 +998,7 @@ export const useOperatingData = (trend) => {
       };
 
       // ======================|SAÍDA DE TENDÊNCIA|====================== //
-      if (TrendPivot && naturalRally && canExecuteRallyRef.current && state.executeTrendRally || state.executeEntrieRally || state.executeEntrieRallyReverse || state.executeEntrieRallySec || state.executeEntrieRallySec2 || state.executeEntrieRallySecException) {
+      if (TrendPivot && naturalRally && canExecuteRallyRef.current || state.executeTrendRally || state.executeEntrieRally || state.executeEntrieRallyReverse || state.executeEntrieRallySec || state.executeEntrieRallySec2 || state.executeEntrieRallySecException) {
         const limite = TrendPivot?.limite;
         const tolerance = limite / 4;
         const high = TrendPivot?.closePrice + tolerance;
@@ -1124,7 +1124,7 @@ export const useOperatingData = (trend) => {
       };
 
       // ======================|SAÍDA REAÇÃO SECUNDÁRIA|====================== //
-      if (pivoRallySecExit && rallySecundaria && canExecuteRallySecRef.current && state.executeEntrieRallySec) {
+      if (pivoRallySecExit && (rallySecundaria || naturalRally) && canExecuteRallySecRef.current && state.executeEntrieRallySec) {
         const limite = pivoRallySecExit.limite;
         const tolerance = limite / 3;
         const high = pivoRallySecExit.closePrice + tolerance;
@@ -1247,7 +1247,7 @@ export const useOperatingData = (trend) => {
       };
 
       // ======================|SAÍDA REAÇÃO SECUNDÁRIA 2 EM UMA LATERALIZAÇÃO| ====================== //
-      if (rallySecExit && rallySecundaria && canExecuteRallySecRef.current && state.executeEntrieRallySec2) {
+      if (rallySecExit && (rallySecundaria || naturalRally) && canExecuteRallySecRef.current && state.executeEntrieRallySec2) {
         const limite = rallySecExit?.limite;
         const tolerance = limite / 4;
         const high = rallySecExit?.closePrice + tolerance;
@@ -1305,7 +1305,7 @@ export const useOperatingData = (trend) => {
           };
         };
       };
-
+      console.log('lastPivotRallySec :', penultimatePivoRallySec)
       // ======================|RETEST NO PIVÔ DE RALLY NATURAL PARA REAÇÃO SECUNDÁRIO (Penultimo pivô)| ====================== //
       if (penultimatePivoRallySec && naturalReactionSec && canExecuteReactionSecRef.current && !state.executeEntriePenultimatePivoRallySec) {
         const limite = penultimatePivoRallySec?.limite;
@@ -1435,12 +1435,9 @@ export const useOperatingData = (trend) => {
         const pivotId = pivotBreak.closeTime;
         const type = pivotBreak.tipo;
 
-        const pivoBuy = pivotBreak.closePrice - (limite / 2);
-        const pivoSell = pivotBreak.closePrice + (limite / 2);
+        const pivoBuy = pivotBreak.closePrice
+        const pivoSell = pivotBreak.closePrice;
 
-        // stop abaixo(Tendência alta) ou acima(Tendência baixa) do pivot 
-        const stopPivotBuy = pivoBuy - (limite / 2);
-        const stopPivotSell = pivoSell + (limite / 2);
 
         if (state.lastBreakoutId !== pivotId) {
           state.lastBreakoutId = pivotId;
@@ -1451,7 +1448,8 @@ export const useOperatingData = (trend) => {
             setRetestPoints([
               { name: "time", value: pivotBreak.closeTime },
               { name: "type", value: "PIVOT_BREAK_BUY" },
-              { name: "limite", value: limite }
+              { name: "limite", value: limite },
+              { name: "buy", value: pivoBuy },
             ]);
             state.executeBreakout = true;
             state.executeTrendRally = false;
@@ -1471,7 +1469,8 @@ export const useOperatingData = (trend) => {
             setRetestPoints([
               { name: "time", value: pivotBreak.closeTime },
               { name: "type", value: "PIVOT_BREAK_SELL" },
-              { name: "limite", value: limite }
+              { name: "limite", value: limite },
+              { name: "sell", value: pivoSell }
             ]);
             state.executeBreakout = true;
             state.executeTrendRally = false;
@@ -1493,12 +1492,9 @@ export const useOperatingData = (trend) => {
         const pivotId = pivotRallyReturn.closeTime;
         const type = pivotRallyReturn.tipo;
 
-        const pivoBuy = pivotRallyReturn.closePrice - (limite / 2);
-        const pivoSell = pivotRallyReturn.closePrice + (limite / 2);
+        const pivoBuy = pivotRallyReturn.closePrice;
+        const pivoSell = pivotRallyReturn.closePrice;
 
-        // stop abaixo(Tendência alta) ou acima(Tendência baixa) do pivot 
-        const stopPivotBuy = pivoBuy - (limite / 2);
-        const stopPivotSell = pivoSell + (limite / 2);
 
         if (state.lastBreakoutReturnId !== pivotId) {
           state.lastBreakoutReturnId = pivotId;
@@ -1509,7 +1505,8 @@ export const useOperatingData = (trend) => {
             setRetestPoints([
               { name: "time", value: pivotRallyReturn.closeTime },
               { name: "type", value: "PIVOT_BREAK_RALLY_BUY" },
-              { name: "limite", value: limite }
+              { name: "limite", value: limite },
+              { name: "buy", value: pivoBuy },
             ]);
             state.executeBreakoutToRally = true;
 
@@ -1521,7 +1518,8 @@ export const useOperatingData = (trend) => {
             setRetestPoints([
               { name: "time", value: pivotRallyReturn.closeTime },
               { name: "type", value: "PIVOT_BREAK_RALLY-SELL" },
-              { name: "limite", value: limite }
+              { name: "limite", value: limite },
+              { name: "sell", value: pivoSell }
             ]);
             state.executeBreakoutToRally = true;
           };
@@ -1576,67 +1574,3 @@ export const useOperatingData = (trend) => {
 
 
 
-
-// dados de exemplo para teste
-export const mockStats = {
-  winRate: 60.5,
-  totalOperations: 142,
-  totalWins: 97,
-  totalLosses: 45,
-  netProfit: 3200.50,
-  netProfitPercent: 32.0,
-  averageWin: 125.00,
-  averageLoss: 68.00,
-  payoffRatio: 1.84,
-  profitFactor: 1.65,
-  expectedValue: 48.74,
-  maxDrawdown: 4.8,
-  maxConsecutiveWins: 8,
-  maxConsecutiveLosses: 4,
-  averageHoldingTime: "42m",
-};
-
-export const mockProbabilityDistribution = [
-  { range: "<-2%", count: 5, percentage: 3.5 },
-  { range: "-2% a -1%", count: 12, percentage: 8.4 },
-  { range: "-1% a 0%", count: 28, percentage: 19.7 },
-  { range: "0% a 1%", count: 45, percentage: 31.7 },
-  { range: "1% a 2%", count: 37, percentage: 26.0 },
-  { range: ">2%", count: 15, percentage: 10.7 },
-];
-
-export const mockCapitalEvolution = [
-  { time: '2026-05-01', value: 10000 },
-  { time: '2026-05-02', value: 10250 },
-  { time: '2026-05-03', value: 10120 },
-  { time: '2026-05-06', value: 10450 },
-  { time: '2026-05-07', value: 10800 },
-  { time: '2026-05-08', value: 10650 },
-  { time: '2026-05-09', value: 11100 },
-  { time: '2026-05-12', value: 11400 },
-  { time: '2026-05-13', value: 11250 },
-  { time: '2026-05-14', value: 11950 },
-  { time: '2026-05-15', value: 12300 },
-  { time: '2026-05-16', value: 12100 },
-  { time: '2026-05-19', value: 12650 },
-  { time: '2026-05-20', value: 13200 },
-];
-
-export const mockLastOperations = [
-  [
-    { name: "symbol", value: "BTCUSDT" },
-    { name: "pivo", value: 124.50 },
-    { name: "time", value: "2026-05-20 14:35:00" },
-    { name: "buy", value: 124.65 },
-    { name: "stop", value: 123.10 },
-    { name: "type", value: "pivotBreak-buy" }
-  ],
-  [
-    { name: "symbol", value: "ETHUSDT" },
-    { name: "pivo", value: 3110.00 },
-    { name: "time", value: "2026-05-20 15:10:00" },
-    { name: "buy", value: 3115.50 },
-    { name: "stop", value: 3080.00 },
-    { name: "type", value: "pivotBreak-buy" }
-  ],
-];

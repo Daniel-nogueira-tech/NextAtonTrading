@@ -112,8 +112,8 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [isTrend, setIsTrend] = React.useState(true);
 
     const incrementalEngine = useIncrementalMarketEngine({
-        initialSpeed: mode === 'simulation' ? 500 : 10,
-        maxSnapshotPoints: 1200,
+        initialSpeed: mode === 'simulation' ? 500 : 50,
+        maxSnapshotPoints: 500,
     });
     const {
         snapshot,

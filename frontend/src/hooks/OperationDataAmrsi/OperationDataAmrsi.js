@@ -165,11 +165,11 @@ export const useAmrsiData = (rsi) => {
                 } else if (state.lastSignalState === 'OVERSOLD' && amrsi >= 10) {
                     signalType = 'POTENTIAL_BUY';
                     signalSide = 'sell';
-                } else if (state.lastSignalState === 'POTENTIAL_BUY' && amrsi >= 20) {
+                } else if (state.lastSignalState === 'POTENTIAL_BUY' && amrsi >= 40) {
                     signalType = 'NEUTRAL';
                     signalSide = 'neutral';
                 }
-                else if (state.lastSignalState === 'POTENTIAL_SELL' && amrsi <= 80) {
+                else if (state.lastSignalState === 'POTENTIAL_SELL' && amrsi <= 60) {
                     signalType = 'NEUTRAL';
                     signalSide = 'neutral';
                 }
