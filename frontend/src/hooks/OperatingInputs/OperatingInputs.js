@@ -383,7 +383,7 @@ export const useOperatingInputs = () => {
                 lastPrice.Fechamento <= lastTrend?.buy &&
                 lastPrice.Fechamento >= lastTrend?.buy - lastTrend?.limite &&  //banda
                 lastVppr?.vpprTrend === 'buy' &&
-                //  lastVppr?.major === 'MajorBuy' &&
+                //lastVppr?.major === 'MajorBuy' &&
                 lastVppr?.volumeEmaSignal === 'Volume BUY Increasing' &&
                 flags.numberEntries === 0;
 
@@ -476,10 +476,9 @@ export const useOperatingInputs = () => {
                 lastPrice.Fechamento <= lastTrend?.sell + lastTrend?.limite && //Banda acima
                 lastPrice.Fechamento >= lastTrend?.sell &&
                 lastVppr?.vpprTrend === 'sell' &&
-                // lastVppr?.major === 'MajorSell' &&
+               // lastVppr?.major === 'MajorSell' &&
                 lastVppr?.volumeEmaSignal === 'Volume SELL Increasing' &&
                 flags.numberEntries === 0;
-
 
             //🔴 Entrada de venda
             if (!flags.exceededBand && flags.blockedTrendIdentity !== currentTrendIdentity) {
@@ -583,7 +582,6 @@ export const useOperatingInputs = () => {
 
             const btnExit = document.querySelector('.btn-exit');
             const shouldPulseExit = conditionExitBuyMain || conditionExitSellMain;
-            console.log(' >', flags.isOperation)
 
             if (btnExit) {
                 shouldPulseExit ? btnExit.classList.add('btn-pulse-exit') : btnExit.classList.remove('btn-pulse-exit');

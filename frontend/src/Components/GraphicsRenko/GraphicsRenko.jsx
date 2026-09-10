@@ -1161,7 +1161,7 @@ const GraphicsRenko = () => {
                       id="slider"
                       name="slider"
                       min="1"
-                      max="5"
+                      max="10"
                       value={stepLabel}
                       onChange={handleStepChange}
                     />
