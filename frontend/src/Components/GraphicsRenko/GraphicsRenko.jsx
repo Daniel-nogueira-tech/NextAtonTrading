@@ -547,11 +547,13 @@ const GraphicsRenko = () => {
   // alterna entre dados classificados de primário e secundário
   const trendCurrent = isTrend ? trend : trendPrimary;
 
-  // Pega o ultimo typo de tendencia do ativo para o (Painel)
+  // Pega o sinal para o (Painel)
   const lastTrend = getLastTrendBySymbol(activeSymbol);
   const lastTrendPrimary = getLastTrendPrimaryBySymbol(activeSymbol);
   const lastVppr = getLastVpprBySymbol(activeSymbol);
   const lastAmrsi = getLastAmrsiBySymbol(activeSymbol);
+
+  console.log('>>>>>>>>>>>>>>', vppr);
 
   // seleciona o ativo que está ativo
   const selectedMarket = React.useMemo(() => {
@@ -569,6 +571,10 @@ const GraphicsRenko = () => {
   const renkoCandles = React.useMemo(() => buildRenkoCandles(
     selectedMarket?.movements || []
   ), [selectedMarket])
+
+  const selectedVpprMacdMarket = React.useMemo(() => {
+    return selectMarketBySymbol(vppr, activeSymbol)
+  }, [vppr, activeSymbol])
 
   // Serie RSI
   const rsiSeries = React.useMemo(() => {
@@ -626,6 +632,14 @@ const GraphicsRenko = () => {
       data: buildLineData(selectedVpprMarket, 'vppr_ema'),
     },
   ]), [selectedVpprMarket])
+
+  const vpprMacdSeries = React.useMemo(() => ([
+    {
+      name: "VPPR Macd",
+      color: '#81fc5b',
+      data: buildLineData(selectedVpprMacdMarket, 'vppr_macd')
+    }
+  ]), [selectedVpprMacdMarket])
 
   React.useEffect(() => {
     if (!chartContainerRef.current) return
@@ -905,13 +919,21 @@ const GraphicsRenko = () => {
     "OVERSOLD": '#aaffaa',
     "NEUTRAL": 'gray',
   }
-
+  const colorMapVpprMacdClose = {
+    'Vppr Macd close to average': '#d9ff03',
+  }
+  const colorMapVpprMacd = {
+    'Vppr Macd SELL Increasing': 'red',
+    'Vppr Macd BUY Increasing': 'green',
+    'Vppr Macd BUY Weakly Increasing': '#aeffb2',
+    'Vppr Macd SELL Weakly Increasing': '#ffaaaa',
+  }
 
   if (lastTrend) {
     const signalColor = colorMapTrend[lastTrend?.type] || 'gray';
     document.documentElement.style.setProperty('--signal-color-trend', signalColor)
   }
-
+console.log('lastVppr>>',lastVppr)
   if (lastTrendPrimary) {
     const signalColorTrendPrimary = colorMapTrend[lastTrendPrimary?.type] || 'gray';
     document.documentElement.style.setProperty('--signal-color-trend-primary', signalColorTrendPrimary)
@@ -925,11 +947,24 @@ const GraphicsRenko = () => {
 
     const signalColorVpprEma = colorMapVolume[lastVppr?.volumeEmaSignal] || 'gray';
     document.documentElement.style.setProperty('--signal-color-vppr-ema', signalColorVpprEma)
+
+
+    const signalColorVpprMacd = colorMapVpprMacd[lastVppr?.macdVppr] || 'gray';
+    document.documentElement.style.setProperty('--signal-color-vppr-macd', signalColorVpprMacd)
+
+    const signalColormacdClose = colorMapVpprMacdClose[lastVppr?.macdCloseToAverage] || 'gray';
+    document.documentElement.style.setProperty('--signal-color-vppr-macd-close', signalColormacdClose)
+  }
+
+  if (lastAmrsi) {
+    const signalColorAmrsi = colorMapAmrsi[lastAmrsi?.type] || 'gray';
+    document.documentElement.style.setProperty('--signal-color-amrsi', signalColorAmrsi)
   }
   if (lastAmrsi) {
     const signalColorAmrsi = colorMapAmrsi[lastAmrsi?.type] || 'gray';
     document.documentElement.style.setProperty('--signal-color-amrsi', signalColorAmrsi)
   }
+
 
 
   // ====================|Função para compra e venda de operação|==================== //
@@ -973,8 +1008,8 @@ const GraphicsRenko = () => {
                 onClick={() => setIsTrend(!isTrend)}
               > {isTrend ? 'Secundary' : 'Primary'}
               </button>
-            </div>
-
+            </div> 
+            
             {/**=======================|Painel de informações do ativo|=======================| */}
             {lastTrendPrimary && lastTrend && lastVppr && (
               <div className='lastTrend-container'>
@@ -989,6 +1024,20 @@ const GraphicsRenko = () => {
                     <span className='lastTrend-type'>
                       Trend : {lastTrend?.type}
                       <div className='signal-circle-trend' ></div>
+                    </span>}
+                </div>
+
+                <div className='lastTrend'>
+                  <h4>Vppr Macd:</h4>
+                  {lastVppr &&
+                    <span className='lastTrend-primary'>
+                      {lastVppr?.macdCloseToAverage}
+                      <div className='signal-circle-vppr-macd-close'></div>
+                    </span>}
+                  {lastTrend &&
+                    <span className='lastTrend-type'>
+                      {lastVppr?.macdVppr}
+                      <div className='signal-circle-vppr-macd' ></div>
                     </span>}
                 </div>
 
@@ -1246,6 +1295,16 @@ const GraphicsRenko = () => {
               resetKey={activeSymbol}
             />
           </div>
+
+          <div className='painel-vppr'>
+            <IndicatorChart
+              title="VPPR MACD"
+              series={vpprMacdSeries}
+              emptyMessage="No VPPR Macd history available for this asset."
+              resetKey={activeSymbol}
+            />
+          </div>
+
         </aside>
       </div>
     </section >

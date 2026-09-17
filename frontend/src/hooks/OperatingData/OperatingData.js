@@ -215,6 +215,7 @@ export const useOperatingData = (trend) => {
       let naturalReaction = null;
       let naturalReactionSec = null;
       let rallySecundaria = null;
+      let naturalRally = null;
 
       // ======================|IDENTIFICA O ÚLTIMO PIVÔ EM UMA TENDENCIA QUE DEU ORIGEM A UMA REAÇÃO NATURAL|====================== // 
       const identifyHighTop = (movements) => {
@@ -237,17 +238,21 @@ export const useOperatingData = (trend) => {
             setCurrentTrendForSymbol("Tendência Alta");
             foundNaturalReaction = false;
             naturalReaction = null;
+            naturalRally = null;
           };
           if (type.includes('Tendência Baixa (venda)')) {
             setCurrentTrendForSymbol("Tendência Baixa");
             foundNaturalReaction = false;
             naturalReaction = null;
+            naturalRally = null;
           };
           // Busca reações e rally atual
           if (type.includes('Reação Natural')) {
             canExecuteReactionRef.current = true
             canExecuteRallyRef.current = false
             naturalReactionSec = null;
+            naturalRally = null;
+
           };
           if (type.includes('Rally Natural')) {
             canExecuteRallyRef.current = true
@@ -260,17 +265,31 @@ export const useOperatingData = (trend) => {
             canExecuteRallySecRef.current = true
             naturalReaction = null;
             foundNaturalReaction = false;
+            naturalRally = null;
           };
           if (type.includes('Reação secundária')) {
             canExecuteRallySecRef.current = false
             canExecuteReactionSecRef.current = true
             foundNaturalReaction = false;
             naturalReaction = null;
+            naturalRally = null;
           };
 
           // Encontra a Reação secundária
           if (type.includes('Reação secundária')) {
             naturalReactionSec = {
+              closePrice: movement.closePrice,
+              closeTime: movement.closeTime,
+              tipo: movement.tipo,
+              limite: movement.limite,
+              index: i
+            }
+            continue;
+          };
+
+          // Encontra a Rally Natural
+          if (type.includes('Rally Natural')) {
+            naturalRally = {
               closePrice: movement.closePrice,
               closeTime: movement.closeTime,
               tipo: movement.tipo,
@@ -366,7 +385,7 @@ export const useOperatingData = (trend) => {
       const identifyRetestRally = (movements) => {
         let encontrouRallyNatural = false;
         let ultimoPivoRally = false;
-        let naturalRally = null;
+        let ultimonaturalRally = null;
         let rallySecundarioOrigem = null;
         let encontrouRallySecundaria = false;
         let ultimoPivoRallySec = false;
@@ -386,7 +405,7 @@ export const useOperatingData = (trend) => {
 
           // Encontra o ultimo rally natural
           if (!encontrouRallyNatural && type.includes('Rally Natural')) {
-            naturalRally = {
+            ultimonaturalRally = {
               closePrice: movement.closePrice,
               closeTime: movement.closeTime,
               tipo: movement.tipo,
@@ -549,7 +568,7 @@ export const useOperatingData = (trend) => {
           }
         };
 
-        return { naturalRally, ultimoPivoRally, ultimoPivoRallySec, rallySecundarioOrigem, pivotRallySec, pivotRetestRallyNatural };
+        return { ultimonaturalRally, ultimoPivoRally, ultimoPivoRallySec, rallySecundarioOrigem, pivotRallySec, pivotRetestRallyNatural };
       };
 
       // ======================|ENCONTRA O ROMPIMENTO DE PIVÔ (BREAKOUT)|====================== //
@@ -603,14 +622,13 @@ export const useOperatingData = (trend) => {
 
       // Passas os objetos encontrados
       const { ultimoTopoAlta, ultimoFundoBaixa, pivoReversaoAlta, pivoReversaoBaixa } = identifyHighTop(movements);
-      let { naturalRally, ultimoPivoRally, ultimoPivoRallySec, rallySecundarioOrigem, pivotRallySec, pivotRetestRallyNatural } = identifyRetestRally(movements);
+      let {ultimoPivoRally, ultimoPivoRallySec, rallySecundarioOrigem, pivotRallySec, pivotRetestRallyNatural } = identifyRetestRally(movements);
       const { enteringTheTrend, enteringTheRallyNatural } = identifyBreakoutTrend(movements);
 
       // ======================|VERIFICA SE O VALOR EXISTE E PASSA PARA VARIÁVEL|====================== //
       let ultimoTopo = ultimoTopoAlta || null;
       let ultimoFundo = ultimoFundoBaixa || null;
       let inversion = pivoReversaoAlta || pivoReversaoBaixa || null;
-      let rally = naturalRally || null;
       let rallyPivo = ultimoPivoRally || null;
       let rallySec = ultimoPivoRallySec || null;
       let trend = enteringTheTrend || null;
@@ -919,9 +937,10 @@ export const useOperatingData = (trend) => {
               { name: "pivotExit", value: TrendPivot?.closePrice },
             ]);
             state.executeEntrieRally = true;
-            state.executeEntrieRallySec = false;
+            state.executeEntrieRallySec = true;
             state.executeBreakout = false;
             state.executeBreakoutToRally = false;
+
           };
           // 🔴 VENDA EM UM RALLY
           if (
@@ -941,7 +960,7 @@ export const useOperatingData = (trend) => {
               { name: "pivotExit", value: TrendPivot?.closePrice },
             ]);
             state.executeEntrieRally = true;
-            state.executeEntrieRallySec = false;
+            state.executeEntrieRallySec = true;
             state.executeBreakout = false;
             state.executeBreakoutToRally = false;
 
@@ -985,6 +1004,7 @@ export const useOperatingData = (trend) => {
             state.executeBreakout = false;
             state.executeBreakoutToRally = false;
             state.executeEntrieRallySecException = true;
+            state.executeEntrieRallySec = true;
           };
           // 🔴 VENDA EM UM RALLY DEPOIS DE UMA REVERSÃO
           if (
@@ -1010,6 +1030,7 @@ export const useOperatingData = (trend) => {
             state.executeBreakout = false;
             state.executeBreakoutToRally = false;
             state.executeEntrieRallySecException = true;
+            state.executeEntrieRallySec = true;
           };
         };
       };
@@ -1080,6 +1101,12 @@ export const useOperatingData = (trend) => {
         };
       };
 
+      console.log('Pivot saída:', {
+        TrendPivot: TrendPivot,
+        pivoRallySecExit: pivoRallySecExit,
+        pivoRallySecExit: pivoRallySecExit,
+        rallySecExit: rallySecExit
+      })
       // ======================|RETEST NO PIVO DE RALLY EM UMA REAÇÃO SECUNDÁRIA (pullback pós-breakout)|====================== //
       if (pivoRallyPrimary && naturalReactionSec && canExecuteReactionSecRef.current && !state.executeEntrieRallySec) {
         const limite = pivoRallyPrimary.limite;
@@ -1136,130 +1163,6 @@ export const useOperatingData = (trend) => {
             state.executeBreakout = false;
             state.executeBreakoutToRally = false;
             state.executeEntrieRallySecException = true;
-          };
-        };
-      };
-
-      // ======================|SAÍDA REAÇÃO SECUNDÁRIA|====================== //
-      if (pivoRallySecExit && rallySecundaria && canExecuteRallySecRef.current && state.executeEntrieRallySec) {
-        const limite = pivoRallySecExit.limite;
-        const tolerance = limite / 3;
-        const high = pivoRallySecExit.closePrice + tolerance;
-        const low = pivoRallySecExit.closePrice - tolerance;
-
-        const sellExit = pivoRallySecExit.closePrice - limite / 2;
-        const buyExit = pivoRallySecExit.closePrice + limite / 2;
-
-        const eventId = buildEventId(pivoRallySecExit, rallySecundaria);
-        if (eventId && state.lastSecondaryExitId !== eventId) {
-          state.lastSecondaryExitId = eventId;
-
-          // 🟢 SAÍDA DE COMPRA EM UM RALLY SECUNDÁRIO
-          if (
-            rallySecundaria &&
-            state.currentTrend === "Tendência Alta" &&
-            rallySecundaria.closePrice <= high &&
-            rallySecundaria.closePrice >= low) {
-            setRetestPoints([
-              { name: "pivot", value: pivoRallySecExit.closePrice },
-              { name: "time", value: rallySecundaria.closeTime },
-              { name: "stop", value: sellExit },
-              { name: "type", value: "PIVOT_EXIT_BUY_SEC" },
-              { name: "BandLow", value: low },
-              { name: "BandHigh", value: high }
-            ]);
-            state.executeTrendRally = false;
-            state.executeEntrieRally = false;
-            state.executeEntrieRallyReverse = false;
-            state.executeEntrieRallySec = false;
-            state.executeEntrieRallySec2 = false;
-            state.executeBreakout = false;
-            state.executeBreakoutToRally = false;
-            state.executeEntriePenultimatePivoRallySec = false;
-          };
-          // 🔴 SAÍDA DE VENDA EM UM RALLY SECUNDÁRIO
-          if (rallySecundaria &&
-            state.currentTrend === "Tendência Baixa" &&
-            rallySecundaria.closePrice >= low &&
-            rallySecundaria.closePrice <= high) {
-            setRetestPoints([
-              { name: "pivot", value: pivoRallySecExit.closePrice },
-              { name: "time", value: rallySecundaria.closeTime },
-              { name: "stop", value: buyExit },
-              { name: "type", value: "PIVOT_EXIT_SELL_SEC" },
-              { name: "BandLow", value: low },
-              { name: "BandHigh", value: high }
-            ]);
-            state.executeTrendRally = false;
-            state.executeEntrieRally = false;
-            state.executeEntrieRallyReverse = false;
-            state.executeEntrieRallySec = false;
-            state.executeEntrieRallySec2 = false;
-            state.executeBreakout = false;
-            state.executeBreakoutToRally = false;
-            state.executeEntriePenultimatePivoRallySec = false;
-          };
-        };
-      };
-
-      // ======================|SAÍDA REAÇÃO SECUNDÁRIA COM UM RALLY NATURAL|====================== //
-      if (pivoRallySecExit && naturalRally && canExecuteRallyRef.current && state.executeEntrieRallySec) {
-        const limite = pivoRallySecExit?.limite;
-        const tolerance = limite / 3;
-        const high = pivoRallySecExit.closePrice + tolerance;
-        const low = pivoRallySecExit.closePrice - tolerance;
-
-        const sellExit = pivoRallySecExit.closePrice - limite / 2;
-        const buyExit = pivoRallySecExit.closePrice + limite / 2;
-
-        const eventId = buildEventId(pivoRallySecExit, naturalRally);
-        if (eventId && state.lastSecondaryExitId !== eventId) {
-          state.lastSecondaryExitId = eventId;
-
-          // 🟢 SAÍDA DE COMPRA EM UM RALLY SECUNDÁRIO
-          if (
-            naturalRally &&
-            state.currentTrend === "Tendência Alta" &&
-            naturalRally?.closePrice <= high &&
-            naturalRally?.closePrice >= low) {
-            setRetestPoints([
-              { name: "pivot", value: pivoRallySecExit.closePrice },
-              { name: "time", value: naturalRally?.closeTime },
-              { name: "stop", value: sellExit },
-              { name: "type", value: "PIVOT_EXIT_BUY_SEC" },
-              { name: "BandLow", value: low },
-              { name: "BandHigh", value: high }
-            ]);
-            state.executeTrendRally = false;
-            state.executeEntrieRally = false;
-            state.executeEntrieRallyReverse = false;
-            state.executeEntrieRallySec = false;
-            state.executeEntrieRallySec2 = false;
-            state.executeBreakout = false;
-            state.executeBreakoutToRally = false;
-            state.executeEntriePenultimatePivoRallySec = false;
-          };
-          // 🔴 SAÍDA DE VENDA EM UM RALLY SECUNDÁRIO
-          if (naturalRally &&
-            state.currentTrend === "Tendência Baixa" &&
-            naturalRally?.closePrice >= low &&
-            naturalRally?.closePrice <= high) {
-            setRetestPoints([
-              { name: "pivot", value: pivoRallySecExit.closePrice },
-              { name: "time", value: naturalRally?.closeTime },
-              { name: "stop", value: buyExit },
-              { name: "type", value: "PIVOT_EXIT_SELL_SEC" },
-              { name: "BandLow", value: low },
-              { name: "BandHigh", value: high }
-            ]);
-            state.executeTrendRally = false;
-            state.executeEntrieRally = false;
-            state.executeEntrieRallyReverse = false;
-            state.executeEntrieRallySec = false;
-            state.executeEntrieRallySec2 = false;
-            state.executeBreakout = false;
-            state.executeBreakoutToRally = false;
-            state.executeEntriePenultimatePivoRallySec = false;
           };
         };
       };
@@ -1393,7 +1296,129 @@ export const useOperatingData = (trend) => {
           };
         };
       };
+      // ======================|SAÍDA REAÇÃO SECUNDÁRIA|====================== //
+      if (pivoRallySecExit && rallySecundaria && canExecuteRallySecRef.current && state.executeEntrieRallySec) {
+        const limite = pivoRallySecExit.limite;
+        const tolerance = limite / 3;
+        const high = pivoRallySecExit.closePrice + tolerance;
+        const low = pivoRallySecExit.closePrice - tolerance;
 
+        const sellExit = pivoRallySecExit.closePrice - limite / 2;
+        const buyExit = pivoRallySecExit.closePrice + limite / 2;
+
+        const eventId = buildEventId(pivoRallySecExit, rallySecundaria);
+        if (eventId && state.lastSecondaryExitId !== eventId) {
+          state.lastSecondaryExitId = eventId;
+
+          // 🟢 SAÍDA DE COMPRA EM UM RALLY SECUNDÁRIO
+          if (
+            rallySecundaria &&
+            state.currentTrend === "Tendência Alta" &&
+            rallySecundaria.closePrice <= high &&
+            rallySecundaria.closePrice >= low) {
+            setRetestPoints([
+              { name: "pivot", value: pivoRallySecExit.closePrice },
+              { name: "time", value: rallySecundaria.closeTime },
+              { name: "stop", value: sellExit },
+              { name: "type", value: "PIVOT_EXIT_BUY_SEC" },
+              { name: "BandLow", value: low },
+              { name: "BandHigh", value: high }
+            ]);
+            state.executeTrendRally = false;
+            state.executeEntrieRally = false;
+            state.executeEntrieRallyReverse = false;
+            state.executeEntrieRallySec = false;
+            state.executeEntrieRallySec2 = false;
+            state.executeBreakout = false;
+            state.executeBreakoutToRally = false;
+            state.executeEntriePenultimatePivoRallySec = false;
+          };
+          // 🔴 SAÍDA DE VENDA EM UM RALLY SECUNDÁRIO
+          if (rallySecundaria &&
+            state.currentTrend === "Tendência Baixa" &&
+            rallySecundaria.closePrice >= low &&
+            rallySecundaria.closePrice <= high) {
+            setRetestPoints([
+              { name: "pivot", value: pivoRallySecExit.closePrice },
+              { name: "time", value: rallySecundaria.closeTime },
+              { name: "stop", value: buyExit },
+              { name: "type", value: "PIVOT_EXIT_SELL_SEC" },
+              { name: "BandLow", value: low },
+              { name: "BandHigh", value: high }
+            ]);
+            state.executeTrendRally = false;
+            state.executeEntrieRally = false;
+            state.executeEntrieRallyReverse = false;
+            state.executeEntrieRallySec = false;
+            state.executeEntrieRallySec2 = false;
+            state.executeBreakout = false;
+            state.executeBreakoutToRally = false;
+            state.executeEntriePenultimatePivoRallySec = false;
+          };
+        };
+      };
+
+      // ======================|SAÍDA REAÇÃO SECUNDÁRIA COM UM RALLY NATURAL|====================== //
+      if (pivoRallySecExit && naturalRally && canExecuteRallyRef.current && state.executeEntrieRallySec) {
+        const limite = pivoRallySecExit?.limite;
+        const tolerance = limite / 3;
+        const high = pivoRallySecExit.closePrice + tolerance;
+        const low = pivoRallySecExit.closePrice - tolerance;
+
+        const sellExit = pivoRallySecExit.closePrice - limite / 2;
+        const buyExit = pivoRallySecExit.closePrice + limite / 2;
+
+        const eventId = buildEventId(pivoRallySecExit, naturalRally);
+        if (eventId && state.lastSecondaryExitId !== eventId) {
+          state.lastSecondaryExitId = eventId;
+
+          // 🟢 SAÍDA DE COMPRA EM UM RALLY SECUNDÁRIO
+          if (
+            naturalRally &&
+            state.currentTrend === "Tendência Alta" &&
+            naturalRally?.closePrice <= high &&
+            naturalRally?.closePrice >= low) {
+            setRetestPoints([
+              { name: "pivot", value: pivoRallySecExit.closePrice },
+              { name: "time", value: naturalRally?.closeTime },
+              { name: "stop", value: sellExit },
+              { name: "type", value: "PIVOT_EXIT_BUY_SEC" },
+              { name: "BandLow", value: low },
+              { name: "BandHigh", value: high }
+            ]);
+            state.executeTrendRally = false;
+            state.executeEntrieRally = false;
+            state.executeEntrieRallyReverse = false;
+            state.executeEntrieRallySec = false;
+            state.executeEntrieRallySec2 = false;
+            state.executeBreakout = false;
+            state.executeBreakoutToRally = false;
+            state.executeEntriePenultimatePivoRallySec = false;
+          };
+          // 🔴 SAÍDA DE VENDA EM UM RALLY SECUNDÁRIO
+          if (naturalRally &&
+            state.currentTrend === "Tendência Baixa" &&
+            naturalRally?.closePrice >= low &&
+            naturalRally?.closePrice <= high) {
+            setRetestPoints([
+              { name: "pivot", value: pivoRallySecExit.closePrice },
+              { name: "time", value: naturalRally?.closeTime },
+              { name: "stop", value: buyExit },
+              { name: "type", value: "PIVOT_EXIT_SELL_SEC" },
+              { name: "BandLow", value: low },
+              { name: "BandHigh", value: high }
+            ]);
+            state.executeTrendRally = false;
+            state.executeEntrieRally = false;
+            state.executeEntrieRallyReverse = false;
+            state.executeEntrieRallySec = false;
+            state.executeEntrieRallySec2 = false;
+            state.executeBreakout = false;
+            state.executeBreakoutToRally = false;
+            state.executeEntriePenultimatePivoRallySec = false;
+          };
+        };
+      };
       // ======================|SAÍDA REAÇÃO SECUNDÁRIA 2 EM UMA LATERALIZAÇÃO| ====================== //
       if (rallySecExit && rallySecundaria && canExecuteRallySecRef.current && state.executeEntrieRallySec2) {
         const limite = rallySecExit?.limite;
@@ -1454,64 +1479,7 @@ export const useOperatingData = (trend) => {
         };
       };
 
-      if (rallySecExit && naturalRally && canExecuteRallyRef.current && state.executeEntrieRally) {
-        const limite = rallySecExit?.limite;
-        const tolerance = limite / 4;
-        const high = rallySecExit?.closePrice + tolerance;
-        const low = rallySecExit?.closePrice - tolerance;
-        const sellExit = rallySecExit?.closePrice - limite / 2;
-        const buyExit = rallySecExit?.closePrice + limite / 2;
 
-        const eventId = buildEventId(rallySecExit, naturalRally);
-        if (eventId && state.lastRallyExitId !== eventId) {
-          state.lastRallyExitId = eventId;
-          // 🟢 Saída de compra de retest
-          if (
-            naturalRally &&
-            state.currentTrend === "Tendência Alta" &&
-            naturalRally?.closePrice <= high &&
-            naturalRally?.closePrice >= low) {
-            setRetestPoints([
-              { name: "pivot", value: rallySecExit?.closePrice },
-              { name: "time", value: naturalRally?.closeTime },
-              { name: "stop", value: sellExit },
-              { name: "type", value: "PIVOT_EXIT_BUY_SEC" },
-              { name: "BandLow", value: low },
-              { name: "BandHigh", value: high }
-            ]);
-            state.executeTrendRally = false;
-            state.executeEntrieRally = false;
-            state.executeEntrieRallyReverse = false;
-            state.executeEntrieRallySec = false;
-            state.executeEntrieRallySec2 = false;
-            state.executeBreakout = false;
-            state.executeBreakoutToRally = false;
-            state.executeEntriePenultimatePivoRallySec = false;
-          };
-          // 🔴 Saída de venda de retest
-          if (naturalRally &&
-            state.currentTrend === "Tendência Baixa" &&
-            naturalRally?.closePrice >= low &&
-            naturalRally?.closePrice <= high) {
-            setRetestPoints([
-              { name: "pivot", value: rallySecExit.closePrice },
-              { name: "time", value: naturalRally?.closeTime },
-              { name: "stop", value: buyExit },
-              { name: "type", value: "PIVOT_EXIT_SELL_SEC" },
-              { name: "BandLow", value: low },
-              { name: "BandHigh", value: high }
-            ]);
-            state.executeTrendRally = false;
-            state.executeEntrieRally = false;
-            state.executeEntrieRallyReverse = false;
-            state.executeEntrieRallySec = false;
-            state.executeEntrieRallySec2 = false;
-            state.executeBreakout = false;
-            state.executeBreakoutToRally = false;
-            state.executeEntriePenultimatePivoRallySec = false;
-          };
-        };
-      };
 
       // ======================|RETEST NO PIVÔ DE RALLY NATURAL PARA REAÇÃO SECUNDÁRIO (Penultimo pivô)| ====================== //
       if (penultimatePivoRallySec && naturalReactionSec && canExecuteReactionSecRef.current && !state.executeEntriePenultimatePivoRallySec) {
@@ -1759,7 +1727,7 @@ export const useOperatingData = (trend) => {
       }));
 
     retestPointsStateRef.current = operationsArray
-    console.log('retestPointsStateRef.current >',retestPointsStateRef.current)
+    console.log('retestPointsStateRef.current >', retestPointsStateRef.current)
 
 
   }, [trendGroups]);

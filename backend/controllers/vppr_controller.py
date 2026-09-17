@@ -65,18 +65,19 @@ def _get_accumulation_period_key(kline, accumulation_period):
 
 # Calcula Vppr
 def calculate_vppr(klines, accumulation_period="month"):
-    if accumulation_period not in ("week", "month"):
-        raise ValueError("accumulation_period deve ser 'week' ou 'month'")
+    if accumulation_period not in ("week", "month", "all"):
+        raise ValueError("accumulation_period deve ser 'week', 'month' ou 'all'")
 
     vppr_values = []
     vppr_acumulado = 0
     current_period = None
 
     for i, k in enumerate(klines):
-        candle_period = _get_accumulation_period_key(k, accumulation_period)
-        if candle_period != current_period:
-            vppr_acumulado = 0
-            current_period = candle_period
+        if accumulation_period != "all":
+            candle_period = _get_accumulation_period_key(k, accumulation_period)
+            if candle_period != current_period:
+                vppr_acumulado = 0
+                current_period = candle_period
 
         open_price = _get_open(k)
         close_price = _get_close(k)
@@ -92,6 +93,19 @@ def calculate_vppr(klines, accumulation_period="month"):
         vppr_values.append(vppr_acumulado)
 
     return vppr_values
+
+
+def _calculate_vppr_macd(vppr_values):
+    """Retorna a linha MACD normalizada do próprio VPPR para cada candle."""
+    if not vppr_values:
+        return []
+
+    vppr_series = pd.Series(vppr_values)
+    fast_ema = vppr_series.ewm(span=10, adjust=False).mean()
+    slow_ema = vppr_series.ewm(span=200, adjust=False).mean()
+    macd_line = fast_ema - slow_ema
+    return macd_line.astype(float).tolist()
+
 
 def _get_vppr_single(symbol, modo="real", time="15m", total=5000, accumulation_period="month"):
 
@@ -113,6 +127,7 @@ def _get_vppr_single(symbol, modo="real", time="15m", total=5000, accumulation_p
     vppr_series = pd.Series(vppr_values)
     # EMA do VPPR
     vppr_ema = vppr_series.ewm(span=200, adjust=False).mean() # calcula média móvel exponencial com período de 96 (1 dia para gráficos de 15m)
+    vppr_macd = _calculate_vppr_macd(vppr_values)
 
     # formatar datas e price
     result = []
@@ -122,6 +137,7 @@ def _get_vppr_single(symbol, modo="real", time="15m", total=5000, accumulation_p
                 "time": _get_time(k),
                 "vppr": round(vppr_values[i], 2),
                 "vppr_ema": round(vppr_ema.iloc[i], 2),
+                "vppr_macd": round(vppr_macd[i], 2) if i < len(vppr_macd) else None,
                 "open": round(_get_open(k), 2),
                 "close": round(_get_close(k), 2),
                 "volume": round(_get_volume(k), 2),
@@ -135,8 +151,8 @@ def get_vppr(symbols=None, symbol=None, modo="real", time="15m", accumulation_pe
 
     if modo not in ["real", "simulation"]:
         raise ValueError("modo deve ser 'real' ou 'simulation'")
-    if accumulation_period not in ("week", "month"):
-        raise ValueError("accumulation_period deve ser 'week' ou 'month'")
+    if accumulation_period not in ("week", "month", "all"):
+        raise ValueError("accumulation_period deve ser 'week', 'month' ou 'all'")
 
     symbols_input = symbols if symbols is not None else symbol
 

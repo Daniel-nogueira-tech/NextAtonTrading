@@ -158,7 +158,7 @@ export const useOperatingInputs = () => {
     );
 
     const vppr = useMemo(
-        () => normalizeCollection(vpprDataRef.current, "VPPR", ["type", "vpprTrend", "time", "major", "volumeEmaSignal"], "signals"),
+        () => normalizeCollection(vpprDataRef.current, "VPPR", ["type", "vpprTrend", "time", "major", "volumeEmaSignal", "macdCloseToAverage", "macdVppr"], "signals"),
         [vpprDataRef.current]
     );
 
@@ -293,8 +293,9 @@ export const useOperatingInputs = () => {
             const lastPrice = lastPriceArray[lastPriceArray.length - 1];
 
 
+            console.log('lastVppr:', lastVppr)
             // Verifica se os dados necessários existem
-            if (!lastTrend || !lastTrendPrimary || !lastPrice) {
+            if (!lastTrend || !lastTrendPrimary || !lastPrice || !lastVppr || !lastAmrsi) {
                 console.log(`⚠️ [${symbol}] Dados insuficientes:`, {
                     lastTrend: !!lastTrend,
                     lastTrendPrimary: !!lastTrendPrimary,
@@ -349,7 +350,7 @@ export const useOperatingInputs = () => {
                 flags.exceededBand = false;
                 flags.blockedTrendIdentity = null;
             }
-
+ 
             const isTrendBlocked = flags.blockedTrendIdentity === currentTrendIdentity;
             const { low: bandLow, high: bandHigh } = getTrendBandBounds(lastTrend);
             const isOutsideBand = lastTrend && Number.isFinite(bandLow) && Number.isFinite(bandHigh)
@@ -392,8 +393,8 @@ export const useOperatingInputs = () => {
             if (!flags.exceededBand && flags.blockedTrendIdentity !== currentTrendIdentity) {
 
                 const conditionBuy =
-                    conditionBuyMain /*&&
-                    buttonOperation.buy*/
+                    conditionBuyMain &&
+                    buttonOperation.buy
 
                 // ***Muda as  classe dos butão
                 const btnBuy = document.querySelector('.btn-buy');
@@ -476,7 +477,7 @@ export const useOperatingInputs = () => {
                 lastPrice.Fechamento <= lastTrend?.sell + lastTrend?.limite && //Banda acima
                 lastPrice.Fechamento >= lastTrend?.sell &&
                 lastVppr?.vpprTrend === 'sell' &&
-               // lastVppr?.major === 'MajorSell' &&
+                // lastVppr?.major === 'MajorSell' &&
                 lastVppr?.volumeEmaSignal === 'Volume SELL Increasing' &&
                 flags.numberEntries === 0;
 
@@ -487,13 +488,11 @@ export const useOperatingInputs = () => {
                 conditionSellMain ? btnSell.classList.add('btn-pulse-sell') : btnSell.classList.remove('btn-pulse-sell');
 
                 const conditionSell =
-                    conditionSellMain /*&&
-                    buttonOperation.sell*/
+                    conditionSellMain &&
+                    buttonOperation.sell
 
 
                 if (conditionSell) {
-
-
                     const newSignal = {
                         symbol,
                         action: "SELL",
