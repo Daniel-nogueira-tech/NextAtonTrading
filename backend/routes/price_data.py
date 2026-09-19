@@ -1,5 +1,7 @@
 from controllers.price_data_controller import get_price_data
 from flask import Blueprint, jsonify, request
+from data_service.data_service import data_service
+
 
 price_data_bp = Blueprint('price_data', __name__)
 
@@ -10,7 +12,10 @@ def get_price_data_route():
     time = request.args.get('time', '15m')
     mode = request.args.get('mode', 'real')
 
-    print("recebido mode:",mode)
 
-    price_data = get_price_data(mode=mode, symbol=symbol, time=time)
+    price_data = data_service.add_price(
+        mode=mode, 
+        symbol=symbol, 
+        time=time
+        )
     return jsonify(price_data)

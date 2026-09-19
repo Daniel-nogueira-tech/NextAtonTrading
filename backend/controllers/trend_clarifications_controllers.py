@@ -5,7 +5,6 @@ from controllers.symbols_controller import get_stored_symbols
 from controllers.data_to_simulation_controllers import get_klines_data_simulation
 
 
-
 # Função para calcular o ATR móvel
 def calculate_atr_wilder(symbol, interval="15m", period=182):
     if period is None or period <= 0:
@@ -1279,6 +1278,15 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 10000):
                     )
                     added_movement = True
 
+    indicator_values = calculate_macd_ema(closes)
+    indicators_by_time = {
+        timestamp: indicator_values[index]
+        for index, timestamp in enumerate(timestamps)
+    }
+
+    for movement in movements:
+        movement.update(indicators_by_time.get(movement["closeTime"], {}))
+
     # Cria lista de tuplas para bulk insert
     movements_to_save = []
     for p in movements:
@@ -1288,10 +1296,8 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 10000):
         atr = p["limite"]
 
         movements_to_save.append((date, price, type, atr))
-    # Salva todos os dados de uma vez
-     
-    # devolve também confirmações para o frontend
-    return movements 
+    # Mantém o formato original e adiciona a classificação de cada movimento.
+    return movements
 
 def trend_clarifications_atr(symbols, time="15m", mode="real"):
     default_symbols = get_stored_symbols()
@@ -1333,3 +1339,52 @@ def trend_clarifications_atr(symbols, time="15m", mode="real"):
 
     return results
 
+
+# Calcula EMA e MACD usando os fechamentos dos candles.
+def calculate_macd_ema(
+    closes,
+    fast_period=72,
+    slow_period=144,
+    signal_period=9,
+    ema_period=50,
+):
+    periods = {
+        "fast_period": fast_period,
+        "slow_period": slow_period,
+        "signal_period": signal_period,
+        "ema_period": ema_period,
+    }
+    if any(period is None or period <= 0 for period in periods.values()):
+        raise ValueError("Os períodos de EMA e MACD devem ser positivos")
+
+    prices = [float(close) for close in closes]
+
+    def calculate_ema(values, period):
+        if not values:
+            return []
+
+        multiplier = 2 / (period + 1)
+        ema_values = [values[0]]
+        for value in values[1:]:
+            ema_values.append(
+                (value - ema_values[-1]) * multiplier + ema_values[-1]
+            )
+        return ema_values
+
+    fast_ema = calculate_ema(prices, fast_period)
+    slow_ema = calculate_ema(prices, slow_period)
+    macd = [fast - slow for fast, slow in zip(fast_ema, slow_ema)]
+    signal = calculate_ema(macd, signal_period)
+    ema = calculate_ema(prices, ema_period)
+
+    return [
+        {
+            "ema": ema[index],
+            "ema_fast": fast_ema[index],
+            "ema_slow": slow_ema[index],
+            "macd": macd[index],
+            "macd_signal": signal[index],
+            "macd_histogram": macd[index] - signal[index],
+        }
+        for index in range(len(prices))
+    ]

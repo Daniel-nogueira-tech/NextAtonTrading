@@ -152,7 +152,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 15000):
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    verify_time_multiply = 16
+    verify_time_multiply = 12 #16
     atr_period = 182
 
 
@@ -1296,7 +1296,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 15000):
     # devolve também confirmações para o frontend
     return movements 
 
-def trend_clarifications_atr(symbols, time="5m", mode="real"):
+def trend_primary_clarifications_atr(symbols, time="5m", mode="real"):
     default_symbols = get_stored_symbols()
 
     if symbols is None or symbols == "":

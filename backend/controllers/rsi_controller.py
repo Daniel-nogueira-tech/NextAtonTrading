@@ -7,7 +7,6 @@ from controllers.data_to_simulation_controllers import get_klines_data_simulatio
 from controllers.trend_clarifications_controllers import trend_clarifications_atr
 
 
-
 # Funcao para calcular o RSI
 def calculate_rsi(closes, period=14):
     series = pd.Series(closes)
@@ -156,6 +155,7 @@ def get_rsi(symbols=None, symbol=None, period=15, media_period=15, mode=""):
 
     def calculate_symbol(index_symbol):
         index, current_symbol = index_symbol
+        
         result = _get_rsi_single(
             symbol=current_symbol,
             period=period,
@@ -176,5 +176,3 @@ def get_rsi(symbols=None, symbol=None, period=15, media_period=15, mode=""):
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         return list(executor.map(calculate_symbol, enumerate(symbols_to_process)))
 
-
-# print("RSI:", get_rsi(symbol="BTCUSDT", period=14, media_period=6, mode=None))

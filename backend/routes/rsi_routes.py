@@ -1,5 +1,5 @@
-from controllers.rsi_controller import get_rsi
 from flask import Blueprint, jsonify, request
+from data_service.data_service import data_service
 
 rsi_bp = Blueprint('rsi', __name__)
 
@@ -13,7 +13,7 @@ def rsi_route():
             symbols = request.args.get('symbol')
 
         period = int(request.args.get('period', 10)) # 16
-        media_period = int(request.args.get('media_period', 10)) # 16
+        media_period = int(request.args.get('media_period', 10)) #16
         mode = request.args.get('mode', '')
 
         # verificações básicas dos parâmetros
@@ -26,7 +26,7 @@ def rsi_route():
         if mode not in ["real", "simulation"]:
             raise ValueError("mode deve ser 'real' ou 'simulation'")    
 
-        rsi_data = get_rsi(
+        rsi_data = data_service.add_rsi(
             symbols=symbols,
             period=period,
             media_period=media_period,

@@ -1,5 +1,6 @@
-from controllers.trend_primary_clarifications_controllers import trend_clarifications_atr
 from flask import Blueprint, jsonify, request
+from data_service.data_service import data_service
+
 
 trend_pri_bp = Blueprint('trend-primary', __name__)
 
@@ -26,7 +27,7 @@ def get_trend():
           return jsonify({"error": "mode deve ser 'real' ou 'simulation'"}), 400
 
        # Chama a função principal do controller para obter as clarificações de tendência
-        result = trend_clarifications_atr(symbols, time, mode)
+        result = data_service.add_trend_primary(symbols, time, mode)
 
         return jsonify(result)
 

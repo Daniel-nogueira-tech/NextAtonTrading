@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
-from controllers.vppr_controller import get_vppr
+from data_service.data_service import data_service
+
 
 vppr_bp = Blueprint("vppr", __name__)
 
@@ -14,7 +15,7 @@ def get_vppr_route():
 
         time = request.args.get("time", "15m")
         modo = request.args.get("modo") or request.args.get("mode", "real")
-        accumulation_period = request.args.get("accumulation_period", "all") # "week", "month", "all"
+        accumulation_period = request.args.get("accumulation_period", "month") # "week", "month", "all"
 
         if symbols is not None and not isinstance(symbols, (str, list)):
             raise ValueError("symbols deve ser uma string ou uma lista válida")
@@ -25,7 +26,7 @@ def get_vppr_route():
         if accumulation_period not in ["week", "month", "all"]:
             raise ValueError("accumulation_period deve ser 'week', 'month' ou 'all'")
 
-        vppr_data = get_vppr(
+        vppr_data = data_service.add_vppr(
             symbols=symbols,
             time=time,
             modo=modo,
