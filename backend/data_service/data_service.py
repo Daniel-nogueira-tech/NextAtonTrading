@@ -1,3 +1,5 @@
+import unicodedata
+
 import pandas as pd
 from controllers.rsi_controller import get_rsi
 from controllers.vppr_controller import get_vppr
@@ -19,8 +21,21 @@ class DataService:
             media_period=media_period,
             mode=mode
         )
-        # supondo que result seja lista de dicts
-        self.dados["RSI"] = result
+        # adiciona classificação baseada no valor do RSI
+        for block in result:
+        # cada bloco tem uma lista em "result"
+          if "result" in block and isinstance(block["result"], list):
+            for row in block["result"]:
+                rsi_val = row.get("rsi")
+                if rsi_val is not None:
+                    if rsi_val >= 70:
+                        row["rsi_signal"] = 0   # sobrecompra
+                    elif rsi_val <= 30:
+                        row["rsi_signal"] = 1   # sobrevenda
+                    else:
+                        row["rsi_signal"] = None  # zona neutra
+
+        self.dados["RSI"] = result[-1]
         return result
 
     def add_vppr(self, symbols=None, time=None, modo="", accumulation_period=None):
@@ -30,7 +45,21 @@ class DataService:
             modo=modo,
             accumulation_period=accumulation_period,
         )
+        for block in result:
+            if result:
+                for row in block["result"]:
+                   vppr_val = row.get("vppr")
+                   vppr_ema_val = row.get("vppr_ema")
+                   if vppr_val and vppr_ema_val is not None:
+                        if vppr_val > (vppr_ema_val + (vppr_ema_val * 0.02)):
+                            row["vppr_signal"] = 1 # Acima da Média
+                        elif vppr_val < (vppr_ema_val - (vppr_ema_val * 0.02)):
+                            row["vppr_signal"] = 0 #Abaixo da média
+                        else:
+                            row["vppr_signal"] = None #zona neutra
+                           
         self.dados["VPPR"] = result
+
         return result
 
     def add_trend(self, symbols=None, time=None, mode=""):
@@ -46,6 +75,16 @@ class DataService:
     def add_price(self, mode="", symbol=None, time=None):
         result = get_price_data(mode=mode, symbol=symbol, time=time)
         self.dados[f"PRICE_{symbol}"] = result
+
+        for row in result[:3]:
+        # mostra apenas algumas chaves
+          print({ 
+            "Tempo": row.get("Tempo"),
+            "Abertura": row.get("Abertura"),
+            "Fechamento": row.get("Fechamento"),
+            "Volume": row.get("Volume")
+          })
+    
         return result   
 
     def indicators(self):
@@ -53,11 +92,27 @@ class DataService:
 
     def indicators_dataframe(self):
         rows = {}
+        price_columns = {
+            "close": "Fechamento",
+            "closePrice": "Fechamento",
+            "open": "Abertura",
+            "high": "Maximo",
+            "low": "Minimo",
+            "volume": "Volume",
+        }
+
         # dicionário de mapeamento dos tipos
-        def add_row(symbol, timestamp, values):
+        def add_row(symbol, timestamp, values, is_price=False):
             key = (symbol, timestamp)
             row = rows.setdefault(key, {"symbol": symbol, "time": timestamp})
-            row.update(values)
+            for column_name, item in values.items():
+                # O fechamento oficial vem sempre do candle de preço. Um
+                # indicador nunca pode substituir essa coluna ao mesclar.
+                if column_name == "Fechamento" and not is_price:
+                    continue
+                if column_name == "Fechamento" and "Fechamento" in row and not is_price:
+                    continue
+                row[column_name] = item
 
         def collect(value, feature_name, symbol=None):
             if isinstance(value, list):
@@ -74,10 +129,11 @@ class DataService:
                 collect(movements, feature_name, current_symbol)
                 return
 
-            result = value.get("result")
-            if result is not None:
-                collect(result, feature_name, current_symbol)
-                return
+            for nested_key in ("result", "prices"):
+                nested_value = value.get(nested_key)
+                if nested_value is not None:
+                    collect(nested_value, feature_name, current_symbol)
+                    return
 
             timestamp = (
                 value.get("time")
@@ -88,12 +144,28 @@ class DataService:
             if timestamp is None:
                 return
 
-            features = {
-                key: item
-                for key, item in value.items()
-                if key not in {"time", "tempo", "Tempo", "closeTime", "symbol", "index", "tipo"}
-                and isinstance(item, (int, float, bool))
-            }
+            features = {}
+            for key, item in value.items():
+                if key in {"time", "tempo", "Tempo", "closeTime", "symbol", "index", "tipo"}:
+                    continue
+                if not isinstance(item, (int, float, bool)):
+                    continue
+
+                # Trend and trend-primary expose the same field names. Keep
+                # both values instead of letting the later indicator replace
+                # the earlier one in the merged candle.
+                column_name = key
+                is_price = feature_name.startswith("PRICE_")
+                if is_price:
+                    column_name = price_columns.get(key, key)
+                elif feature_name == "VPPR" and key == "close":
+                    column_name = "close_VPPR"
+                if feature_name in {"TREND", "TREND_PRIMARY"}:
+                    if key == "closePrice":
+                        column_name = f"trendPrice_{feature_name}"
+                    else:
+                        column_name = f"{key}_{feature_name}"
+                features[column_name] = item
             type_val = value.get("tipo")
 
             if type_val:
@@ -102,15 +174,16 @@ class DataService:
                     type_base = type_val.split("(")[0].strip()
                 else:
                     type_base = type_val.strip()
+                type_base = unicodedata.normalize("NFC", type_base).casefold()
 
                 # mapeamento simplificado
                 type_map = {
-                    "Tendência Alta": 1,
-                    "Tendência Baixa": 0,
-                    "Reação Natural": 2,
-                    "Rally Natural": 3,
-                    "Reação secundária": 2,
-                    "Rally secundário": 3,
+                    "tendência alta": 1,
+                    "tendência baixa": 0,
+                    "reação natural": 2,
+                    "rally natural": 3,
+                    "reação secundária": 2,
+                    "rally secundário": 3,
                 }
 
                 if type_base in type_map:
@@ -119,15 +192,22 @@ class DataService:
 
 
             if features and current_symbol is not None:
-                add_row(current_symbol, timestamp, features)
+                add_row(
+                    current_symbol,
+                    timestamp,
+                    features,
+                    is_price=feature_name.startswith("PRICE_"),
+                )
 
         for feature_name, value in self.dados.items():
             collect(value, feature_name)
 
         df = pd.DataFrame(rows.values())
 
-        # remove linhas com valores nulos
-        df = df.dropna()
+        # Mantém todos os candles de preço; indicadores de evento, como as
+        # tendências, só existem nos timestamps em que um movimento ocorreu.
+        if "Fechamento" in df.columns:
+            df = df.dropna(subset=["Fechamento"])
 
         return df
 

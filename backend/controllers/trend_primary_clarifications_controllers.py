@@ -2,7 +2,8 @@ from utils.klines import get_klines, format_raw_data
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from controllers.symbols_controller import get_stored_symbols
-from controllers.data_to_simulation_controllers import get_klines_data_simulation_primary, get_klines_data_simulation
+from controllers.data_to_simulation_controllers import get_klines_data_simulation
+from controllers.pivot_controller import pivots_classification
 
 
 
@@ -134,6 +135,9 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 15000):
         # Garante que a sequência de candles esteja ordenada pelo tempo para manter ATR e classificação sincronizados
         data = sorted(data, key=lambda x: x["Tempo"])   
 
+    except ValueError as e:
+        print(f"❌ Erro ao buscar klines de {symbol}: {str(e)}")
+        raise
     except Exception as e:
         print(f"❌ Erro ao buscar klines de {symbol}: {str(e)}")
         raise Exception(f"Erro ao buscar klines de {symbol}: {str(e)}")
@@ -148,11 +152,11 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 15000):
     # Isso evita uma segunda chamada à Binance para o mesmo ativo.
     atrs = calculate_atr_wilder_from_data(data, period=182)
     print(f"✅ ATRs calculados: {len(atrs) if atrs else 0}")
-    
+     
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    verify_time_multiply = 12 #16
+    verify_time_multiply = 3 #4
     atr_period = 182
 
 
@@ -1281,6 +1285,11 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 15000):
                         }
                     )
                     added_movement = True
+
+    # Passa os dados para encontra pivôs
+   # point_pivot = pivots_classification(movements)
+    #for p in point_pivot:
+    #    print(p)
 
     # Cria lista de tuplas para bulk insert
     movements_to_save = []

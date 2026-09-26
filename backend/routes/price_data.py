@@ -18,4 +18,5 @@ def get_price_data_route():
         symbol=symbol, 
         time=time
         )
+
     return jsonify(price_data)

@@ -47,3 +47,4 @@ def format_raw_data(raw_data):
         formatted_data.append(data)
 
     return formatted_data
+ 

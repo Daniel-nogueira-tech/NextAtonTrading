@@ -117,6 +117,17 @@ const buildLineData = (market, valueKey) => {
     .filter((point) => Number.isFinite(point.value))
 }
 
+const buildMovementLineData = (market, valueKey) => {
+  const movements = Array.isArray(market?.movements) ? market.movements : []
+
+  return movements
+    .map((movement, index) => ({
+      time: parseChartTime(movement?.closeTime, index),
+      value: Number(movement?.[valueKey]),
+    }))
+    .filter((point) => Number.isFinite(point.value))
+}
+
 const buildReferenceLineData = (baseData, value) => {
   return baseData.map((point) => ({
     time: point.time,
@@ -543,6 +554,7 @@ const GraphicsRenko = () => {
   const { signalsBySymbol, getLastTrendBySymbol, getLastTrendPrimaryBySymbol, getLastVpprBySymbol, getLastAmrsiBySymbol } = useOperatingInputs();
   //===================//===================//
 
+  console.log('trend',trend)
 
   // alterna entre dados classificados de primário e secundário
   const trendCurrent = isTrend ? trend : trendPrimary;
@@ -552,8 +564,6 @@ const GraphicsRenko = () => {
   const lastTrendPrimary = getLastTrendPrimaryBySymbol(activeSymbol);
   const lastVppr = getLastVpprBySymbol(activeSymbol);
   const lastAmrsi = getLastAmrsiBySymbol(activeSymbol);
-
-  console.log('>>>>>>>>>>>>>>', vppr);
 
   // seleciona o ativo que está ativo
   const selectedMarket = React.useMemo(() => {
@@ -572,10 +582,11 @@ const GraphicsRenko = () => {
     selectedMarket?.movements || []
   ), [selectedMarket])
 
-  const selectedVpprMacdMarket = React.useMemo(() => {
-    return selectMarketBySymbol(vppr, activeSymbol)
-  }, [vppr, activeSymbol])
+  const selectedMacdMarket = React.useMemo(() => {
+    return selectMarketBySymbol(trendCurrent, activeSymbol)
+  }, [trendCurrent, activeSymbol])
 
+  console.log('selectedMacdMarket',selectedMacdMarket)
   // Serie RSI
   const rsiSeries = React.useMemo(() => {
     const rsiData = buildLineData(selectedRsiMarket, 'rsi')
@@ -583,17 +594,18 @@ const GraphicsRenko = () => {
     const referenceBaseData = rsiData.length > 0 ? rsiData : rsiMaData
 
     return [
-      /*{
+      {
         name: 'RSI',
-        color: '#f4c542',
+        color: '#a1f442',
         data: rsiData,
-      }, */
+      }, 
+      /*
       {
         name: 'Media',
         color: '#cda1ff',
         lineWidth: 1,
         data: rsiMaData,
-      },
+      },*/
       {
         name: '70',
         color: 'rgba(242, 54, 69, 0.72)',
@@ -633,14 +645,27 @@ const GraphicsRenko = () => {
     },
   ]), [selectedVpprMarket])
 
-  const vpprMacdSeries = React.useMemo(() => ([
+  const macdSeries = React.useMemo(() => ([
     {
-      name: "VPPR Macd",
+      name: 'MACD',
       color: '#81fc5b',
-      data: buildLineData(selectedVpprMacdMarket, 'vppr_macd')
+      data: buildMovementLineData(selectedMacdMarket, 'macd'),
+    },
+    {
+      name: 'Signal',
+      color: '#fc5b5b',
+      lineWidth: 1,
+      data: buildMovementLineData(selectedMacdMarket, 'macd_signal'),
+    },
+    {
+      name: 'Histogram',
+      color: '#5b9dfc',
+      lineWidth: 1,
+      data: buildMovementLineData(selectedMacdMarket, 'macd_histogram'),
     }
-  ]), [selectedVpprMacdMarket])
+  ]), [selectedMacdMarket])
 
+  console.log('macdSeries',selectedMacdMarket)
   React.useEffect(() => {
     if (!chartContainerRef.current) return
 
@@ -1298,9 +1323,9 @@ console.log('lastVppr>>',lastVppr)
 
           <div className='painel-vppr'>
             <IndicatorChart
-              title="VPPR MACD"
-              series={vpprMacdSeries}
-              emptyMessage="No VPPR Macd history available for this asset."
+              title="MACD"
+              series={macdSeries}
+              emptyMessage="No MACD Macd history available for this asset."
               resetKey={activeSymbol}
             />
           </div>

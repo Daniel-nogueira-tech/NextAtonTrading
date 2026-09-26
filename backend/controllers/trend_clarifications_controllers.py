@@ -3,6 +3,8 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from controllers.symbols_controller import get_stored_symbols
 from controllers.data_to_simulation_controllers import get_klines_data_simulation
+from controllers.pivot_controller import pivots_classification
+from controllers.macd_trend_controller import calculate_macd_ema
 
 
 # Função para calcular o ATR móvel
@@ -132,6 +134,9 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 10000):
         # Garante que a sequência de candles esteja ordenada pelo tempo para manter ATR e classificação sincronizados
         data = sorted(data, key=lambda x: x["Tempo"])
 
+    except ValueError as e:
+        print(f"❌ Erro ao buscar klines de {symbol}: {str(e)}")
+        raise
     except Exception as e:
         print(f"❌ Erro ao buscar klines de {symbol}: {str(e)}")
         raise Exception(f"Erro ao buscar klines de {symbol}: {str(e)}")
@@ -150,7 +155,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 10000):
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    verify_time_multiply =  8 # 10 
+    verify_time_multiply =  8 # 16 
     atr_period = 182
 
     # Sincroniza o ATR com cada candle para manter a classificação alinhada à volatilidade
@@ -161,8 +166,8 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 10000):
     confir_round = confir
     print(f"✅ ATR inicial: {base_atr}, limite inicial: {atr}, confirmação inicial: {confir_round}")
     
-    limit = atr
-    confirmar = confir_round
+    limit = atr 
+    confirmar = (confir_round / 4)
 
     # Inicializa variáveis de controle
     cont = 0
@@ -1279,6 +1284,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 10000):
                     added_movement = True
 
     indicator_values = calculate_macd_ema(closes)
+
     indicators_by_time = {
         timestamp: indicator_values[index]
         for index, timestamp in enumerate(timestamps)
@@ -1286,6 +1292,8 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 10000):
 
     for movement in movements:
         movement.update(indicators_by_time.get(movement["closeTime"], {}))
+
+
 
     # Cria lista de tuplas para bulk insert
     movements_to_save = []
@@ -1337,54 +1345,12 @@ def trend_clarifications_atr(symbols, time="15m", mode="real"):
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             results = list(executor.map(classify_symbol, enumerate(symbols_to_process)))
 
+
     return results
 
 
-# Calcula EMA e MACD usando os fechamentos dos candles.
-def calculate_macd_ema(
-    closes,
-    fast_period=72,
-    slow_period=144,
-    signal_period=9,
-    ema_period=50,
-):
-    periods = {
-        "fast_period": fast_period,
-        "slow_period": slow_period,
-        "signal_period": signal_period,
-        "ema_period": ema_period,
-    }
-    if any(period is None or period <= 0 for period in periods.values()):
-        raise ValueError("Os períodos de EMA e MACD devem ser positivos")
 
-    prices = [float(close) for close in closes]
 
-    def calculate_ema(values, period):
-        if not values:
-            return []
 
-        multiplier = 2 / (period + 1)
-        ema_values = [values[0]]
-        for value in values[1:]:
-            ema_values.append(
-                (value - ema_values[-1]) * multiplier + ema_values[-1]
-            )
-        return ema_values
 
-    fast_ema = calculate_ema(prices, fast_period)
-    slow_ema = calculate_ema(prices, slow_period)
-    macd = [fast - slow for fast, slow in zip(fast_ema, slow_ema)]
-    signal = calculate_ema(macd, signal_period)
-    ema = calculate_ema(prices, ema_period)
 
-    return [
-        {
-            "ema": ema[index],
-            "ema_fast": fast_ema[index],
-            "ema_slow": slow_ema[index],
-            "macd": macd[index],
-            "macd_signal": signal[index],
-            "macd_histogram": macd[index] - signal[index],
-        }
-        for index in range(len(prices))
-    ]
