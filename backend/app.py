@@ -9,8 +9,6 @@ from routes.trend_primary_clarifications_routes import trend_pri_bp
 from routes.price_data import price_data_bp
 from routes.data_to_simulation_routes import data_simulation_bp
 from routes.data_operation_routes import data_operation_bp
-from routes.crypto_news_simulation_api_routes import data_crypto_news_simulation_bp 
-from routes.crypto_news_api_routes import data_crypto_news_bp
 from routes.xgboost_routes import xgboost_bp
 
 
@@ -29,8 +27,6 @@ app.register_blueprint(trend_pri_bp)
 app.register_blueprint(price_data_bp)
 app.register_blueprint(data_simulation_bp)
 app.register_blueprint(data_operation_bp)
-app.register_blueprint(data_crypto_news_bp )
-app.register_blueprint(data_crypto_news_simulation_bp )
 app.register_blueprint(xgboost_bp)
 
 @app.route('/')

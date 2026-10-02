@@ -1287,23 +1287,29 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 15000):
                     added_movement = True
 
     # Passa os dados para encontra pivôs
-   # point_pivot = pivots_classification(movements)
-    #for p in point_pivot:
-    #    print(p)
+    point_pivot = pivots_classification(movements)
 
     # Cria lista de tuplas para bulk insert
     movements_to_save = []
-    for p in movements:
-        date = p["closeTime"]
-        price = p["closePrice"]
-        type = p["tipo"]
-        atr = p["limite"]
+    for m in movements:
+        date = m["closeTime"]
+        price = m["closePrice"]
+        tipo = m["tipo"]
+        atr = m["limite"]
 
-        movements_to_save.append((date, price, type, atr))
+        # Se existir pivô correspondente, adiciona dentro do objeto movement
+        # procura se existe pivô com mesmo closeTime e closePrice
+        for p in point_pivot:
+            if p["pivot_closeTime"] == date and abs(p["pivot_closePrice"] - price) < 1e-6:
+                # adiciona os dados do pivô dentro do movimento
+                m["pivot"] = p
+                break
+
+    movements_to_save.append((date, price, tipo, atr))
     # Salva todos os dados de uma vez
      
     # devolve também confirmações para o frontend
-    return movements 
+    return movements
 
 def trend_primary_clarifications_atr(symbols, time="5m", mode="real"):
     default_symbols = get_stored_symbols()

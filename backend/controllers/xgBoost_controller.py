@@ -18,6 +18,7 @@ data_service.add_rsi(mode="simulation", symbols="ETHUSDT", period=2, media_perio
 data_service.add_price(mode="simulation", symbol="ETHUSDT", time="15m")
 
 def normalize_data():
+    print('',data_service.indicators_dataframe())
     return data_service.indicators_dataframe()
 
 df = normalize_data()
@@ -34,7 +35,7 @@ target_col = "trendPrice_TREND"
 # Guard clause para evitar execução sem dados
 if df is None or df.empty:
     print("⚠️ Nenhum dado disponível no DataFrame. Encerrando execução.")
-    exit()   # ou return, se estiver dentro de uma função
+    exit()
 
 # limpa nomes ANTES de montar feature_cols
 df.columns = df.columns.str.strip()
@@ -44,13 +45,13 @@ exclude_cols = {
     "close", "close_VPPR", "Volume", "Abertura", "Maximo", "Minimo",
     "Fechamento", "open", "symbol", "time", "volume",
     "macd", "macd_signal", "macd_histogram",
-    "ema_fast", "ema_slow", "vppr_macd", "rsi_ma",
+   "vppr_macd", "rsi_ma",
     "trendPrice_TREND_PRIMARY", "limite_TREND_PRIMARY", "type_TREND_PRIMARY",
     "type_TREND",
     "ema_fast_TREND", "ema_slow_TREND",
-    "macd_TREND", "macd_signal_TREND", "macd_histogram_TREND",
+    "macd_TREND", "macd_signal_TREND", "macd_histogram_TREND", 'ema_TREND','limite_TREND'
     # colunas potencialmente perigosas / redundantes — revise se quiser manter alguma
-    "vppr", "vppr_ema", "limite_TREND","ema_TREND"
+
 }
 
 feature_cols = [c for c in df.columns if c not in exclude_cols]
@@ -63,13 +64,13 @@ print(f"\nFeatures usadas ({len(feature_cols)}): {feature_cols}")
 # ============================================================
 # 3. CRIAÇÃO DOS ALVOS t+1 ... t+7
 # ============================================================
-horizontes = [1, 2, 3, 4, 5, 6, 7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+horizontes = [1, 2, 3, 4, 5, 6]
 
 for h in horizontes:
-    df[f"y_next_t{h}"] = df[target_col].shift(-h)
+    df.loc[:, f"y_next_t{h}"] = df[target_col].shift(-h)
 
     # 1 = subiu, 0 = caiu, NaN = ficou igual (será removido no dropna)
-    df[f"y_dir_t{h}"] = np.where(
+    df.loc[:, f"y_dir_t{h}"] = np.where(
         df[f"y_next_t{h}"] > df[target_col], 1,
         np.where(df[f"y_next_t{h}"] < df[target_col], 0, np.nan)
     )

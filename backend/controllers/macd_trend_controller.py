@@ -4,7 +4,7 @@ def calculate_macd_ema(
     fast_period=12,
     slow_period=26,
     signal_period= 9,
-    ema_period=5,
+    ema_period=20,
 ):
     """
     Calcula EMA, MACD, linha de sinal e histograma.

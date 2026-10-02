@@ -294,11 +294,14 @@ export const ContextGraphicsProvider = ({ children }) => {
                     vppr: vpprData,
                     rsi: rsiData,
                 }
+                console.log('trendPrimary:', trendPrimaryData)
+                console.log('trendData:', trendData)
             }
 
             if (!nextSources?.fullPrice) {
                 throw new Error('price_data não carregou; o motor incremental precisa do fullPrice como relógio principal.')
             }
+
 
             setFullSources(nextSources);
 
@@ -314,7 +317,6 @@ export const ContextGraphicsProvider = ({ children }) => {
             console.error("Erro ao carregar dados", error)
         }
     };
-
 
     // Função para atualizar os dados a cada 5 minutos no modo real
     const refreshMarketData = async ({ preserveEngine = false } = {}) => {

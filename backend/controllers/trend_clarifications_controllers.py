@@ -1294,14 +1294,25 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 10000):
         movement.update(indicators_by_time.get(movement["closeTime"], {}))
 
 
+    point_pivot = pivots_classification(movements)
+
 
     # Cria lista de tuplas para bulk insert
     movements_to_save = []
-    for p in movements:
-        date = p["closeTime"]
-        price = p["closePrice"]
-        type = p["tipo"]
-        atr = p["limite"]
+    for m in movements:
+        date = m["closeTime"]
+        price = m["closePrice"]
+        type = m["tipo"]
+        atr = m["limite"]
+
+                # Se existir pivô correspondente, adiciona dentro do objeto movement
+        # procura se existe pivô com mesmo closeTime e closePrice
+        for p in point_pivot:
+            if p["pivot_closeTime"] == date and abs(p["pivot_closePrice"] - price) < 1e-6:
+                # adiciona os dados do pivô dentro do movimento
+                m["pivot"] = p
+                break
+
 
         movements_to_save.append((date, price, type, atr))
     # Mantém o formato original e adiciona a classificação de cada movimento.

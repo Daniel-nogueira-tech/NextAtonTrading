@@ -33,7 +33,7 @@ class DataService:
                     elif rsi_val <= 30:
                         row["rsi_signal"] = 1   # sobrevenda
                     else:
-                        row["rsi_signal"] = None  # zona neutra
+                        row["rsi_signal"] = 2 # Neltral  
 
         self.dados["RSI"] = result[-1]
         return result
@@ -46,17 +46,18 @@ class DataService:
             accumulation_period=accumulation_period,
         )
         for block in result:
-            if result:
-                for row in block["result"]:
+            if not block or  "result" not in block:
+                continue
+            for row in block["result"]:
                    vppr_val = row.get("vppr")
                    vppr_ema_val = row.get("vppr_ema")
-                   if vppr_val and vppr_ema_val is not None:
-                        if vppr_val > (vppr_ema_val + (vppr_ema_val * 0.02)):
+                   if vppr_val and vppr_ema_val:
+                        if vppr_val > (vppr_ema_val  * 1.02):
                             row["vppr_signal"] = 1 # Acima da Média
-                        elif vppr_val < (vppr_ema_val - (vppr_ema_val * 0.02)):
-                            row["vppr_signal"] = 0 #Abaixo da média
+                        elif vppr_val < (vppr_ema_val * 0.98):
+                            row["vppr_signal"] = 0 # Abaixo da média
                         else:
-                            row["vppr_signal"] = None #zona neutra
+                            row["vppr_signal"] = 2 # Neutral
                            
         self.dados["VPPR"] = result
 
@@ -74,7 +75,7 @@ class DataService:
 
     def add_price(self, mode="", symbol=None, time=None):
         result = get_price_data(mode=mode, symbol=symbol, time=time)
-        self.dados[f"PRICE_{symbol}"] = result
+        self.dados[f"PRICE"] = result
 
         for row in result[:3]:
         # mostra apenas algumas chaves
@@ -155,7 +156,7 @@ class DataService:
                 # both values instead of letting the later indicator replace
                 # the earlier one in the merged candle.
                 column_name = key
-                is_price = feature_name.startswith("PRICE_")
+                is_price = feature_name.startswith("PRICE")
                 if is_price:
                     column_name = price_columns.get(key, key)
                 elif feature_name == "VPPR" and key == "close":
@@ -196,7 +197,7 @@ class DataService:
                     current_symbol,
                     timestamp,
                     features,
-                    is_price=feature_name.startswith("PRICE_"),
+                    is_price=feature_name.startswith("PRICE"),
                 )
 
         for feature_name, value in self.dados.items():

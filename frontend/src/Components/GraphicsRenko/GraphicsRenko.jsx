@@ -554,7 +554,6 @@ const GraphicsRenko = () => {
   const { signalsBySymbol, getLastTrendBySymbol, getLastTrendPrimaryBySymbol, getLastVpprBySymbol, getLastAmrsiBySymbol } = useOperatingInputs();
   //===================//===================//
 
-  console.log('trend',trend)
 
   // alterna entre dados classificados de primário e secundário
   const trendCurrent = isTrend ? trend : trendPrimary;
