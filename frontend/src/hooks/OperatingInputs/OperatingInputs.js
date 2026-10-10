@@ -158,7 +158,7 @@ export const useOperatingInputs = () => {
     );
 
     const vppr = useMemo(
-        () => normalizeCollection(vpprDataRef.current, "VPPR", ["type", "vpprTrend", "time", "major", "volumeEmaSignal", "macdCloseToAverage", "macdVppr"], "signals"),
+        () => normalizeCollection(vpprDataRef.current, "VPPR", ["type", "vpprTrend", "time", "major", "volumeEmaSignal"], "signals"),
         [vpprDataRef.current]
     );
 

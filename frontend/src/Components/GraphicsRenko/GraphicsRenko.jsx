@@ -1051,20 +1051,6 @@ console.log('lastVppr>>',lastVppr)
                     </span>}
                 </div>
 
-                <div className='lastTrend'>
-                  <h4>Vppr Macd:</h4>
-                  {lastVppr &&
-                    <span className='lastTrend-primary'>
-                      {lastVppr?.macdCloseToAverage}
-                      <div className='signal-circle-vppr-macd-close'></div>
-                    </span>}
-                  {lastTrend &&
-                    <span className='lastTrend-type'>
-                      {lastVppr?.macdVppr}
-                      <div className='signal-circle-vppr-macd' ></div>
-                    </span>}
-                </div>
-
                 <div className='lastTrend' >
                   <h4>Vppr:</h4>
                   {lastVppr && <span className='lastTrend-primary'>
@@ -1095,10 +1081,9 @@ console.log('lastVppr>>',lastVppr)
                       <div className='signal-circle-amrsi' ></div>
                     </span>}
                 </div>
-
               </div>)}
-
           </div>
+
           <div className="graphics-renko__status">
             {renkoCandles.length} Blocks
           </div>
@@ -1239,9 +1224,7 @@ console.log('lastVppr>>',lastVppr)
                       onChange={handleStepChange}
                     />
                   </div>
-
                 </div>
-
               </div>
             }
 
@@ -1316,15 +1299,6 @@ console.log('lastVppr>>',lastVppr)
               title="VPPR"
               series={vpprSeries}
               emptyMessage="No VPPR history available for this asset."
-              resetKey={activeSymbol}
-            />
-          </div>
-
-          <div className='painel-vppr'>
-            <IndicatorChart
-              title="MACD"
-              series={macdSeries}
-              emptyMessage="No MACD Macd history available for this asset."
               resetKey={activeSymbol}
             />
           </div>

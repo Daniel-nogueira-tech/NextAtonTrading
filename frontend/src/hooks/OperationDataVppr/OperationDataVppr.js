@@ -71,13 +71,11 @@ export const useVpprData = (vppr) => {
 
                 const vppr = Number(item.vppr);
                 const vpprEma = Number(item.vppr_ema);
-                const vpprMacd = Number(item.vppr_macd);
 
-
-                if (!Number.isFinite(vppr) || !Number.isFinite(vpprEma) || !Number.isFinite(vpprMacd)) return;
+                if (!Number.isFinite(vppr) || !Number.isFinite(vpprEma)) return;
 
                 // Atualiza histórico
-                state.vpprHistory.push({ vppr, time: item.time, vpprEma, vpprMacd });
+                state.vpprHistory.push({ vppr, time: item.time, vpprEma});
 
                 if (state.vpprHistory.length > 12) state.vpprHistory.shift();
 
@@ -185,8 +183,6 @@ export const useVpprData = (vppr) => {
                 // ANÁLISE DE TENDÊNCIA DO VOLUME - VERSÃO OTIMIZADA
                 // ================================================================
                 let volumeEmaSignal = null;
-                let vpprMacdSignal = null;
-                let vpprMacdCloseToAverageSignal = null;
                 const analyzeVolumeTrend = (history, windowSize = 12) => {
                     // Usa vpprEma diretamente (valor pré-calculado) em vez de recalcular a EMA
                     if (!history || history.length < windowSize) {
@@ -235,28 +231,6 @@ export const useVpprData = (vppr) => {
                     const isConsistentlyIncreasing = lastThree.length < 2 ? false : lastThree.every((val, idx, arr) => idx === 0 || val > arr[idx - 1]);
                     const isConsistentlyDecreasing = lastThree.length < 2 ? false : lastThree.every((val, idx, arr) => idx === 0 || val < arr[idx - 1]);
 
-                    //===========================/MACD VPPR/==============================//
-                    // Calcular para Macd do Vppr
-                    const firstValMc = valuesMacdVppr[0];
-                    const lastValMc = valuesMacdVppr[valuesMacdVppr.length - 1];
-
-                    // Proteção contra divisão por zero
-                    const emaChangeMc = firstValMc === 0 ? 0 : ((lastValMc - firstValMc) / Math.abs(firstValMc)) * 100;
-
-                    const mc = valuesMacdVppr.length;
-                    const xValuesMc = Array.from({ length: mc }, (_, i) => i);
-                    const sumXMc = xValuesMc.reduce((a, b) => a + b, 0);
-                    const sumYMc = valuesMacdVppr.reduce((a, b) => a + b, 0);
-                    const sumXYMc = xValuesMc.reduce((a, b, i) => a + b * valuesMacdVppr[i], 0);
-                    const sumX2Mc = xValuesMc.reduce((a, b) => a + b * b, 0);
-                    const denomMc = (mc * sumX2Mc - sumXMc * sumXMc) || 1;
-                    const slopeMc = (mc * sumXYMc - sumXMc * sumYMc) / denomMc;
-                    const slopePercentMc = firstValMc === 0 ? 0 : (slopeMc / Math.abs(firstValMc)) * 100;
-
-                    // Consistência usando últimos 6 valores de vpprEma
-                    const lastThreeMc = valuesMacdVppr.slice(-6);
-                    const isConsistentlyIncreasingMc = lastThreeMc.length < 2 ? false : lastThreeMc.every((val, idx, arr) => idx === 0 || val > arr[idx - 1]);
-                    const isConsistentlyDecreasingMc = lastThreeMc.length < 2 ? false : lastThreeMc.every((val, idx, arr) => idx === 0 || val < arr[idx - 1]);
                     //============================================//============================================//
 
                     // Decisão de sinal 
@@ -287,46 +261,8 @@ export const useVpprData = (vppr) => {
                         }
                     }
 
-                    // Decisão de sinal (mesma heurística anterior, agora com vpprEma)
-                    const MIN_CHANGE_MACD = 0.6; // 0.3% mínima
-                    const MIN_SLOPE_MACD = 0.009; // 0.005% mínima
-
-                    let signalMc = 'Macd Stable';
-                    let directionMc = 'neutral';
-                    let strengthMc = 0;
-                    let signalCloseToAverage = 'Macd Stable'
-
-                    if (Math.abs(emaChangeMc) >= MIN_CHANGE_MACD && Math.abs(slopePercentMc) >= MIN_SLOPE_MACD) {
-                        if (emaChangeMc > 0 && slopePercentMc > 0 && isConsistentlyIncreasingMc) {
-                            signalMc = 'Vppr Macd BUY Increasing';
-                            directionMc = 'up';
-                            strengthMc = Math.min(Math.abs(emaChangeMc) / 5, 100);
-                        } else if (emaChangeMc < 0 && slopePercentMc < 0 && isConsistentlyDecreasingMc) {
-                            signalMc = 'Vppr Macd SELL Increasing';
-                            directionMc = 'down';
-                            strengthMc = Math.min(Math.abs(emaChangeMc) / 5, 100);
-                        } else if (emaChangeMc > 0) {
-                            signalMc = 'Vppr Macd BUY Weakly Increasing';
-                            directionMc = 'up_weak';
-                            strengthMc = Math.min(Math.abs(emaChangeMc) / 10, 50);
-                        } else if (emaChangeMc < 0) {
-                            signalMc = 'Vppr Macd SELL Weakly Increasing';
-                            directionMc = 'down_weak';
-                            strengthMc = Math.min(Math.abs(emaChangeMc) / 10, 50);
-                        }
-                    };
-
-                    if (Number(lastValMc) <= 1500 && Number(lastValMc) >= -1500) {
-                        signalCloseToAverage = 'Vppr Macd close to average';
-                    } else {
-                        signalCloseToAverage = 'Vppr Macd Distant';
-                    }
-
-                    console.log('lastValMc :', lastValMc)
                     return {
                         signal,
-                        signalMc,
-                        signalCloseToAverage,
                         direction,
                         strength,
                         emaChange,
@@ -341,10 +277,7 @@ export const useVpprData = (vppr) => {
 
                 // Atualiza o estado
                 volumeEmaSignal = volumeTrend.signal;
-                vpprMacdSignal = volumeTrend.signalMc;
-                vpprMacdCloseToAverageSignal = volumeTrend.signalCloseToAverage;
 
-                console.log('vpprMacdCloseToAverageSignal :', vpprMacdCloseToAverageSignal)
                 // ================================================================
                 // GERAÇÃO DE SINAIS
                 // ================================================================
@@ -401,7 +334,7 @@ export const useVpprData = (vppr) => {
                     }
                 }
                 // Sinal de Volume EMA
-                if (vpprMacdCloseToAverageSignal && vpprMacdSignal && volumeEmaSignal && volumeEmaSignal !== state.lastSignalState) {
+                if (volumeEmaSignal && volumeEmaSignal !== state.lastSignalState) {
                     const majorValue = getMajorValue();
                     signalsToAdd.push({
                         major: majorValue,
@@ -410,14 +343,12 @@ export const useVpprData = (vppr) => {
                         side: volumeEmaSignal.includes('Increasing') ? 'PURCHASE_VOLUME' : 'SALES_VOLUME',
                         vpprTrend: currentTrend === 'TREND_BUY' ? 'buy' : 'sell',
                         value: vppr,
-                        macdVppr: vpprMacdSignal,
-                        macdCloseToAverage: vpprMacdCloseToAverageSignal,
                     });
                 };
 
 
                 // Adiciona os sinais ao histórico
-                signalsToAdd.forEach(({ major, type, side, vpprTrend, vpprMacd, macdCloseToAverage, macdVppr, bandTop, bandBottom, isMajorSignal, volumeEmaSignal }) => {
+                signalsToAdd.forEach(({ major, type, side, vpprTrend, bandTop, bandBottom, isMajorSignal, volumeEmaSignal }) => {
                     const signalId = `${symbol}|${type}|${item.time}`;
                     if (!nextVpprHistory[symbol]) nextVpprHistory[symbol] = [];
 
@@ -432,11 +363,7 @@ export const useVpprData = (vppr) => {
                                 { name: "time", value: item.time },
                                 { name: "vppr", value: vppr },
                                 { name: "vppr_ema", value: vpprEma },
-                                { name: "volumeEmaSignal", value: volumeEmaSignal },
-                                { name: "vpprMacd", value: vpprMacd },
-                                { name: "macdCloseToAverage", value: macdCloseToAverage },
-                                { name: "macdVppr", value: macdVppr }
-
+                                { name: "volumeEmaSignal", value: volumeEmaSignal }
                             ]
                         };
 
@@ -470,9 +397,6 @@ export const useVpprData = (vppr) => {
                         vppr,
                         vppr_ema: vpprEma,
                         volumeEmaSignal,
-                        vpprMacd,
-                        macdCloseToAverage: vpprMacdCloseToAverageSignal,
-                        macdVppr: vpprMacdSignal,
                     };
 
                     const signalNames = new Set(lastSignal.signals.map(signal => signal.name));
