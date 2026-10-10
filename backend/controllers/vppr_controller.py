@@ -70,6 +70,7 @@ def calculate_vppr(klines, accumulation_period="month"):
 
     vppr_values = []
     vppr_acumulado = 0
+    vppr_simple = []
     current_period = None
 
     for i, k in enumerate(klines):
@@ -89,10 +90,13 @@ def calculate_vppr(klines, accumulation_period="month"):
         if close_price < open_price:
             vppr_candle *= -1
 
-        vppr_acumulado += (vppr_candle / 1000)
-        vppr_values.append(vppr_acumulado)
 
-    return vppr_values
+        vppr_acumulado += (vppr_candle / 1000)
+
+        vppr_values.append(vppr_candle)
+        vppr_simple.append(vppr_candle)
+
+    return vppr_values, vppr_simple
 
 
 def _calculate_vppr_macd(vppr_values):
@@ -107,8 +111,8 @@ def _calculate_vppr_macd(vppr_values):
     return macd_line.astype(float).tolist()
 
 
-def _get_vppr_single(symbol, modo="real", time="15m", total=5000, accumulation_period="month"):
 
+def _get_vppr_single(symbol, modo="real", time="15m", total=5000, accumulation_period="month"):
     try:
         if modo == "simulation":
             klines = get_klines_data_simulation(symbol)
@@ -121,7 +125,7 @@ def _get_vppr_single(symbol, modo="real", time="15m", total=5000, accumulation_p
     if not klines:
         return []
 
-    vppr_values = calculate_vppr(klines, accumulation_period=accumulation_period)
+    vppr_values, vppr_simple  = calculate_vppr(klines, accumulation_period=accumulation_period)
 
     # transforma em Series
     vppr_series = pd.Series(vppr_values)
@@ -138,11 +142,14 @@ def _get_vppr_single(symbol, modo="real", time="15m", total=5000, accumulation_p
                 "vppr": round(vppr_values[i], 2),
                 "vppr_ema": round(vppr_ema.iloc[i], 2),
                 "vppr_macd": round(vppr_macd[i], 2) if i < len(vppr_macd) else None,
+                "wave_function":round(vppr_simple[i], 2) if i < len(vppr_simple) else None,
                 "open": round(_get_open(k), 2),
                 "close": round(_get_close(k), 2),
                 "volume": round(_get_volume(k), 2),
+                "type": "buy" if vppr_simple[i] > 0 else "sell",
             }
         )
+
 
     return result
 
@@ -195,3 +202,5 @@ def get_vppr(symbols=None, symbol=None, modo="real", time="15m", accumulation_pe
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         return list(executor.map(calculate_symbol, enumerate(symbols_to_process)))
+
+   

@@ -1,6 +1,7 @@
 import xgboost as xgb
 from sklearn.metrics import (
-    accuracy_score, f1_score, confusion_matrix, classification_report
+    accuracy_score, f1_score, confusion_matrix, classification_report,
+    precision_score, recall_score, roc_auc_score, average_precision_score
 )
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,7 +19,6 @@ data_service.add_rsi(mode="simulation", symbols="ETHUSDT", period=2, media_perio
 data_service.add_price(mode="simulation", symbol="ETHUSDT", time="15m")
 
 def normalize_data():
-    print('',data_service.indicators_dataframe())
     return data_service.indicators_dataframe()
 
 df = normalize_data()
@@ -32,365 +32,406 @@ print("\nColunas disponíveis:", df.columns.tolist())
 # ============================================================
 target_col = "trendPrice_TREND"
 
-# Guard clause para evitar execução sem dados
-if df is None or df.empty:
-    print("⚠️ Nenhum dado disponível no DataFrame. Encerrando execução.")
-    exit()
-
-# limpa nomes ANTES de montar feature_cols
 df.columns = df.columns.str.strip()
 
-exclude_cols = {
-    target_col,
-    "close", "close_VPPR", "Volume", "Abertura", "Maximo", "Minimo",
-    "Fechamento", "open", "symbol", "time", "volume",
-    "macd", "macd_signal", "macd_histogram",
-   "vppr_macd", "rsi_ma",
-    "trendPrice_TREND_PRIMARY", "limite_TREND_PRIMARY", "type_TREND_PRIMARY",
-    "type_TREND",
-    "ema_fast_TREND", "ema_slow_TREND",
-    "macd_TREND", "macd_signal_TREND", "macd_histogram_TREND", 'ema_TREND','limite_TREND'
-    # colunas potencialmente perigosas / redundantes — revise se quiser manter alguma
-
-}
-
-feature_cols = [c for c in df.columns if c not in exclude_cols]
+feature_cols = [
+    c for c in df.columns
+    if c not in [
+        target_col,
+        "close", "close_VPPR", "Volume", "Abertura", "Maximo", "Minimo",
+        "Fechamento", "open", "symbol", "time", "volume",
+        "macd", "macd_signal", "macd_histogram",
+        "ema_fast", "ema_slow", "vppr_macd",
+        "rsi_ma",
+        'trendPrice_TREND_PRIMARY', 'limite_TREND_PRIMARY', 'type_TREND_PRIMARY',
+        'trendPrice_TREND', "type_TREND",
+        'ema_fast_TREND', 'ema_slow_TREND',
+        'macd_TREND', 'macd_signal_TREND', 'macd_histogram_TREND',
+        'rsi', 'limite_TREND', 'vppr', 'vppr_ema'
+    ]
+]
 
 df = df.reset_index(drop=True)
 
-print(df[["time", "Fechamento", "close_VPPR", "trendPrice_TREND_PRIMARY", "type_TREND_PRIMARY", "vppr_signal"]].head(20))
-print(f"\nFeatures usadas ({len(feature_cols)}): {feature_cols}")
+print("\nFeatures usadas:", feature_cols)
 
 # ============================================================
-# 3. CRIAÇÃO DOS ALVOS t+1 ... t+7
+# 3. CRIAÇÃO DOS ALVOS DE REVERSÃO
 # ============================================================
-horizontes = [1, 2, 3, 4, 5, 6]
+horizontes = [1, 2, 3, 4, 5, 6, 7,8]
+
+mapa_direcao = {
+    0: -1,  # Tendência Baixa
+    1: 1,   # Tendência Alta
+    2: -1,  # Reação Natural
+    3: 1,   # Rally Natural
+}
+
+df["direcao_atual"] = df["type_TREND"].map(mapa_direcao)
 
 for h in horizontes:
-    df.loc[:, f"y_next_t{h}"] = df[target_col].shift(-h)
+    # preço futuro em t+h (necessário para plotar)
+    df[f"y_next_t{h}"] = df[target_col].shift(-h)
 
-    # 1 = subiu, 0 = caiu, NaN = ficou igual (será removido no dropna)
-    df.loc[:, f"y_dir_t{h}"] = np.where(
-        df[f"y_next_t{h}"] > df[target_col], 1,
-        np.where(df[f"y_next_t{h}"] < df[target_col], 0, np.nan)
+    # type_TREND futuro e direção futura
+    df[f"type_futuro_t{h}"] = df["type_TREND"].shift(-h)
+    df[f"direcao_futura_t{h}"] = df[f"type_futuro_t{h}"].map(mapa_direcao)
+
+    # reversão: 1 se a direção futura é OPOSTA à atual
+    # (NaN explícito onde não há dado futuro — não virar 0!)
+    cond = (
+        df["direcao_atual"].notna() &
+        df[f"direcao_futura_t{h}"].notna()
     )
+    reversao = pd.Series(np.nan, index=df.index)
+    reversao[cond] = (
+        df.loc[cond, "direcao_atual"] != df.loc[cond, f"direcao_futura_t{h}"]
+    ).astype(int)
+    df[f"y_reversao_t{h}"] = reversao
 
-cols_alvo = [f"y_dir_t{h}" for h in horizontes] + [f"y_next_t{h}" for h in horizontes]
-df = df.dropna(subset=[target_col] + cols_alvo).reset_index(drop=True)
+# remove NaN apenas do alvo de preço / direção atual
+df = df.dropna(subset=[target_col, "direcao_atual"]).reset_index(drop=True)
 
 print("\nTotal de linhas após limpeza:", len(df))
+print("\nDistribuição de reversão por horizonte (apenas onde há alvo):")
+for h in horizontes:
+    col = f"y_reversao_t{h}"
+    dist = df[col].dropna().value_counts(normalize=True).sort_index()
+    n_valid = df[col].notna().sum()
+    print(f"  t+{h}: {dist.to_dict()}  (n válidos = {n_valid})")
 
 # ============================================================
-# 4. SPLIT TEMPORAL
+# 4. SPLIT TEMPORAL (base)
 # ============================================================
-split = int(len(df) * 0.8)
-
+split_base = int(len(df) * 0.8)
 X = df[feature_cols]
-X_train, X_test = X.iloc[:split], X.iloc[split:]
 
-print(f"\nTreino: {len(X_train)} | Teste: {len(X_test)}")
+print(f"\nSplit base: treino até {split_base} | teste de {split_base} em diante")
+print(f"Total: {len(df)} linhas")
 
 # ============================================================
-# 5. FUNÇÃO DE AVALIAÇÃO POR HORIZONTE
+# 5. FUNÇÕES AUXILIARES
 # ============================================================
-def avaliar_horizonte(h):
-    col_dir = f"y_dir_t{h}"
-    y_dir = df[col_dir]
+def make_classifier(n_classes, scale_pos_weight=1):
+    if n_classes == 2:
+        return xgb.XGBClassifier(
+            n_estimators=3000,
+            max_depth=4,
+            learning_rate=0.01,
+            subsample=0.7,
+            colsample_bytree=0.7,
+            gamma=1,
+            reg_alpha=0.1,
+            reg_lambda=1,
+            scale_pos_weight=scale_pos_weight,
+            objective="binary:logistic",
+            eval_metric="logloss",
+            random_state=42,
+            n_jobs=-1,
+        )
+    else:
+        return xgb.XGBClassifier(
+            n_estimators=3000,
+            max_depth=4,
+            learning_rate=0.01,
+            subsample=0.7,
+            colsample_bytree=0.7,
+            gamma=1,
+            reg_alpha=0.1,
+            reg_lambda=1,
+            objective="multi:softprob",
+            num_class=n_classes,
+            eval_metric="mlogloss",
+            random_state=42,
+            n_jobs=-1,
+        )
 
-    y_train_raw = y_dir.iloc[:split]
-    y_test_raw  = y_dir.iloc[split:]
 
-    classes_treino = sorted(y_train_raw.dropna().unique())
-    if len(classes_treino) < 2:
-        print(f"\n⚠️  t+{h}: apenas 1 classe no treino — pulando.")
+# mapa fixo — nunca recalcular por horizonte
+MAPA_FIXO = {0.0: 0, 1.0: 1}
+
+
+def avaliar_reversao(h):
+    """
+    Treina classificador para prever se trendPrice_TREND vai INVERTER
+    de direção em t+h, respeitando o horizonte para evitar vazamento.
+    """
+    col_alvo = f"y_reversao_t{h}"
+    y = df[col_alvo]
+
+    # ---- split temporal respeitando o horizonte ----
+    split_treino = split_base - h   # garante que alvo do treino não invade teste
+    split_teste  = split_base
+
+    if split_treino <= 0:
+        print(f"\n⚠️  t+{h}: split_treino inválido — pulando.")
         return None
 
-    mapa = {c: i for i, c in enumerate(classes_treino)}
-    n_classes = len(mapa)
+    y_train_raw = y.iloc[:split_treino]
+    y_test_raw  = y.iloc[split_teste:]
 
-    y_train = y_train_raw.map(mapa)
-    y_test  = y_test_raw.map(mapa)
+    X_train_h = X.iloc[:split_treino]
+    X_test_h  = X.iloc[split_teste:]
 
-    mask_train = y_train.notna()
-    mask_test  = y_test.notna()
+    # ---- limpa NaN no treino (alvo desconhecido) ----
+    mask_train = y_train_raw.notna()
+    X_train_h = X_train_h[mask_train.values]
+    y_train_raw = y_train_raw[mask_train]
 
-    y_train = y_train[mask_train].astype(int)
-    X_train_h = X_train.loc[mask_train]
+    # ---- limpa NaN no teste ----
+    mask_test = y_test_raw.notna()
+    X_test_h = X_test_h[mask_test.values]
+    y_test_raw = y_test_raw[mask_test]
 
-    y_test = y_test[mask_test].astype(int)
-    X_test_h = X_test.loc[mask_test]
-
-    if len(y_test) == 0:
-        print(f"\n⚠️  t+{h}: nenhuma amostra válida no teste — pulando.")
+    if y_train_raw.nunique() < 2:
+        print(f"\n⚠️  t+{h}: só 1 classe no treino ({y_train_raw.unique()}) — pulando.")
         return None
+    if len(y_test_raw) == 0:
+        print(f"\n⚠️  t+{h}: teste vazio — pulando.")
+        return None
+    if y_test_raw.nunique() < 2:
+        print(f"\n⚠️  t+{h}: só 1 classe no teste — métricas de AUC indefinidas, mas seguindo.")
 
-    # --- balanceamento ---
-    n_neg = (y_train == 0).sum()
+    # ---- mapa FIXO ----
+    y_train = y_train_raw.map(MAPA_FIXO).astype(int)
+    y_test  = y_test_raw.map(MAPA_FIXO).astype(int)
+
+    # ---- scale_pos_weight ----
     n_pos = (y_train == 1).sum()
-    scale_pos_weight = n_neg / max(n_pos, 1)
+    n_neg = (y_train == 0).sum()
+    scale = n_neg / n_pos if n_pos > 0 else 1.0
 
-    print(f"t+{h} | treino → 0: {n_neg} | 1: {n_pos} | scale_pos_weight = {scale_pos_weight:.2f}")
+    # ---- treino ----
+    model = make_classifier(2, scale_pos_weight=scale)
+    model.fit(X_train_h, y_train)
 
-    # validação temporal
-    val_size = max(int(len(X_train_h) * 0.2), 50)
-    X_tr, X_val = X_train_h.iloc[:-val_size], X_train_h.iloc[-val_size:]
-    y_tr, y_val = y_train.iloc[:-val_size], y_train.iloc[-val_size:]
+    pred = model.predict(X_test_h)
+    proba = model.predict_proba(X_test_h)[:, 1]
 
-    dtrain = xgb.DMatrix(X_tr, label=y_tr)
-    dval   = xgb.DMatrix(X_val, label=y_val)
-    dtest  = xgb.DMatrix(X_test_h)
+    # ---- métricas ----
+    try:
+        auc = roc_auc_score(y_test, proba) if y_test.nunique() > 1 else float("nan")
+    except Exception:
+        auc = float("nan")
 
-    params = {
-        "max_depth": 3,
-        "learning_rate": 0.02,
-        "subsample": 0.6,
-        "colsample_bytree": 0.6,
-        "min_child_weight": 5,
-        "gamma": 1.0,
-        "reg_alpha": 0.5,
-        "reg_lambda": 1.5,
-        "random_state": 42,
-        "verbosity": 0,
-    }
+    try:
+        pr_auc = average_precision_score(y_test, proba) if y_test.nunique() > 1 else float("nan")
+    except Exception:
+        pr_auc = float("nan")
 
-    if n_classes == 2:
-        params["objective"] = "binary:logistic"
-        params["eval_metric"] = "logloss"
-        params["scale_pos_weight"] = scale_pos_weight
-    else:
-        params["objective"] = "multi:softprob"
-        params["eval_metric"] = "mlogloss"
-        params["num_class"] = n_classes
+    acc    = accuracy_score(y_test, pred)
+    prec_1 = precision_score(y_test, pred, pos_label=1, zero_division=0)
+    rec_1  = recall_score(y_test, pred, pos_label=1, zero_division=0)
+    f1_1   = f1_score(y_test, pred, pos_label=1, zero_division=0)
+    f1m    = f1_score(y_test, pred, average="macro", zero_division=0)
 
-    model = xgb.train(
-        params,
-        dtrain,
-        num_boost_round=2500,
-        evals=[(dval, "validation")],
-        early_stopping_rounds=100,
-        verbose_eval=False,
-    )
+    # baselines
+    baseline_naive = np.zeros(len(y_test), dtype=int)
+    acc_naive = accuracy_score(y_test, baseline_naive)
+    f1m_naive = f1_score(y_test, baseline_naive, average="macro", zero_division=0)
 
-    print(f"t+{h} | best_iteration = {model.best_iteration}")
-
-    # --- melhor threshold na validação ---
-    if n_classes == 2:
-        val_proba = model.predict(dval, iteration_range=(0, model.best_iteration + 1))
-        best_thr, best_f1 = 0.5, 0.0
-        for thr in np.linspace(0.15, 0.85, 29):
-            pred_val = (val_proba > thr).astype(int)
-            f1 = f1_score(y_val, pred_val, average="macro", zero_division=0)
-            if f1 > best_f1:
-                best_f1 = f1
-                best_thr = thr
-        print(f"t+{h} | melhor threshold = {best_thr:.3f} | F1 val = {best_f1:.4f}")
-
-        pred_proba = model.predict(dtest, iteration_range=(0, model.best_iteration + 1))
-        pred = (pred_proba > best_thr).astype(int)
-    else:
-        pred_proba = model.predict(dtest, iteration_range=(0, model.best_iteration + 1))
-        pred = np.argmax(pred_proba, axis=1)
-
-    # baseline
-    classe_maj = y_train.mode()[0]
-    baseline = np.full(len(y_test), classe_maj)
-
-    acc   = accuracy_score(y_test, pred)
-    f1m   = f1_score(y_test, pred, average="macro", zero_division=0)
-    acc_b = accuracy_score(y_test, baseline)
-    f1m_b = f1_score(y_test, baseline, average="macro", zero_division=0)
+    classe_maj = int(y_train.mode()[0])
+    baseline_maj = np.full(len(y_test), classe_maj, dtype=int)
+    acc_maj = accuracy_score(y_test, baseline_maj)
+    f1m_maj = f1_score(y_test, baseline_maj, average="macro", zero_division=0)
 
     cm = confusion_matrix(y_test, pred)
 
-    resultado = {
+    print(f"\n{'='*60}")
+    print(f"HORIZONTE t+{h} — REVERSÃO")
+    print(f"{'='*60}")
+    print(f"Treino: {len(y_train)} | Teste: {len(y_test)}")
+    print(f"Dist. treino: {y_train.value_counts(normalize=True).sort_index().to_dict()}")
+    print(f"Dist. teste:  {y_test.value_counts(normalize=True).sort_index().to_dict()}")
+    print(f"scale_pos_weight = {scale:.4f}")
+    print(f"  Acc modelo:                 {acc:.4f}")
+    print(f"  Acc baseline (naive cont.): {acc_naive:.4f}  |  gap = {acc - acc_naive:+.4f}")
+    print(f"  Acc baseline (majoritária): {acc_maj:.4f}")
+    print(f"  AUC:      {auc:.4f}")
+    print(f"  PR-AUC:   {pr_auc:.4f}")
+    print(f"  === CLASSE 1 (REVERSÃO) ===")
+    print(f"  Precision: {prec_1:.4f}")
+    print(f"  Recall:    {rec_1:.4f}")
+    print(f"  F1:        {f1_1:.4f}")
+    print(f"  F1 macro:  {f1m:.4f}  (naive: {f1m_naive:.4f} | maj: {f1m_maj:.4f})")
+    print(f"\nMatriz de confusão:\n{cm}")
+    print("\nClassification report:")
+    print(classification_report(y_test, pred, digits=4, zero_division=0))
+
+    return {
         "h": h,
-        "n_classes": n_classes,
-        "mapa": mapa,
-        "acc": acc,
-        "f1_macro": f1m,
-        "acc_baseline": acc_b,
-        "f1_baseline": f1m_b,
-        "gap_acc": acc - acc_b,
-        "gap_f1": f1m - f1m_b,
+        "acc": acc, "auc": auc, "pr_auc": pr_auc,
+        "prec_1": prec_1, "rec_1": rec_1, "f1_1": f1_1, "f1_macro": f1m,
+        "acc_baseline_naive": acc_naive,
+        "acc_baseline_maj": acc_maj,
+        "f1_baseline_naive": f1m_naive,
+        "f1_baseline_maj": f1m_maj,
+        "gap_acc_naive": acc - acc_naive,
         "matriz_confusao": cm,
         "model": model,
         "pred": pred,
+        "proba": proba,
         "y_test": y_test,
-        "bateu_baseline": (acc > acc_b) and (f1m > f1m_b),
-        "best_iteration": model.best_iteration,
+        "n_train": len(y_train),
+        "n_test": len(y_test),
     }
 
-    print(f"\n{'='*60}")
-    print(f"HORIZONTE t+{h}")
-    print(f"{'='*60}")
-    print(f"Acurácia:  modelo = {acc:.4f}  |  baseline = {acc_b:.4f}  |  gap = {acc - acc_b:+.4f}")
-    print(f"F1 macro:  modelo = {f1m:.4f}  |  baseline = {f1m_b:.4f}  |  gap = {f1m - f1m_b:+.4f}")
-    print(f"Bateu baseline? {'✅ SIM' if resultado['bateu_baseline'] else '❌ NÃO'}")
-    print("\nMatriz de confusão:")
-    print(cm)
-    print(classification_report(y_test, pred, digits=4, zero_division=0))
-
-    return resultado
 
 # ============================================================
 # 6. LOOP NOS HORIZONTES
 # ============================================================
 resultados = []
 for h in horizontes:
-    res = avaliar_horizonte(h)
+    res = avaliar_reversao(h)
     if res is not None:
         resultados.append(res)
 
 # ============================================================
 # 7. TABELA RESUMO
 # ============================================================
-print("\n\n" + "=" * 80)
-print("RESUMO — DIREÇÃO POR HORIZONTE")
-print("=" * 80)
+mudancas = (df["type_TREND"].shift(1) != df["type_TREND"]).mean()
+print(f"\nTaxa de mudança de type_TREND: {mudancas:.2%}")
+
+print("\n\n" + "="*110)
+print("RESUMO — REVERSÃO DO trendPrice_TREND POR HORIZONTE")
+print("="*110)
 
 tabela = []
 for r in resultados:
     tabela.append({
-        "Horizonte": f"t+{r['h']}",
-        "N classes": r["n_classes"],
-        "Acc modelo": r["acc"],
-        "Acc baseline": r["acc_baseline"],
-        "Gap acc": r["gap_acc"],
-        "F1 modelo": r["f1_macro"],
-        "F1 baseline": r["f1_baseline"],
-        "Gap F1": r["gap_f1"],
-        "Bateu?": "✅" if r["bateu_baseline"] else "❌",
-        "Best iter": r["best_iteration"],
+        "Horizonte":     f"t+{r['h']}",
+        "n_train":       r["n_train"],
+        "n_test":        r["n_test"],
+        "Acc modelo":    round(r["acc"], 4),
+        "Acc naive":     round(r["acc_baseline_naive"], 4),
+        "Gap acc":       round(r["gap_acc_naive"], 4),
+        "AUC":           round(r["auc"], 4),
+        "PR-AUC":        round(r["pr_auc"], 4),
+        "Prec_1":        round(r["prec_1"], 4),
+        "Rec_1":         round(r["rec_1"], 4),
+        "F1_1":          round(r["f1_1"], 4),
+        "F1 macro":      round(r["f1_macro"], 4),
     })
 
-df_resumo = pd.DataFrame(tabela)
-print(df_resumo.to_string(index=False))
+if tabela:
+    df_resumo = pd.DataFrame(tabela)
+    print(df_resumo.to_string(index=False))
+else:
+    print("Nenhum horizonte produziu resultado válido.")
 
 # ============================================================
-# 8. VISUALIZAÇÃO — ACURÁCIA vs HORIZONTE
+# 8. VISUALIZAÇÃO — MÉTRICAS vs HORIZONTE
 # ============================================================
-fig, ax = plt.subplots(figsize=(10, 5))
+if resultados:
+    fig, ax = plt.subplots(figsize=(11, 6))
 
-hs = [r["h"] for r in resultados]
-accs = [r["acc"] for r in resultados]
-accs_b = [r["acc_baseline"] for r in resultados]
-f1s = [r["f1_macro"] for r in resultados]
+    hs         = [r["h"] for r in resultados]
+    accs       = [r["acc"] for r in resultados]
+    accs_naive = [r["acc_baseline_naive"] for r in resultados]
+    aucs       = [r["auc"] for r in resultados]
+    pr_aucs    = [r["pr_auc"] for r in resultados]
+    prec_1     = [r["prec_1"] for r in resultados]
+    rec_1      = [r["rec_1"] for r in resultados]
+    f1_1       = [r["f1_1"] for r in resultados]
 
-ax.plot(hs, accs, marker="o", label="Acurácia modelo", linewidth=2)
-ax.plot(hs, accs_b, marker="s", label="Acurácia baseline", linewidth=2, linestyle="--")
-ax.plot(hs, f1s, marker="^", label="F1 macro modelo", linewidth=2, linestyle=":")
+    ax.plot(hs, accs,       marker="o", label="Acurácia modelo", linewidth=2)
+    ax.plot(hs, accs_naive, marker="s", label="Acurácia naive (não reverte)", linewidth=2, linestyle="--")
+    ax.plot(hs, aucs,       marker="P", label="AUC", linewidth=2, linestyle="-")
+    ax.plot(hs, pr_aucs,    marker="X", label="PR-AUC", linewidth=2, linestyle="-")
+    ax.plot(hs, prec_1,     marker="^", label="Precision classe 1", linewidth=1.5, linestyle=":")
+    ax.plot(hs, rec_1,      marker="v", label="Recall classe 1", linewidth=1.5, linestyle="-.")
+    ax.plot(hs, f1_1,       marker="D", label="F1 classe 1", linewidth=1.5)
 
-ax.set_xlabel("Horizonte (t+h)")
-ax.set_ylabel("Métrica")
-ax.set_title("Desempenho por horizonte — direção")
-ax.set_xticks(hs)
-ax.legend()
-ax.grid(alpha=0.3)
+    ax.axhline(0.5, color="gray", alpha=0.3, linestyle=":", label="AUC = 0.5 (aleatório)")
 
-plt.tight_layout()
-plt.show()
-
-# ============================================================
-# 9. VISUALIZAÇÃO — DIREÇÃO PREVISTA vs REAL
-# ============================================================
-horizontes_para_plotar = [1, 2, 3, 6]
-resultados_plot = [r for r in resultados if r["h"] in horizontes_para_plotar]
-
-preco_full = df[target_col].values
-
-for r in resultados_plot:
-    h = r["h"]
-    idx = r["y_test"].index.values
-    preco_t = preco_full[idx]
-    preco_real_h = df[f"y_next_t{h}"].values[idx]
-    pred = r["pred"]
-    y_real = r["y_test"].values
-
-    acertos = (pred == y_real)
-
-    fig, axes = plt.subplots(3, 1, figsize=(15, 9), sharex=True)
-
-    # painel 1: preço real t+h colorido por acerto/erro
-    axes[0].plot(preco_real_h, color="black", alpha=0.5, linewidth=1, label=f"Real t+{h}")
-    axes[0].scatter(
-        np.arange(len(preco_real_h))[acertos],
-        preco_real_h[acertos],
-        color="green", s=6, alpha=0.6, label="Acerto"
-    )
-    axes[0].scatter(
-        np.arange(len(preco_real_h))[~acertos],
-        preco_real_h[~acertos],
-        color="red", s=6, alpha=0.6, label="Erro"
-    )
-    axes[0].set_title(f"t+{h} | acc = {r['acc']:.4f} (baseline {r['acc_baseline']:.4f})")
-    axes[0].legend()
-    axes[0].grid(alpha=0.3)
-
-    # painel 2: direção real vs prevista
-    axes[1].plot(y_real, label="Real", alpha=0.7, linewidth=1)
-    axes[1].plot(pred, label="Previsto", alpha=0.7, linewidth=1, linestyle="--")
-    axes[1].set_yticks([0, 1])
-    axes[1].set_yticklabels(["Baixa", "Alta"])
-    axes[1].set_title("Direção real vs prevista")
-    axes[1].legend()
-    axes[1].grid(alpha=0.3)
-
-    # painel 3: erros acumulados (simples)
-    erro_dir = (y_real != pred).astype(int)
-    erro_acum = np.cumsum(erro_dir)
-    axes[2].plot(erro_acum, color="purple", alpha=0.7, linewidth=1)
-    axes[2].set_title("Erros de direção acumulados")
-    axes[2].grid(alpha=0.3)
+    ax.set_xlabel("Horizonte (t+h)")
+    ax.set_ylabel("Métrica")
+    ax.set_title("Reversão do trendPrice_TREND — desempenho por horizonte")
+    ax.set_xticks(hs)
+    ax.set_ylim(0, 1.05)
+    ax.legend(loc="best", fontsize=9)
+    ax.grid(alpha=0.3)
 
     plt.tight_layout()
     plt.show()
 
 # ============================================================
-# 10. VISUALIZAÇÃO — PREÇO REAL vs PREÇO PREVISTO
+# 9. VISUALIZAÇÃO — REVERSÃO REAL vs PREVISTA
+# ============================================================
+horizontes_para_plotar = [1, 2, 3, 5,6,7,8]
+resultados_plot = [r for r in resultados if r["h"] in horizontes_para_plotar]
+
+for r in resultados_plot:
+    h = r["h"]
+    pred    = r["pred"]
+    y_real  = r["y_test"].values
+
+    fig, axes = plt.subplots(2, 1, figsize=(15, 7), sharex=True)
+
+    # painel 1: reversões reais vs previstas
+    axes[0].plot(y_real, label="Reversão real", alpha=0.7, linewidth=1)
+    axes[0].plot(pred,   label="Reversão prevista", alpha=0.7, linewidth=1, linestyle="--")
+    axes[0].set_yticks([0, 1])
+    axes[0].set_yticklabels(["Continua", "Reverte"])
+    axes[0].set_title(
+        f"t+{h} | acc={r['acc']:.4f} | auc={r['auc']:.4f} | "
+        f"prec_1={r['prec_1']:.4f} | rec_1={r['rec_1']:.4f}"
+    )
+    axes[0].legend()
+    axes[0].grid(alpha=0.3)
+
+    # painel 2: erro acumulado vs baseline aleatório
+    erro = (y_real != pred).astype(int)
+    # baseline: erro esperado de um classificador aleatório que acerta na taxa base
+    taxa_erro_esperada = min(y_real.mean(), 1 - y_real.mean())
+    erro_acum = np.cumsum(erro - taxa_erro_esperada)
+
+    axes[1].plot(erro_acum, color="purple", alpha=0.8, linewidth=1.2)
+    axes[1].axhline(0, color="black", linestyle="--", alpha=0.5,
+                    label=f"baseline (taxa erro={taxa_erro_esperada:.3f})")
+    axes[1].set_title("Erro acumulado (viés) vs baseline")
+    axes[1].legend()
+    axes[1].grid(alpha=0.3)
+
+    plt.tight_layout()
+    plt.show()
+
+# ============================================================
+# 10. VISUALIZAÇÃO — REVERSÃO COM PREÇO
 # ============================================================
 for r in resultados_plot:
     h = r["h"]
     idx = r["y_test"].index.values
-    pred = r["pred"]
+    pred   = r["pred"]
     y_real = r["y_test"].values
 
     preco_real_h = df[f"y_next_t{h}"].values[idx]
-    preco_t = df[target_col].values[idx]
-
-    # médias de movimento calculadas APENAS no treino (sem vazamento)
-    idx_train = X_train.index.values
-    preco_t_train = df[target_col].values[idx_train]
-    preco_h_train = df[f"y_next_t{h}"].values[idx_train]
-    y_dir_train = df[f"y_dir_t{h}"].values[idx_train]
-
-    mov_alta = (preco_h_train - preco_t_train)[y_dir_train == 1].mean() if (y_dir_train == 1).any() else 0.0
-    mov_baixa = (preco_h_train - preco_t_train)[y_dir_train == 0].mean() if (y_dir_train == 0).any() else 0.0
-
-    print(f"t+{h} | mov_alta (treino) = {mov_alta:.4f} | mov_baixa (treino) = {mov_baixa:.4f}")
-
-    preco_previsto = np.where(
-        pred == 1,
-        preco_t + mov_alta,
-        preco_t + mov_baixa,
-    )
-
-    rsi_signal_test = df["rsi_signal"].values[idx] if "rsi_signal" in df.columns else None
 
     fig, axes = plt.subplots(2, 1, figsize=(15, 8), sharex=True)
 
-    axes[0].plot(preco_real_h, label=f"Real t+{h}", alpha=0.8, linewidth=1.2)
-    axes[0].plot(preco_previsto, label=f"Previsto t+{h}", alpha=0.8, linestyle="--", linewidth=1.2)
-    axes[0].plot(preco_t, label="Atual t", alpha=0.5, linestyle=":", linewidth=1)
-    axes[0].set_title(f"t+{h} | acc = {r['acc']:.4f} (baseline {r['acc_baseline']:.4f})")
+    # painel 1: preço com marcações
+    axes[0].plot(preco_real_h, color="black", alpha=0.5, linewidth=1,
+                 label=f"trendPrice t+{h}")
+
+    idx_rev_real = np.where(y_real == 1)[0]
+    axes[0].scatter(idx_rev_real, preco_real_h[idx_rev_real],
+                    color="orange", s=20, alpha=0.7, label="Reversão real")
+
+    idx_rev_pred = np.where(pred == 1)[0]
+    axes[0].scatter(idx_rev_pred, preco_real_h[idx_rev_pred],
+                    color="blue", s=10, alpha=0.5, marker="x", label="Reversão prevista")
+
+    axes[0].set_title(
+        f"t+{h} | prec_1={r['prec_1']:.4f} | rec_1={r['rec_1']:.4f} | auc={r['auc']:.4f}"
+    )
     axes[0].legend()
     axes[0].grid(alpha=0.3)
 
-    axes[1].plot(pred, label="Previsão do modelo", alpha=0.7, linewidth=1)
-    if rsi_signal_test is not None:
-        axes[1].plot(rsi_signal_test, label="rsi_signal", alpha=0.7, linewidth=1, linestyle="--")
+    # painel 2: reversão real vs prevista (0/1)
+    axes[1].plot(y_real, label="Real", alpha=0.7, linewidth=1)
+    axes[1].plot(pred,   label="Previsto", alpha=0.7, linewidth=1, linestyle="--")
     axes[1].set_yticks([0, 1])
-    axes[1].set_yticklabels(["Baixa", "Alta"])
-    axes[1].set_title("Modelo vs rsi_signal (se coincidirem, o modelo só copia)")
+    axes[1].set_yticklabels(["Continua", "Reverte"])
     axes[1].legend()
     axes[1].grid(alpha=0.3)
 

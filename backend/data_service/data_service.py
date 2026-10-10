@@ -6,6 +6,7 @@ from controllers.vppr_controller import get_vppr
 from controllers.trend_clarifications_controllers import trend_clarifications_atr
 from controllers.trend_primary_clarifications_controllers import trend_primary_clarifications_atr
 from controllers.price_data_controller import get_price_data
+from controllers.schrodinger_controller import  get_schrodinger
 
 
 #==============|Pega os indicadores para centralizar|===============#
@@ -76,17 +77,27 @@ class DataService:
     def add_price(self, mode="", symbol=None, time=None):
         result = get_price_data(mode=mode, symbol=symbol, time=time)
         self.dados[f"PRICE"] = result
-
-        for row in result[:3]:
-        # mostra apenas algumas chaves
-          print({ 
-            "Tempo": row.get("Tempo"),
-            "Abertura": row.get("Abertura"),
-            "Fechamento": row.get("Fechamento"),
-            "Volume": row.get("Volume")
-          })
-    
         return result   
+
+    def add_Schrodinger(
+        self,
+        symbols=None,
+        symbol=None,
+        modo="real",
+        time="15m",
+        accumulation_period="month",
+    ):
+        result = get_schrodinger(
+            symbols=symbols,
+            symbol=symbol,
+            modo=modo,
+            time=time,
+            accumulation_period=accumulation_period,
+        )
+        self.dados["schrodinger"] = result
+        return result
+
+
 
     def indicators(self):
         return self.dados
@@ -125,16 +136,16 @@ class DataService:
                 return
 
             current_symbol = value.get("symbol", symbol)
-            movements = value.get("movements")
-            if movements is not None:
-                collect(movements, feature_name, current_symbol)
+            if feature_name == "schrodinger" and current_symbol is None:
+                for nested_symbol, payload in value.items():
+                    if isinstance(payload, dict):
+                        collect(payload, feature_name, str(nested_symbol))
                 return
 
-            for nested_key in ("result", "prices"):
+            for nested_key in ("movements", "result", "prices", "collapsed"):
                 nested_value = value.get(nested_key)
-                if nested_value is not None:
+                if isinstance(nested_value, (list, dict)):
                     collect(nested_value, feature_name, current_symbol)
-                    return
 
             timestamp = (
                 value.get("time")
@@ -147,7 +158,7 @@ class DataService:
 
             features = {}
             for key, item in value.items():
-                if key in {"time", "tempo", "Tempo", "closeTime", "symbol", "index", "tipo"}:
+                if key in {"time", "tempo", "Tempo", "closeTime", "symbol", "index", "ordem", "tipo"}:
                     continue
                 if not isinstance(item, (int, float, bool)):
                     continue
@@ -159,6 +170,8 @@ class DataService:
                 is_price = feature_name.startswith("PRICE")
                 if is_price:
                     column_name = price_columns.get(key, key)
+                elif feature_name == "schrodinger":
+                    column_name = f"schrodinger_{key}"
                 elif feature_name == "VPPR" and key == "close":
                     column_name = "close_VPPR"
                 if feature_name in {"TREND", "TREND_PRIMARY"}:
@@ -214,4 +227,3 @@ class DataService:
 
 
 data_service = DataService()
-

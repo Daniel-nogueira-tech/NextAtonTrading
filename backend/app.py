@@ -10,6 +10,7 @@ from routes.price_data import price_data_bp
 from routes.data_to_simulation_routes import data_simulation_bp
 from routes.data_operation_routes import data_operation_bp
 from routes.xgboost_routes import xgboost_bp
+from routes.schrodinger_routes import schrodinger_bp
 
 
 app = Flask(__name__)
@@ -28,6 +29,7 @@ app.register_blueprint(price_data_bp)
 app.register_blueprint(data_simulation_bp)
 app.register_blueprint(data_operation_bp)
 app.register_blueprint(xgboost_bp)
+app.register_blueprint(schrodinger_bp)
 
 @app.route('/')
 def home():
