@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify
 from data_service.data_service import data_service
-from controllers.xgBoost_controller import normalize_data
+#from controllers.xgBoost_controller import normalize_data
 
 
 xgboost_bp = Blueprint("xgboost", __name__)
@@ -12,12 +12,7 @@ def normalize_data():
     data_service.add_vppr(  modo="simulation", symbols="ETHUSDT",time="15m",accumulation_period="month")
     data_service.add_rsi(mode="simulation", symbols="ETHUSDT", period=2, media_period=20)
     data_service.add_price(mode="simulation", symbol="ETHUSDT", time="15m")
-    data_service.add_Schrodinger(
-        symbols="ETHUSDT",
-        modo="simulation",
-        time="15m",
-        accumulation_period="month",
-    )
+    data_service.add_Schrodinger(symbols="ETHUSDT", modo="simulation",  time="15m", accumulation_period="month")
     return data_service.indicators_dataframe()
 
 

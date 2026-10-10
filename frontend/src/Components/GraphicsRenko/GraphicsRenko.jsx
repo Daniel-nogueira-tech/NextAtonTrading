@@ -644,27 +644,7 @@ const GraphicsRenko = () => {
     },
   ]), [selectedVpprMarket])
 
-  const macdSeries = React.useMemo(() => ([
-    {
-      name: 'MACD',
-      color: '#81fc5b',
-      data: buildMovementLineData(selectedMacdMarket, 'macd'),
-    },
-    {
-      name: 'Signal',
-      color: '#fc5b5b',
-      lineWidth: 1,
-      data: buildMovementLineData(selectedMacdMarket, 'macd_signal'),
-    },
-    {
-      name: 'Histogram',
-      color: '#5b9dfc',
-      lineWidth: 1,
-      data: buildMovementLineData(selectedMacdMarket, 'macd_histogram'),
-    }
-  ]), [selectedMacdMarket])
 
-  console.log('macdSeries',selectedMacdMarket)
   React.useEffect(() => {
     if (!chartContainerRef.current) return
 

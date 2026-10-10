@@ -257,12 +257,14 @@ export const ContextGraphicsProvider = ({ children }) => {
                     trendData,
                     vpprData,
                     rsiData,
+                    schrodingerData
                 ] = await Promise.all([
                     requestFeed('price_data', `${urlBackend}/api/price_data?mode=${mode}`),
                     requestFeed('trend-primary', `${urlBackend}/api/trend-primary?mode=${mode}`),
                     requestFeed('trend', `${urlBackend}/api/trend?mode=${mode}`),
                     requestFeed('vppr', `${urlBackend}/api/vppr?mode=${mode}`),
                     requestFeed('rsi', `${urlBackend}/api/rsi?mode=${mode}`),
+                    requestFeed('schrodinger',`${urlBackend}/api/schrodinger?mode=${mode}`)
                 ]);
 
                 nextSources = {
@@ -271,6 +273,7 @@ export const ContextGraphicsProvider = ({ children }) => {
                     trend: trendData,
                     vppr: vpprData,
                     rsi: rsiData,
+                    schrodinger: schrodingerData,
                 }
             } else {
                 const [
@@ -279,12 +282,14 @@ export const ContextGraphicsProvider = ({ children }) => {
                     trendData,
                     vpprData,
                     rsiData,
+                    schrodingerData
                 ] = await Promise.all([
                     requestFeed('price_data', `${urlBackend}/api/price_data?mode=${mode}&symbol=${activeSymbol}`),
                     requestFeed('trend-primary', `${urlBackend}/api/trend-primary?mode=${mode}&symbol=${activeSymbol}`),
                     requestFeed('trend', `${urlBackend}/api/trend?mode=${mode}&symbol=${activeSymbol}`),
                     requestFeed('vppr', `${urlBackend}/api/vppr?mode=${mode}&symbol=${activeSymbol}`),
                     requestFeed('rsi', `${urlBackend}/api/rsi?mode=${mode}&symbol=${activeSymbol}`),
+                    requestFeed('schrodinger',`${urlBackend}/api/schrodinger?mode=${mode}`)
                 ]);
 
                 nextSources = {
@@ -293,9 +298,10 @@ export const ContextGraphicsProvider = ({ children }) => {
                     trend: trendData,
                     vppr: vpprData,
                     rsi: rsiData,
+                    schrodinger:schrodingerData,
+
                 }
-                console.log('trendPrimary:', trendPrimaryData)
-                console.log('trendData:', trendData)
+                console.log('schrodingerData:',schrodingerData)
             }
 
             if (!nextSources?.fullPrice) {

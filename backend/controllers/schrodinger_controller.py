@@ -313,7 +313,6 @@ def collapse_wave_function(evolution_series, potential_energy, energy_kinetic):
 
 
 def _calculate_schrodinger(orders):
-    print('orders:',orders)
     higher_probability = wave_function(orders)
 
     energy_kinetic = calculate_kinetic_energy(orders)
@@ -357,10 +356,10 @@ def _calculate_schrodinger(orders):
 def get_schrodinger(
     symbols=None,
     symbol=None,
-    modo="real",
+    modo=None,
     time="15m",
     accumulation_period="month",
-):
+): 
     """Calcula o modelo separadamente para cada ativo recebido do VPPR."""
     vppr_data = get_vppr(
         symbols=symbols,
