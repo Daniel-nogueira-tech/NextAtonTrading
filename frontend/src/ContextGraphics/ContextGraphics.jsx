@@ -138,6 +138,7 @@ export const ContextGraphicsProvider = ({ children }) => {
     const trend = snapshot.trend;
     const vppr = snapshot.vppr;
     const rsi = snapshot.rsi;
+    const schrodinger = snapshot.schrodinger
 
     // Salva dados no localStorage
     React.useEffect(() => {
@@ -594,6 +595,8 @@ export const ContextGraphicsProvider = ({ children }) => {
         fullVppr: fullSources?.vppr ?? vppr,
         rsi,
         fullRsi: fullSources?.rsi ?? rsi,
+        schrodinger,
+        schrodinger:fullSources?.schrodinger ?? schrodinger,
         incrementalEngine: {
             status: engineStatus,
             cursor: engineCursor,

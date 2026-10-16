@@ -7,6 +7,7 @@ const DEFAULT_FEEDS = {
   trend: null,
   vppr: null,
   rsi: null,
+  schrodinger: null,
 }
 
 // Nomes de propriedades que contêm arrays de séries temporais dentro de cada item do feed. 

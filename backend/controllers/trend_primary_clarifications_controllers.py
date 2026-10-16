@@ -5,6 +5,7 @@ from controllers.symbols_controller import get_stored_symbols
 from controllers.data_to_simulation_controllers import get_klines_data_simulation
 from controllers.pivot_controller import pivots_classification
 from controllers.atr_controller import _get_atr_for_candle, calculate_atr_wilder_from_data
+from controllers.data_correlations_controller import get_correlated_index
 
 
 # Helpers para normalizar retorno dos dados de simulação e tempo real
@@ -37,7 +38,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 15000):
             # 🔁 Pega os dados do banco
             try:
                # raw_data = get_klines_data_simulation_primary(symbol)
-                raw_data =  get_klines_data_simulation(symbol)
+                raw_data =  get_correlated_index(symbol)
                 print(f"✅ Dados baixados com sucesso: {len(raw_data) if raw_data else 0} registros")
             except Exception as download_e:
                 raise ValueError(f"Não foi possível baixar dados: {str(download_e)}")
@@ -78,7 +79,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 15000):
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    verify_time_multiply = 3 #4
+    verify_time_multiply = 8 #8
     atr_period = 182
 
 

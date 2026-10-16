@@ -6,7 +6,9 @@ client = Client()
 # Função para obter os dados de klines (candlesticks) da Binance
 def get_klines(symbol, interval, total=5000):
     all_klines = []
-    limit = 1000
+    if total <= 0:
+        return all_klines
+    limit = min(1000, total)
     end_time = None
 
     while len(all_klines) < total:
@@ -47,4 +49,3 @@ def format_raw_data(raw_data):
         formatted_data.append(data)
 
     return formatted_data
- 

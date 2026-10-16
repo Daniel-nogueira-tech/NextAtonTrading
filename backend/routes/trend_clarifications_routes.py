@@ -31,8 +31,6 @@ def get_trend():
             time, 
             mode
         )
-
-
         return jsonify(result)
 
     except Exception as e:

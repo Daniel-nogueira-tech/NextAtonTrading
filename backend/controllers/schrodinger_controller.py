@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
 from scipy.signal import find_peaks
+from scipy.ndimage import gaussian_filter1d
 from controllers.vppr_controller import get_vppr
 
 
@@ -68,65 +69,101 @@ def wave_function(orders):
     }
 
 # ===============Função para calcular - Energia cinética (velocidade do preço)===============#
-def calculate_kinetic_energy(orders):
-    energy = []
-    for i in range(1, len(orders)):
-        price_current = orders[i]["price"]
-        price_previous = orders[i-1]["price"]
-        time_current = orders[i]["time"]
-        time_previous = orders[i-1]["time"]
-        vol_current = orders[i]["volume"]
-
-        # ΔP e Δt
-        delta_price = price_current - price_previous
-        delta_time = (time_current - time_previous).total_seconds()
-
-        # Energia cinética ~ (vol * ΔP^2 / Δt)
-        if delta_time > 0:
-            e_c = (vol_current * delta_price **2) / delta_time
-            energy.append(e_c)
-        else:                        
-            energy.append(0)
-
-    return energy
-
-
-#===============Função para calcular energia potencial===============#
-def calculate_Potential_energy(orders, max_expansao_pct=0.1):
-    if not orders:
+def calculate_kinetic_energy(orders, use_time=True, smooth=3, log_compress=True, avg_dt=None):
+    """
+    Energia cinética ~ movimento com volume.
+    
+    Parâmetros:
+      use_time: se True, divide por Δt (para ticks irregulares).
+                se False, ignora Δt (para candles regulares).
+      smooth: janela de média móvel (0 = sem suavização).
+      log_compress: aplica log1p para reduzir outliers.
+      avg_dt: Δt de referência em segundos. Se None, usa a mediana dos Δt.
+    """
+    n = len(orders)
+    if n == 0:
         return []
 
-    p_min = orders[0]["price"]
-    p_max = orders[0]["price"]
-    track_volume = 0
-    energies = []
+    prices  = np.array([o["price"]  for o in orders], dtype=float)
+    volumes = np.array([o.get("volume", 0.0) for o in orders], dtype=float)
+    times   = [o["time"] for o in orders]
 
-    for o in orders:
-        price = o["price"]
-        vol = o["volume"]
+    # Δt entre barras consecutivas (em segundos)
+    dts = np.zeros(n)
+    for i in range(1, n):
+        dts[i] = (times[i] - times[i-1]).total_seconds()
+    dts[0] = dts[1] if n > 1 else 1.0    # replica o primeiro
 
-        nova_min = min(p_min, price)
-        nova_max = max(p_max, price)
-        amplitude_atual = p_max - p_min
-        amplitude_nova = nova_max - nova_min
+    # Δt de referência
+    valid_dts = dts[dts > 0]
+    if avg_dt is None:
+        avg_dt = float(np.median(valid_dts)) if valid_dts.size > 0 else 1.0
 
-        # Se a expansão for pequena → ainda é consolidação
-        if amplitude_atual == 0 or (amplitude_nova - amplitude_atual) / max(amplitude_atual, 1e-9) <= max_expansao_pct:
-            p_min, p_max = nova_min, nova_max
-            track_volume += vol
-            e_p = (p_max - p_min) * track_volume
-            energies.append(e_p)
+    energy = np.zeros(n)
+    for i in range(1, n):
+        dp = prices[i] - prices[i-1]
+        vol = volumes[i]
+
+        if use_time:
+            dt = dts[i] if dts[i] > 1e-6 else avg_dt
+            # normaliza o Δt para não distorcer a escala
+            e_c = vol * (dp ** 2) / dt * avg_dt
         else:
-            # Rompeu → fecha a consolidação e reinicia
-            energies.append(0)
-            p_min = p_max = price
-            track_volume = vol
+            e_c = vol * (dp ** 2)
 
-    return energies
+        energy[i] = e_c
 
+    # Comprime outliers (opcional)
+    if log_compress and energy.max() > 0:
+        energy = np.log1p(energy)
 
-# ==============Calcular energia potencial================#
-# Constante de Planck
+    # Suavização (opcional)
+    if smooth and smooth > 1:
+        kernel = np.ones(smooth) / smooth
+        energy = np.convolve(energy, kernel, mode='same')
+
+    return energy.tolist()
+
+#===============Função para calcular energia potencial===============#
+def calculate_Potential_energy(orders, window=500, k=1):
+    prices  = np.array([o["price"]  for o in orders], dtype=float)
+    volumes = np.array([o.get("volume", 0.0) for o in orders], dtype=float)
+    n = len(prices)
+    energies = np.zeros(n)
+
+    # Pré-calcula referência de volume global (fallback)
+    global_vol_mean = volumes[volumes > 0].mean() if (volumes > 0).any() else 0.0
+
+    for i in range(window, n):
+        wp = prices[i-window:i]
+        equilibrium = wp.mean()
+        sigma = wp.std()
+
+        # --- z index ---
+        if sigma < 1e-12 or sigma / (abs(equilibrium) + 1e-12) < 1e-9:
+            # janela degenerada: usa apenas o sinal da variação
+            z = 0.0 if prices[i] == equilibrium else np.sign(prices[i] - equilibrium)
+        else:
+            z = (prices[i] - equilibrium) / sigma
+            z = np.clip(z, -10, 10)
+
+        V = np.exp(-0.5 * z * z)   # em (0, 1]
+
+        # --- volume seguro ---
+        wv = volumes[i-window:i]
+        vol_ref = wv[wv > 0].mean() if (wv > 0).any() else global_vol_mean
+
+        if vol_ref <= 0 or volumes[i] <= 0:
+            vol_factor = 0.5       # neutro, NÃO zera
+        else:
+            vol_ratio  = volumes[i] / vol_ref
+            vol_factor = 0.3 + 0.7 * np.tanh(vol_ratio)   # ∈ [0.3, 1.0]
+
+        energies[i] = k * V * vol_factor
+
+    return energies.tolist()
+
+# ==============Constante de Planck================#
 def calculate_planck_constant(orders, alpha=0.1):
     # Extrair volumes
     volumes = [o["volume"] for o in orders]
@@ -140,195 +177,220 @@ def calculate_planck_constant(orders, alpha=0.1):
     h_market = ema[-1]
     return h_market, ema
 
-
-
-# ===============Evolução de função de onda==============#
-def evolve_wave_function(orders, h_market):
-    # Função de onda inicial
+# ===============Evolução de função de onda Ψ==============#
+def evolve_wave_function(orders, h_market=1.0, 
+                          drift_scale=1.0, 
+                          osc_amplitude=0.005):
     psi = wave_function(orders)
-    psi_buy = psi["buy"]
-    psi_sell = psi["sell"]
+    psi_buy  = float(psi["buy"])
+    psi_sell = float(psi["sell"])
 
-    kinetic = calculate_kinetic_energy(orders)
+    kinetic   = calculate_kinetic_energy(orders)
     potential = calculate_Potential_energy(orders)
 
+    n = min(len(kinetic), len(potential), len(orders))
+
+    # Pré-calcula std do drift para normalizar
+    drifts_raw = np.zeros(n)
+    for i in range(1, n):
+        p0 = orders[i-1]["price"]
+        p1 = orders[i]["price"]
+        drifts_raw[i] = (p1 - p0) / max(p0, 1e-9)
+    drift_std = drifts_raw.std() if drifts_raw.std() > 1e-12 else 1.0
+
     evolution = []
-    for i in range(min(len(kinetic), len(potential))):
+    for i in range(n):
         H = kinetic[i] + potential[i]
-        price_current = orders[i]["price"]
-        price_previous = orders[i-1]["price"] if i > 0 else price_current
 
-        # Drift proporcional à variação de preço
-        drift = (price_current - price_previous) / max(price_previous,1)
+        # Drift normalizado → em torno de [-1, 1]
+        drift = drifts_raw[i] / drift_std
+        drift = np.tanh(drift * drift_scale)
 
-        # Oscilação senoidal (interferência quântica)
-        oscillation = 0.05 * np.sin(i * 0.3)  # amplitude 0.05, frequência 0.3
+        # Oscilação: simétrica e atrelada ao estado
+        oscillation = osc_amplitude * np.sin(i * 0.3 + H * 10.0)
 
-        # Atualização com viés + oscilação
-        psi_buy += (H / h_market) * 0.1 * (1 + drift) + oscillation
-        psi_sell += (H / h_market) * 0.1 * (1 - drift) - oscillation
+        # Ganho simétrico: se drift>0, buy ganha mais; se <0, sell ganha mais
+        delta = (H / h_market) * 0.1
+        # O ganho de buy é proporcional a (1+drift),
+        # o de sell a (1-drift). Se drift = -1, buy ganha 0.
+        gain_buy  = delta * max(0.0, 1.0 + drift) + oscillation
+        gain_sell = delta * max(0.0, 1.0 - drift) - oscillation
+
+        psi_buy  = psi_buy  + gain_buy
+        psi_sell = psi_sell + gain_sell
+
+        # Clip ANTES de normalizar
+        psi_buy  = max(0.0, psi_buy)
+        psi_sell = max(0.0, psi_sell)
 
         # Normalização
         total = psi_buy + psi_sell
-        psi_buy /= total
-        psi_sell /= total
+        if total > 1e-12:
+            psi_buy  /= total
+            psi_sell /= total
+        else:
+            psi_buy, psi_sell = 0.5, 0.5
 
-        # Limitar entre 0 e 1
-        psi_buy = max(0, min(1, psi_buy))
-        psi_sell = max(0, min(1, psi_sell))
-
-        evolution.append({"ordem": i+1, "psi_buy": psi_buy, "psi_sell": psi_sell, "H": H, "oscillation": oscillation})
+        evolution.append({
+            "ordem": i + 1,
+            "psi_buy": psi_buy,
+            "psi_sell": psi_sell,
+            "H": H,
+            "drift": drift,
+            "oscillation": oscillation,
+        })
 
     return evolution
 
 
-# =============Distribuição de Probabilidade com Hamiltoniano (Orbitais de Preço)==============#
-def analyze_price_orbitals(orders, alpha=0.00005, grid_points=200):
-    # Extrair preços e volumes
-    prices = np.array([o["price"] for o in orders])
-    volumes = np.array([o["volume"] for o in orders])
-
-    # Energias
-    kinetic = calculate_kinetic_energy(orders)
+# =============== TUNELAMENTO QUÂNTICO =============== #
+def power_surges(orders, smooth=1, prominence=0.65):
+    # Calcula energias
+    kinetic   = calculate_kinetic_energy(orders)
     potential = calculate_Potential_energy(orders)
-    hamiltonian = np.array([k + p for k, p in zip(kinetic, potential)])
 
-    # Distribuição de probabilidade (KDE com pesos)
-    weights = volumes[:len(hamiltonian)] * hamiltonian
-    kde = gaussian_kde(prices[:len(weights)], weights=weights)
-    x_grid = np.linspace(prices.min(), prices.max(), grid_points)
-    probabilities = kde(x_grid)
-    probabilities /= probabilities.sum()  # normalizar
+    n = min(len(kinetic), len(potential), len(orders))
+    if n == 0:
+        return []
 
-    # Expectation e variância
-    expectation = np.sum(x_grid * probabilities)
-    variance = np.sum(((x_grid - expectation) ** 2) * probabilities)
-    std_dev = np.sqrt(variance)
+    # Energia total
+    H = np.array([kinetic[i] + potential[i] for i in range(n)])
 
-    # Detectar picos locais
-    peaks, _ = find_peaks(probabilities)
-    peak_prices = x_grid[peaks]
-    peak_probs = probabilities[peaks]
+    # Suavização opcional
+    if smooth and smooth > 1:
+        kernel = np.ones(smooth) / smooth
+        H = np.convolve(H, kernel, mode="same")
 
-    # Calcular energia média em torno dos picos
-    n = min(len(prices), len(hamiltonian))
-    prices = prices[:n]
-    hamiltonian = hamiltonian[:n]
+    # Normalização
+    H = (H - H.min()) / (H.max() - H.min() + 1e-9)
 
-    peak_energies = []
-    for p in peak_prices:
-        mask = (prices >= p*0.95) & (prices <= p*1.05)
-        avg_energy = hamiltonian[mask].mean() if mask.sum() > 0 else 0
-        peak_energies.append(avg_energy)
+    # Detecta picos
+    peaks, _ = find_peaks(H, prominence=prominence)
 
-    # Definir barreiras
-    barrier_resistencia = np.percentile(hamiltonian, 90)
-    barrier_suporte = np.percentile(hamiltonian, 10)
-
-    # Função de tunelamento
-    def tunneling_probability(H, barrier):
-        if H >= barrier:
-            return 1.0
-        else:
-            return np.exp(-alpha * (barrier - H))
-
-    # Calcular regiões de pico com tunelamento
-    peak_regions = []
-    for p in peak_prices:
-        mask = (prices >= p - std_dev) & (prices <= p + std_dev)
-        if mask.sum() > 0:
-            avg_energy_region = hamiltonian[mask].mean()
-            prob_resistencia = tunneling_probability(avg_energy_region, barrier_resistencia)
-            prob_suporte = tunneling_probability(avg_energy_region, barrier_suporte)
-        else:
-            avg_energy_region, prob_resistencia, prob_suporte = 0, 0, 0
-
-        peak_regions.append({
-            "preco_pico": p,
-            "prob_pico": probabilities[np.argmin(np.abs(x_grid - p))],
-            "preco_min": p - std_dev,
-            "preco_max": p + std_dev,
-            "energia_media": avg_energy_region,
-            "P_resistencia": prob_resistencia,
-            "P_suporte": prob_suporte
+    # Associa cada pico ao preço, tempo e volume
+    surge_points = []
+    for idx in peaks:
+        surge_points.append({
+            "ordem": int(idx + 1),
+            "energia": float(H[idx]),
+            "power_surges_price": float(orders[idx]["price"]),
+            "time": orders[idx]["time"].strftime("%Y-%m-%d %H:%M:%S"),
         })
 
-    # Retornar resultados organizados
-    return {
-        "x_grid": x_grid,
-        "probabilities": probabilities,
-        "expectation": expectation,
-        "variance": variance,
-        "std_dev": std_dev,
-        "peak_prices": peak_prices,
-        "peak_probs": peak_probs,
-        "peak_energies": peak_energies,
-        "peak_regions": peak_regions,
-        "barrier_resistencia": barrier_resistencia,
-        "barrier_suporte": barrier_suporte
-    }
-
+    return surge_points
 
 # ================Colapso da função de onda================#
-def collapse_wave_function(evolution_series, potential_energy, energy_kinetic):
+def collapse_wave_function(evolution_series, potential_energy, energy_kinetic, orders):
+    """
+    Colapso da função de onda adaptado ao potencial suave (gaussiano).
+    
+    Regra:
+      - Rompimento = potencial abaixo de um threshold relativo (percentil).
+      - Direção = dada pelo movimento do preço (delta).
+      - Colapso para estado definido (1,0) ou (0,1) na barra do rompimento.
+      - Caso contrário, mantém psi_buy/psi_sell evoluídos.
+    """
+    n = len(evolution_series)
+    if n == 0:
+        return []
+
+    # --- Calibra threshold de rompimento via percentil do próprio potencial ---
+    # Ignora os primeiros zeros (i < window da calculate_Potential_energy)
+    valid_pot = [p for p in potential_energy if p > 0]
+    if valid_pot:
+        # Percentil 15: ~15% das barras são "rompimento"
+        pot_threshold = float(np.percentile(valid_pot, 15))
+    else:
+        pot_threshold = 0.0
+
+    # --- Calibra threshold de energia cinética via mediana ---
+    valid_kin = [k for k in energy_kinetic if k > 0]
+    kin_percentil = np.percentile(valid_kin, 60) if valid_kin else 0.0
+
     collapsed_series = []
-    flag_collapsed_buy = False
-    flag_collapsed_sell = False
 
     for i, e in enumerate(evolution_series):
-        H = e["H"]
-        psi_buy = e["psi_buy"]
-        psi_sell = e["psi_sell"]
-
+        H         = e["H"]
+        psi_buy   = e["psi_buy"]
+        psi_sell  = e["psi_sell"]
         buy, sell = psi_buy, psi_sell
 
-        current_kinetic = energy_kinetic[i]
-        prev_kinetic = energy_kinetic[i-1] if i > 0 else current_kinetic
+        current_kinetic   = energy_kinetic[i]
         current_potential = potential_energy[i]
 
-        # Detecta rompimento (energia potencial zerada)
-        if current_potential == 0:
-            if psi_buy > 0.5:
-                flag_collapsed_buy = True
-            elif psi_sell > 0.5:
-                flag_collapsed_sell = True
+        price_current  = orders[i]["price"]
+        price_previous = orders[i-1]["price"] if i > 0 else price_current
+        delta_price    = price_current - price_previous
 
-        # Se houve colapso, analisar energia cinética
-        if flag_collapsed_buy and prev_kinetic < current_kinetic:
-            # Energia cinética aumentando → colapso para compra
+        # ---- 1) Detecta se há rompimento (potencial baixo) ----
+        # i < window já vem com potential = 0 → considera "sem janela" = não rompimento
+        is_breakout = (0 < current_potential < pot_threshold)
+
+        # ---- 2) Determina a direção pelo preço ----
+        flag_buy  = False
+        flag_sell = False
+        if is_breakout:
+            if delta_price > 0:
+                flag_buy = True
+            elif delta_price < 0:
+                flag_sell = True
+            # delta == 0 → sem direção, não colapsa
+
+        # ---- 3) Confirmação pela energia cinética (opcional) ----
+        # Só colapsa se E_kin está acima da mediana (movimento real).
+        # Se quiser colapso sempre que houver rompimento, apague este if.
+        kin_ok = (current_kinetic >= kin_percentil)
+
+        # ---- 4) Aplica o colapso ----
+        collapsed = False
+        if flag_buy and kin_ok:
             buy, sell = 1.0, 0.0
-        elif flag_collapsed_sell and prev_kinetic < current_kinetic:
-            # Energia cinética aumentando → colapso para venda
+            collapsed = True
+        elif flag_sell and kin_ok:
             buy, sell = 0.0, 1.0
+            collapsed = True
+
+        # ---- 5) Reporte ----
+        if collapsed and flag_buy:
+            rompimento = "alta"
+        elif collapsed and flag_sell:
+            rompimento = "baixa"
+        elif is_breakout:
+            rompimento = "sem_confirmacao"   # havia rompimento mas kin não confirmou
+        else:
+            rompimento = "nenhum"
 
         collapsed_series.append({
             "ordem": e["ordem"],
             "buy": buy,
             "sell": sell,
-            "H": H
+            "H": H,
+            "potencial": current_potential,
+            "rompimento": rompimento,
         })
 
     return collapsed_series
 
-
-
 def _calculate_schrodinger(orders):
+
+    peaks = power_surges(orders, smooth=1, prominence=0.65)
+
     higher_probability = wave_function(orders)
 
     energy_kinetic = calculate_kinetic_energy(orders)
-    potential_energy = calculate_Potential_energy(orders)
+    potential_energy = calculate_Potential_energy(orders, window=500, k=1.0)
     h_market, ema_series = calculate_planck_constant(orders)
 
     evolution_series = evolve_wave_function(orders, h_market)
-    price_orbitals = analyze_price_orbitals(orders)
     collapsed = collapse_wave_function(
-        evolution_series, potential_energy, energy_kinetic
+        evolution_series, potential_energy, energy_kinetic, orders
     )
     for item in collapsed:
         order_index = item["ordem"] - 1
         if 0 <= order_index < len(orders):
             order_time = orders[order_index]["time"]
             item["time"] = order_time.strftime("%Y-%m-%d %H:%M:%S")
+
 
     return {
         "higher_probability": higher_probability,
@@ -338,19 +400,7 @@ def _calculate_schrodinger(orders):
         "ema_series": list(map(float, ema_series)),
         "evolution_series": evolution_series,
         "collapsed": collapsed,
-        "price_orbitals": {
-            "x_grid": price_orbitals["x_grid"].tolist(),
-            "probabilities": price_orbitals["probabilities"].tolist(),
-            "expectation": float(price_orbitals["expectation"]),
-            "variance": float(price_orbitals["variance"]),
-            "std_dev": float(price_orbitals["std_dev"]),
-            "peak_prices": price_orbitals["peak_prices"].tolist(),
-            "peak_probs": price_orbitals["peak_probs"].tolist(),
-            "peak_energies": list(map(float, price_orbitals["peak_energies"])),
-            "peak_regions": price_orbitals["peak_regions"],
-            "barrier_resistencia": float(price_orbitals["barrier_resistencia"]),
-            "barrier_suporte": float(price_orbitals["barrier_suporte"]),
-        }
+        "power_surges":peaks,
     }
 
 def get_schrodinger(

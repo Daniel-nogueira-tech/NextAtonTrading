@@ -1,6 +1,5 @@
 from utils.klines import get_klines, format_raw_data
 
-
 #  Função para calcular o ATR móvel
 def calculate_atr_wilder(symbol, interval="15m", period=14):
     if period is None or period <= 0:
@@ -37,7 +36,7 @@ def calculate_atr_wilder(symbol, interval="15m", period=14):
 
 
 
-def calculate_atr_wilder_from_data(data, period=182):
+def calculate_atr_wilder_from_data(data, period=14):
     if period is None or period <= 0:
         raise ValueError("period deve ser um número inteiro positivo")
 

@@ -93,7 +93,7 @@ def calculate_vppr(klines, accumulation_period="month"):
 
         vppr_acumulado += (vppr_candle / 1000)
 
-        vppr_values.append(vppr_candle)
+        vppr_values.append(vppr_acumulado)
         vppr_simple.append(vppr_candle)
 
     return vppr_values, vppr_simple
