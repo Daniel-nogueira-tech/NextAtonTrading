@@ -163,14 +163,33 @@
   height: 148px;
 }
 
+.graphics-renko__workspace {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
 .graphics-renko__chart {
   position: relative;
-  width: 100%;
+  width: auto;
   flex: 1 1 420px;
+  min-width: 0;
   min-height: 320px;
   overflow: hidden;
   border: 1px solid rgba(120, 144, 156, 0.16);
   border-radius: 8px;
+}
+
+.graphics-renko__analysis-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .graphics-renko__chart canvas {
@@ -679,6 +698,10 @@
   .graphics-renko__chart {
     height: 360px;
     flex-basis: 360px;
+  }
+
+  .graphics-renko__workspace {
+    flex-direction: column;
   }
 
   .button-graphic {

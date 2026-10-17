@@ -6,6 +6,7 @@ import { CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, cre
 import { Calendar } from 'primereact/calendar';
 import { Button } from 'primereact/button';
 import MovementTables from '../MovementTables/MovementTables.jsx';
+import AnalysisTools from '../AnalysisTools/AnalysisTools.jsx';
 
 import { useOperatingData } from '../../hooks/OperatingData/OperatingData.js';
 import { useOperatingDataPrimary } from '../../hooks/OperationDataPrimary/OperationDataPrimary.js';
@@ -20,6 +21,96 @@ const DOWN_COLOR = '#fc5b5b'
 const MIN_ENGINE_SPEED = 100
 const MAX_ENGINE_SPEED = 5000
 const DEFAULT_ENGINE_SPEED = 500
+
+const FIBONACCI_LEVELS = [0, 0.382, 0.5, 0.618, 1]
+
+const AnalysisDrawingOverlay = ({ chart, series, drawings, draft, preview, renderVersion }) => {
+  if (!chart || !series) return null
+
+  const toCoordinates = (point) => ({
+    x: chart.timeScale().timeToCoordinate(point.time),
+    y: series.priceToCoordinate(point.price),
+  })
+  const renderDrawing = (drawing, key) => {
+    const points = drawing.points.map(toCoordinates)
+    if (points.some(point => point.x === null || point.y === null)) return null
+
+    const color = drawing.type === 'support'
+      ? '#22ab94'
+      : drawing.type === 'resistance'
+        ? '#f23645'
+        : '#a88aff'
+    const common = { stroke: color, strokeWidth: 1.5, vectorEffect: 'non-scaling-stroke' }
+    const first = points[0]
+
+    if (drawing.type === 'support' || drawing.type === 'resistance') {
+      return <line key={key} x1="0" y1={first.y} x2="100%" y2={first.y} {...common} />
+    }
+
+    if (drawing.type === 'trendline') {
+      if (points.length < 2) return null
+      return <line key={key} x1={first.x} y1={first.y} x2={points[1].x} y2={points[1].y} {...common} />
+    }
+
+    if (drawing.type === 'channel') {
+      if (points.length < 2) return null
+      const second = points[1]
+      if (points.length < 3) {
+        return <line key={key} x1={first.x} y1={first.y} x2={second.x} y2={second.y} {...common} />
+      }
+      const third = points[2]
+      const dx = second.x - first.x
+      const dy = second.y - first.y
+      const length = Math.hypot(dx, dy) || 1
+      const offset = ((third.x - first.x) * -dy + (third.y - first.y) * dx) / length
+      const offsetX = (-dy / length) * offset
+      const offsetY = (dx / length) * offset
+      return (
+        <g key={key}>
+          <polygon
+            points={`${first.x},${first.y} ${second.x},${second.y} ${second.x + offsetX},${second.y + offsetY} ${first.x + offsetX},${first.y + offsetY}`}
+            fill={color}
+            fillOpacity="0.08"
+          />
+          <line x1={first.x} y1={first.y} x2={second.x} y2={second.y} {...common} />
+          <line x1={first.x + offsetX} y1={first.y + offsetY} x2={second.x + offsetX} y2={second.y + offsetY} {...common} />
+        </g>
+      )
+    }
+
+    if (drawing.type === 'fibonacci') {
+      if (points.length < 2) return null
+      const second = points[1]
+      const priceDelta = drawing.points[1].price - drawing.points[0].price
+      return (
+        <g key={key}>
+          {FIBONACCI_LEVELS.map((level) => {
+            const y = series.priceToCoordinate(drawing.points[0].price + priceDelta * level)
+            if (y === null) return null
+            return (
+              <g key={level}>
+                <line x1={first.x} y1={y} x2={second.x} y2={y} {...common} strokeOpacity="0.8" />
+                <text x={Math.max(first.x, second.x) + 5} y={y - 3} fill={color} fontSize="10">
+                  {(level * 100).toFixed(1)}%
+                </text>
+              </g>
+            )
+          })}
+        </g>
+      )
+    }
+
+    return null
+  }
+  const draftPoints = draft && preview ? [...draft.points, preview] : draft?.points
+
+  return (
+    <svg className="graphics-renko__analysis-overlay" aria-hidden="true" data-render-version={renderVersion}>
+      {drawings.map((drawing, index) => renderDrawing(drawing, `drawing-${index}`))}
+      {draft && renderDrawing({ ...draft, points: draftPoints }, 'drawing-preview')}
+    </svg>
+  )
+}
 
 const normalizeTrend = (trend) => {
   if (!trend) return []
@@ -543,8 +634,21 @@ const GraphicsRenko = () => {
   const candlestickSeriesMetaRef = React.useRef(null);
   const hadRenkoCandlesRef = React.useRef(false);
   const lastChartSymbolRef = React.useRef(activeSymbol);
+  const [activeAnalysisTool, setActiveAnalysisTool] = React.useState('cursor');
+  const [analysisDrawings, setAnalysisDrawings] = React.useState([]);
+  const [analysisDraft, setAnalysisDraft] = React.useState(null);
+  const [analysisPreview, setAnalysisPreview] = React.useState(null);
+  const [analysisRenderVersion, setAnalysisRenderVersion] = React.useState(0);
+  const [analysisChart, setAnalysisChart] = React.useState(null);
+  const [analysisSeries, setAnalysisSeries] = React.useState(null);
+  const activeAnalysisToolRef = React.useRef(activeAnalysisTool);
+  const analysisDraftRef = React.useRef(null);
   const [dateErro, setDateErro] = React.useState(null);
   const [disabledButton, setDisabledButton] = React.useState(false);
+
+  React.useEffect(() => {
+    activeAnalysisToolRef.current = activeAnalysisTool
+  }, [activeAnalysisTool])
 
   //===================/ Chama os hooks /===================//
   const { retestPointsStateRef } = useOperatingData(trend);
@@ -585,7 +689,7 @@ const GraphicsRenko = () => {
     return selectMarketBySymbol(trendCurrent, activeSymbol)
   }, [trendCurrent, activeSymbol])
 
-  console.log('selectedMacdMarket',selectedMacdMarket)
+  console.log('selectedMacdMarket', selectedMacdMarket)
   // Serie RSI
   const rsiSeries = React.useMemo(() => {
     const rsiData = buildLineData(selectedRsiMarket, 'rsi')
@@ -597,7 +701,7 @@ const GraphicsRenko = () => {
         name: 'RSI',
         color: '#a1f442',
         data: rsiData,
-      }, 
+      },
       /*
       {
         name: 'Media',
@@ -707,6 +811,8 @@ const GraphicsRenko = () => {
         minMove: 0.01,
       },
     })
+    setAnalysisChart(chartRef.current)
+    setAnalysisSeries(candlestickSeriesRef.current)
 
     const chartMarkersRef = createSeriesMarkers(candlestickSeriesRef.current, [], {
       position: 'atPriceTop',
@@ -717,7 +823,59 @@ const GraphicsRenko = () => {
 
     candlestickSeriesRef.current.chartMarkers = chartMarkersRef
 
+    const drawingPointFromEvent = (event) => {
+      if (!event.point || event.time === undefined || event.time === null) return null
+      const price = candlestickSeriesRef.current?.coordinateToPrice(event.point.y)
+      if (price === null || price === undefined) return null
+      return { time: event.time, price }
+    }
+
+    const handleChartClick = (event) => {
+      const tool = activeAnalysisToolRef.current
+      if (tool === 'cursor') return
+
+      const point = drawingPointFromEvent(event)
+      if (!point) return
+
+      if (tool === 'support' || tool === 'resistance') {
+        setAnalysisDrawings(current => [...current, { type: tool, points: [point] }])
+        return
+      }
+
+      const requiredPoints = tool === 'channel' ? 3 : 2
+      const currentDraft = analysisDraftRef.current
+      const nextDraft = currentDraft?.type === tool
+        ? { ...currentDraft, points: [...currentDraft.points, point] }
+        : { type: tool, points: [point] }
+
+      if (nextDraft.points.length === requiredPoints) {
+        setAnalysisDrawings(current => [...current, nextDraft])
+        analysisDraftRef.current = null
+        setAnalysisDraft(null)
+        setAnalysisPreview(null)
+      } else {
+        analysisDraftRef.current = nextDraft
+        setAnalysisDraft(nextDraft)
+        setAnalysisPreview(null)
+      }
+    }
+
+    const handleCrosshairMove = (event) => {
+      if (!analysisDraftRef.current) return
+      const point = drawingPointFromEvent(event)
+      setAnalysisPreview(point)
+      setAnalysisRenderVersion(version => version + 1)
+    }
+
+    const refreshDrawings = () => setAnalysisRenderVersion(version => version + 1)
+    chartRef.current.subscribeClick(handleChartClick)
+    chartRef.current.subscribeCrosshairMove(handleCrosshairMove)
+    chartRef.current.timeScale().subscribeVisibleLogicalRangeChange(refreshDrawings)
+
     return () => {
+      chartRef.current?.unsubscribeClick(handleChartClick)
+      chartRef.current?.unsubscribeCrosshairMove(handleCrosshairMove)
+      chartRef.current?.timeScale().unsubscribeVisibleLogicalRangeChange(refreshDrawings)
       retestLevelMarkersRef.current.forEach((markers) => markers.setMarkers([]))
       retestLevelMarkersRef.current.clear()
       retestLevelSeriesRef.current.forEach((series) => chartRef.current?.removeSeries(series))
@@ -737,6 +895,10 @@ const GraphicsRenko = () => {
       candlestickSeriesMetaRef.current = null
       hadRenkoCandlesRef.current = false
       lastChartSymbolRef.current = activeSymbol
+      analysisDraftRef.current = null
+      setAnalysisDraft(null)
+      setAnalysisPreview(null)
+      setAnalysisDrawings([])
 
       retestLevelMarkersRef.current.forEach((markers) => markers.setMarkers([]))
       retestLevelMarkersRef.current.clear()
@@ -937,7 +1099,7 @@ const GraphicsRenko = () => {
     const signalColor = colorMapTrend[lastTrend?.type] || 'gray';
     document.documentElement.style.setProperty('--signal-color-trend', signalColor)
   }
-console.log('lastVppr>>',lastVppr)
+
   if (lastTrendPrimary) {
     const signalColorTrendPrimary = colorMapTrend[lastTrendPrimary?.type] || 'gray';
     document.documentElement.style.setProperty('--signal-color-trend-primary', signalColorTrendPrimary)
@@ -1012,8 +1174,8 @@ console.log('lastVppr>>',lastVppr)
                 onClick={() => setIsTrend(!isTrend)}
               > {isTrend ? 'Secundary' : 'Primary'}
               </button>
-            </div> 
-            
+            </div>
+
             {/**=======================|Painel de informações do ativo|=======================| */}
             {lastTrendPrimary && lastTrend && lastVppr && (
               <div className='lastTrend-container'>
@@ -1074,7 +1236,33 @@ console.log('lastVppr>>',lastVppr)
           </div>
         </div>
 
-        <div className="graphics-renko__chart" ref={chartContainerRef}>
+        {/**GRÁFICO RENKO PERSONALIZADO */}
+        <div className="graphics-renko__workspace">
+          <AnalysisTools
+            activeTool={activeAnalysisTool}
+            onToolSelect={(tool) => {
+              activeAnalysisToolRef.current = tool
+              setActiveAnalysisTool(tool)
+              analysisDraftRef.current = null
+              setAnalysisDraft(null)
+              setAnalysisPreview(null)
+            }}
+            onClear={() => {
+              analysisDraftRef.current = null
+              setAnalysisDraft(null)
+              setAnalysisPreview(null)
+              setAnalysisDrawings([])
+            }}
+          />
+          <div className="graphics-renko__chart" ref={chartContainerRef}>
+            <AnalysisDrawingOverlay
+              chart={analysisChart}
+              series={analysisSeries}
+              drawings={analysisDrawings}
+              draft={analysisDraft}
+              preview={analysisPreview}
+              renderVersion={analysisRenderVersion}
+            />
           <div className='button-simulation'>
             <button
               onClick={buttonSimulation}
@@ -1259,6 +1447,7 @@ console.log('lastVppr>>',lastVppr)
             </div>
           </div>
 
+        </div>
         </div>
 
         {/**==========================|Painel dos indicadores|============================ */}
