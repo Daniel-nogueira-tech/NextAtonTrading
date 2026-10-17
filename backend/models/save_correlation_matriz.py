@@ -34,19 +34,17 @@ def save_correlated_assets(correlated_assets):
         )
     """)
 
-    for sym, series in correlated_assets.items():
-        assets_json = series.to_json()  # pandas Series → JSON
-        cursor.execute("""
-            INSERT OR REPLACE INTO correlated_assets (symbol, assets_json)
-            VALUES (?, ?)
-        """, (sym, assets_json))
+    # monta a lista de tuplas
+    rows = [(sym, series.to_json()) for sym, series in correlated_assets.items()]
+
+    cursor.executemany("""
+        INSERT OR REPLACE INTO correlated_assets (symbol, assets_json)
+        VALUES (?, ?)
+    """, rows)
 
     conn.commit()
     conn.close()
 
-
-import json
-from config_db import conectar
 
 def save_correlated_index(correlation_index):
     conn = conectar()
@@ -60,14 +58,17 @@ def save_correlated_index(correlation_index):
         )
     """)
 
-    # Percorre todos os símbolos e salva o índice
-    for symbol, index_data in correlation_index.items():
-        index_json = json.dumps(index_data, ensure_ascii=False)
-        cursor.execute("""
-            INSERT OR REPLACE INTO correlated_index (symbol, index_json)
-            VALUES (?, ?)
-        """, (symbol, index_json))
+    # Monta a lista de tuplas (symbol, index_json) de uma vez
+    rows = [
+        (symbol, json.dumps(index_data, ensure_ascii=False))
+        for symbol, index_data in correlation_index.items()
+    ]
+
+    # Insere/atualiza tudo em um único batch
+    cursor.executemany("""
+        INSERT OR REPLACE INTO correlated_index (symbol, index_json)
+        VALUES (?, ?)
+    """, rows)
 
     conn.commit()
     conn.close()
-

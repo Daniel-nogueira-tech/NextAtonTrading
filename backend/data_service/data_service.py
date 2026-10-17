@@ -39,6 +39,31 @@ class DataService:
         self.dados["RSI"] = result[-1]
         return result
 
+    def add_rsi_primary(self, symbols=None, symbol=None, period=15, media_period=15, mode=""):
+            result = get_rsi(
+                symbols=symbols,
+                symbol=symbol,
+                period=period,
+                media_period=media_period,
+                mode=mode
+            )
+            # adiciona classificação baseada no valor do RSI
+            for block in result:
+            # cada bloco tem uma lista em "result"
+              if "result" in block and isinstance(block["result"], list):
+                for row in block["result"]:
+                    rsi_val = row.get("rsi")
+                    if rsi_val is not None:
+                        if rsi_val >= 70:
+                            row["rsi_signal"] = 0   # sobrecompra
+                        elif rsi_val <= 30:
+                            row["rsi_signal"] = 1   # sobrevenda
+                        else:
+                            row["rsi_signal"] = 2 # Neltral  
+    
+            self.dados["RSI"] = result[-1]
+            return result
+
     def add_vppr(self, symbols=None, time=None, modo="", accumulation_period=None):
         result = get_vppr(
             symbols=symbols,

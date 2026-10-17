@@ -8,6 +8,8 @@ import pandas as pd
 from config_db import conectar
 import json
 from io import StringIO
+from concurrent.futures import ThreadPoolExecutor
+from utils.klines_correlation import MAX_DOWNLOAD_WORKERS
 
 
 def data_correlations():
@@ -31,15 +33,22 @@ def data_correlations():
 
     print("Total de símbolos filtrados:", len(symbols_to_download))
 
-    data = {}
-
-    for symbol in symbols_to_download:
+    def download_symbol(symbol):
         try:
             df = get_binance_data(symbol, "1h", 2026, "01")
-            if df is not None:
-                data[symbol] = df["close"].astype(float)
+            return symbol, df
         except Exception as e:
             print(f"Erro ao baixar {symbol}: {e}")
+            return symbol, None
+
+    with ThreadPoolExecutor(
+        max_workers=max(1, min(MAX_DOWNLOAD_WORKERS, len(symbols_to_download)))
+    ) as executor:
+        data = {
+            symbol: df["close"].astype(float)
+            for symbol, df in executor.map(download_symbol, symbols_to_download)
+            if df is not None
+        }
 
     # ======================================= #
     # ====|Calcular correlação de pearson|=== #
@@ -96,7 +105,6 @@ def _get_index_data(symbol, time, mode, total, start, end):
 
 # RETORNA O INDICE
 def index_correlated(time, mode, total=10000, start=None, end=None):
-    delete_correlated_index_table()
     correlated_assets = get_all_correlated_assets()
 
     selected_assets = {
@@ -109,58 +117,71 @@ def index_correlated(time, mode, total=10000, start=None, end=None):
         for assets in selected_assets.values()
         for asset in assets.index
     ))
-    asset_data = {}
-
-    for asset in asset_symbols:
+    def download_asset(asset):
         try:
-            asset_data[asset] = _get_index_data(
+            return asset, _get_index_data(
                 asset, time, mode, total, start, end
             )
         except Exception as error:
             print(f"Erro ao baixar dados para o índice de {asset}: {error}")
 
-    for symbol, assets in selected_assets.items():
-        aligned_data = []
-        for asset in assets.index:
-            df = asset_data.get(asset)
-            if df is None or df.empty:
-                continue
-            required_columns = {
-                "open_time", "open", "high", "low", "close", "volume"
-            }
-            if not required_columns.issubset(df.columns):
-                raise ValueError(f"Dados incompletos para o ativo {asset}")
+    with ThreadPoolExecutor(
+        max_workers=max(1, min(MAX_DOWNLOAD_WORKERS, len(asset_symbols)))
+    ) as executor:
+        asset_data = dict(
+            result for result in executor.map(download_asset, asset_symbols)
+            if result is not None
+        )
 
-            asset_df = df[
-                ["open_time", "open", "high", "low", "close", "volume"]
-            ].copy()
-            asset_df.loc[:, "open_time"] = pd.to_numeric(
-                asset_df["open_time"], errors="coerce"
+    prepared_asset_data = {}
+    required_columns = {
+        "open_time", "open", "high", "low", "close", "volume"
+    }
+    for asset, df in asset_data.items():
+        if df is None or df.empty:
+            continue
+        if not required_columns.issubset(df.columns):
+            raise ValueError(f"Dados incompletos para o ativo {asset}")
+
+        asset_df = df[
+            ["open_time", "open", "high", "low", "close", "volume"]
+        ].copy()
+        asset_df.loc[:, "open_time"] = pd.to_numeric(
+            asset_df["open_time"], errors="coerce"
+        )
+        for column in ["open", "high", "low", "close", "volume"]:
+            asset_df.loc[:, column] = pd.to_numeric(
+                asset_df[column], errors="coerce"
             )
-            for column in ["open", "high", "low", "close", "volume"]:
-                asset_df.loc[:, column] = pd.to_numeric(
-                    asset_df[column], errors="coerce"
-                )
-            asset_df = asset_df.dropna().set_index("open_time")
-            asset_df = asset_df.add_suffix(f"_{asset}")
-            aligned_data.append(asset_df)
+        asset_df = asset_df.dropna().set_index("open_time")
+        prepared_asset_data[asset] = asset_df.add_suffix(f"_{asset}")
+
+    for symbol, assets in selected_assets.items():
+        aligned_data = [
+            prepared_asset_data[asset]
+            for asset in assets.index
+            if asset in prepared_asset_data
+        ]
 
         if aligned_data:
             # Usa somente candles existentes para todos os componentes do índice.
             index_data = pd.concat(aligned_data, axis=1, join="inner").dropna()
-            raw_index_data = [
-                [
-                    open_time,
-                    float(row.filter(regex=r"^open_").sum()),
-                    float(row.filter(regex=r"^high_").sum()),
-                    float(row.filter(regex=r"^low_").sum()),
-                    float(row.filter(regex=r"^close_").sum()),
-                    float(row.filter(regex=r"^volume_").sum()),
-                ]
-                for open_time, row in index_data.iterrows()
-            ]
+            open_prices = index_data.filter(regex=r"^open_").sum(axis=1)
+            high_prices = index_data.filter(regex=r"^high_").sum(axis=1)
+            low_prices = index_data.filter(regex=r"^low_").sum(axis=1)
+            close_prices = index_data.filter(regex=r"^close_").sum(axis=1)
+            volumes = index_data.filter(regex=r"^volume_").sum(axis=1)
+            raw_index_data = zip(
+                index_data.index,
+                open_prices,
+                high_prices,
+                low_prices,
+                close_prices,
+                volumes,
+            )
             correlation_index[symbol] = format_raw_data(raw_index_data)
 
+    delete_correlated_index_table()
     save_correlated_index(correlation_index)
     return correlation_index
 
