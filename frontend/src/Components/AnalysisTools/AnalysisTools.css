@@ -10,13 +10,7 @@
   background: rgba(19, 23, 34, 0.92);
 }
 
-.analysis-tools__heading {
-  color: #787b86;
-  font-size: 0.62rem;
-  font-weight: 700;
-  text-align: center;
-  text-transform: uppercase;
-}
+
 
 .analysis-tools__hint {
   color: #787b86;
@@ -56,7 +50,7 @@
 }
 
 .analysis-tools__icon {
-  font-size: 1.15rem;
+  font-size: 1rem;
   line-height: 1;
 }
 
@@ -67,7 +61,6 @@
 }
 
 .analysis-tools__clear {
-  margin-top: auto;
   border-color: rgba(120, 144, 156, 0.22);
   color: #b8bec8;
   font-size: 0.62rem;
@@ -98,6 +91,10 @@
 
 .graphics-renko__analysis-overlay .handle {
   pointer-events: all;    /* alças capturam */
+}
+
+.graphics-renko__analysis-overlay .channel-hit-area {
+  pointer-events: all;
 }
 @media (max-width: 720px) {
   .analysis-tools {

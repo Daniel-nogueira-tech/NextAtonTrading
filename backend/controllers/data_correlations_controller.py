@@ -72,7 +72,7 @@ def data_correlations():
             correlated_assets[sym] = (
                 sorted_corr[sorted_corr > 0]
                 .sort_values(ascending=False)
-                .head(3)
+                .head(10)
             )
         else:
             correlated_assets[sym] = pd.Series(dtype=float)
@@ -107,7 +107,7 @@ def index_correlated(time, mode, total=10000, start=None, end=None):
     correlated_assets = get_all_correlated_assets()
 
     selected_assets = {
-        symbol: assets[assets > 0].sort_values(ascending=False).head(3)
+        symbol: assets[assets > 0].sort_values(ascending=False).head(10)
         for symbol, assets in correlated_assets.items()
     }
     correlation_index = {symbol: [] for symbol in selected_assets}
@@ -207,16 +207,17 @@ def get_correlated_index(symbol=None):
     conn = conectar()
     cursor = conn.cursor()
 
-    if symbol:
-        cursor.execute("SELECT index_json FROM correlated_index WHERE symbol = ?", (symbol,))
-        result = cursor.fetchone()
+    try:
+        if symbol:
+            cursor.execute("SELECT index_json FROM correlated_index WHERE symbol = ?", (symbol,))
+            result = cursor.fetchone()
+            return json.loads(result[0]) if result else None
+        else:
+            cursor.execute("SELECT symbol, index_json FROM correlated_index")
+            results = cursor.fetchall()
+            return {sym: json.loads(idx) for sym, idx in results}
+    finally:
         conn.close()
-        return json.loads(result[0]) if result else None
-    else:
-        cursor.execute("SELECT symbol, index_json FROM correlated_index")
-        results = cursor.fetchall()
-        conn.close()
-        return {sym: json.loads(idx) for sym, idx in results}
 
 # DELETA OS INDICES
 def delete_correlated_index_table():

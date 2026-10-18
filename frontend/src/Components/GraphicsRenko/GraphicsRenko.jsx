@@ -78,11 +78,28 @@ const renderDrawing = (drawing, key, drawingIndex = null, isPreview = false) => 
         cy={cy}
         r={isSelected ? 6 : 5}
         fill={color}
-        stroke="#fff"
-        strokeWidth={isSelected ? 2 : 1.5}
+        stroke="#ffff"
+        strokeWidth={isSelected ? 3.5 : 1}
         pointerEvents="all"
         style={{ cursor: 'move' }}
         onPointerDown={beginDrag(i)}
+      />
+    )
+  }
+  const hitArea = (x1, y1, x2, y2) => {
+    if (!selectable) return null
+    return (
+      <line
+        className="hit-area"
+        x1={x1}
+        y1={y1}
+        x2={x2}
+        y2={y2}
+        stroke="transparent"
+        strokeWidth="14"
+        pointerEvents="stroke"
+        style={{ cursor: 'grab' }}
+        onPointerDown={beginDrag(null)}
       />
     )
   }
@@ -99,6 +116,7 @@ const renderDrawing = (drawing, key, drawingIndex = null, isPreview = false) => 
           y2={first.y}
           {...common}
         />
+        {hitArea(0, first.y, '100%', first.y)}
         {/* Alça sempre visível quando selectable — não depende de isSelected */}
         {selectable && handle('50%', first.y, 0)}
       </g>
@@ -118,6 +136,7 @@ const renderDrawing = (drawing, key, drawingIndex = null, isPreview = false) => 
     return (
       <g key={key}>
         <line x1={first.x} y1={first.y} x2={second.x} y2={second.y} {...common} />
+        {hitArea(first.x, first.y, second.x, second.y)}
         {selectable && points.map((p, i) => handle(p.x, p.y, i))}
       </g>
     )
@@ -138,6 +157,7 @@ const renderDrawing = (drawing, key, drawingIndex = null, isPreview = false) => 
       return (
         <g key={key}>
           <line x1={first.x} y1={first.y} x2={second.x} y2={second.y} {...common} />
+          {hitArea(first.x, first.y, second.x, second.y)}
           {selectable && points.map((p, i) => handle(p.x, p.y, i))}
         </g>
       )
@@ -175,6 +195,16 @@ const renderDrawing = (drawing, key, drawingIndex = null, isPreview = false) => 
           y2={second.y + offsetY}
           {...common}
         />
+        {selectable && (
+          <polygon
+            className="channel-hit-area"
+            points={`${first.x},${first.y} ${second.x},${second.y} ${second.x + offsetX},${second.y + offsetY} ${first.x + offsetX},${first.y + offsetY}`}
+            fill="transparent"
+            pointerEvents="all"
+            style={{ cursor: 'grab' }}
+            onPointerDown={beginDrag(null)}
+          />
+        )}
         {selectable && points.map((p, i) => handle(p.x, p.y, i))}
       </g>
     )
@@ -205,6 +235,7 @@ const renderDrawing = (drawing, key, drawingIndex = null, isPreview = false) => 
                 {...common}
                 strokeOpacity="0.8"
               />
+              {hitArea(first.x, y, second.x, y)}
               <text
                 x={Math.max(first.x, second.x) + 5}
                 y={y - 3}
@@ -764,6 +795,7 @@ const GraphicsRenko = () => {
   const [analysisChart, setAnalysisChart] = React.useState(null);
   const [analysisSeries, setAnalysisSeries] = React.useState(null);
   const [selectedAnalysisDrawing, setSelectedAnalysisDrawing] = React.useState(null);
+  const selectedAnalysisDrawingRef = React.useRef(null);
   const activeAnalysisToolRef = React.useRef(activeAnalysisTool);
   const analysisDraftRef = React.useRef(null);
   const analysisDragRef = React.useRef(null);
@@ -851,11 +883,21 @@ const GraphicsRenko = () => {
     }
 
     const handleKeyDown = (event) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return
+      if (!['Escape', 'Delete'].includes(event.key) || event.defaultPrevented) return
       const target = event.target
       if (target instanceof HTMLElement && (
         target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
       )) return
+
+      if (event.key === 'Delete') {
+        const selectedIndex = selectedAnalysisDrawingRef.current
+        if (selectedIndex === null) return
+        event.preventDefault()
+        setAnalysisDrawings(drawings => drawings.filter((_, index) => index !== selectedIndex))
+        selectedAnalysisDrawingRef.current = null
+        setSelectedAnalysisDrawing(null)
+        return
+      }
 
       event.preventDefault()
       if (analysisDraftRef.current) {
@@ -866,6 +908,7 @@ const GraphicsRenko = () => {
       }
 
       setAnalysisDrawings(drawings => drawings.slice(0, -1))
+      selectedAnalysisDrawingRef.current = null
       setSelectedAnalysisDrawing(null)
     }
 
@@ -893,6 +936,7 @@ const GraphicsRenko = () => {
 
     const drawing = analysisDrawings[drawingIndex]
     if (!drawing) return
+    selectedAnalysisDrawingRef.current = drawingIndex
     setSelectedAnalysisDrawing(drawingIndex)
     analysisDragRef.current = {
       drawingIndex,
@@ -918,6 +962,7 @@ const GraphicsRenko = () => {
   const lastTrendPrimary = getLastTrendPrimaryBySymbol(activeSymbol);
   const lastVppr = getLastVpprBySymbol(activeSymbol);
   const lastAmrsi = getLastAmrsiBySymbol(activeSymbol);
+
 
   // seleciona o ativo que está ativo
   const selectedMarket = React.useMemo(() => {
@@ -1155,6 +1200,7 @@ const GraphicsRenko = () => {
       setAnalysisDraft(null)
       setAnalysisPreview(null)
       setAnalysisDrawings([])
+      selectedAnalysisDrawingRef.current = null
       setSelectedAnalysisDrawing(null)
 
       retestLevelMarkersRef.current.forEach((markers) => markers.setMarkers([]))
@@ -1500,7 +1546,9 @@ const GraphicsRenko = () => {
             onToolSelect={(tool) => {
               activeAnalysisToolRef.current = tool
               setActiveAnalysisTool(tool)
+              selectedAnalysisDrawingRef.current = null
               setSelectedAnalysisDrawing(null)
+              analysisDragRef.current = null
               analysisDraftRef.current = null
               setAnalysisDraft(null)
               setAnalysisPreview(null)
@@ -1511,6 +1559,7 @@ const GraphicsRenko = () => {
               setAnalysisDraft(null)
               setAnalysisPreview(null)
               setAnalysisDrawings([])
+              selectedAnalysisDrawingRef.current = null
               setSelectedAnalysisDrawing(null)
             }}
           />

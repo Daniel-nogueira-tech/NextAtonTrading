@@ -1,7 +1,8 @@
 import './AnalysisTools.css'
 
 const TOOLS = [
-  { id: 'cursor', label: 'Cursor', shortLabel: '➤', description: 'Move around the chart' },
+ { id: 'deactivate', label: 'Deactivate', shortLabel: '➢', description: 'Move around the chart' },
+  { id: 'cursor', label: 'Cursor', shortLabel: '⬩➤', description: 'Move around the chart' },
   { id: 'trendline', label: 'Trend line', shortLabel: '／', description: 'Draw a trend line with two points' },
   { id: 'channel', label: 'Channel', shortLabel: '//', description: 'Draw a channel with three points' },
   { id: 'support', label: 'Support', shortLabel: '—', description: 'Draw a support level with one point' },
@@ -11,8 +12,6 @@ const TOOLS = [
 
 const AnalysisTools = ({ activeTool, onToolSelect, onClear }) => (
   <aside className="analysis-tools" aria-label="Analysis drawing tools">
-    <span className="analysis-tools__heading">Tools</span>
-    <span className="analysis-tools__hint">Select to move · Esc undo</span>
     <div className="analysis-tools__list">
       {TOOLS.map((tool) => (
         <button
