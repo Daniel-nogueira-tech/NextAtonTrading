@@ -24,90 +24,212 @@ const DEFAULT_ENGINE_SPEED = 500
 
 const FIBONACCI_LEVELS = [0, 0.382, 0.5, 0.618, 1]
 
-const AnalysisDrawingOverlay = ({ chart, series, drawings, draft, preview, renderVersion }) => {
+const AnalysisDrawingOverlay = ({
+  chart,
+  series,
+  drawings,
+  draft,
+  preview,
+  renderVersion,
+  activeTool,
+  selectedDrawingIndex,
+  onDrawingPointerDown,
+}) => {
   if (!chart || !series) return null
 
-  const toCoordinates = (point) => ({
-    x: chart.timeScale().timeToCoordinate(point.time),
-    y: series.priceToCoordinate(point.price),
-  })
-  const renderDrawing = (drawing, key) => {
-    const points = drawing.points.map(toCoordinates)
-    if (points.some(point => point.x === null || point.y === null)) return null
+const toCoordinates = (point) => {
+  const x = chart.timeScale().timeToCoordinate(point.time)
+  const y = series.priceToCoordinate(point.price)
+  return { x, y }
+}
+const renderDrawing = (drawing, key, drawingIndex = null, isPreview = false) => {
+  const points = drawing.points.map(toCoordinates)
+  if (points.every(p => p.x === null || p.y === null)) return null
 
-    const color = drawing.type === 'support'
-      ? '#22ab94'
-      : drawing.type === 'resistance'
-        ? '#f23645'
+  const color =
+    drawing.type === 'support' ? '#22ab94'
+      : drawing.type === 'resistance' ? '#f23645'
         : '#a88aff'
-    const common = { stroke: color, strokeWidth: 1.5, vectorEffect: 'non-scaling-stroke' }
-    const first = points[0]
 
-    if (drawing.type === 'support' || drawing.type === 'resistance') {
-      return <line key={key} x1="0" y1={first.y} x2="100%" y2={first.y} {...common} />
-    }
-
-    if (drawing.type === 'trendline') {
-      if (points.length < 2) return null
-      return <line key={key} x1={first.x} y1={first.y} x2={points[1].x} y2={points[1].y} {...common} />
-    }
-
-    if (drawing.type === 'channel') {
-      if (points.length < 2) return null
-      const second = points[1]
-      if (points.length < 3) {
-        return <line key={key} x1={first.x} y1={first.y} x2={second.x} y2={second.y} {...common} />
-      }
-      const third = points[2]
-      const dx = second.x - first.x
-      const dy = second.y - first.y
-      const length = Math.hypot(dx, dy) || 1
-      const offset = ((third.x - first.x) * -dy + (third.y - first.y) * dx) / length
-      const offsetX = (-dy / length) * offset
-      const offsetY = (dx / length) * offset
-      return (
-        <g key={key}>
-          <polygon
-            points={`${first.x},${first.y} ${second.x},${second.y} ${second.x + offsetX},${second.y + offsetY} ${first.x + offsetX},${first.y + offsetY}`}
-            fill={color}
-            fillOpacity="0.08"
-          />
-          <line x1={first.x} y1={first.y} x2={second.x} y2={second.y} {...common} />
-          <line x1={first.x + offsetX} y1={first.y + offsetY} x2={second.x + offsetX} y2={second.y + offsetY} {...common} />
-        </g>
-      )
-    }
-
-    if (drawing.type === 'fibonacci') {
-      if (points.length < 2) return null
-      const second = points[1]
-      const priceDelta = drawing.points[1].price - drawing.points[0].price
-      return (
-        <g key={key}>
-          {FIBONACCI_LEVELS.map((level) => {
-            const y = series.priceToCoordinate(drawing.points[0].price + priceDelta * level)
-            if (y === null) return null
-            return (
-              <g key={level}>
-                <line x1={first.x} y1={y} x2={second.x} y2={y} {...common} strokeOpacity="0.8" />
-                <text x={Math.max(first.x, second.x) + 5} y={y - 3} fill={color} fontSize="10">
-                  {(level * 100).toFixed(1)}%
-                </text>
-              </g>
-            )
-          })}
-        </g>
-      )
-    }
-
-    return null
+  const common = {
+    stroke: color,
+    strokeWidth: 1.5,
+    vectorEffect: 'non-scaling-stroke',
+    pointerEvents: 'none',
   }
+
+  const first = points[0]
+  const selectable = !isPreview && activeTool === 'cursor' && drawingIndex !== null
+  const isSelected = selectedDrawingIndex === drawingIndex
+
+  const beginDrag = (pointIndex) => (event) => {
+    if (!selectable) return
+    event.preventDefault()
+    event.stopPropagation()
+    onDrawingPointerDown(drawingIndex, pointIndex, event)
+  }
+
+  const handle = (cx, cy, i) => {
+    if (!selectable || cx === null || cy === null) return null
+    return (
+      <circle
+        key={`handle-${i}`}
+        cx={cx}
+        cy={cy}
+        r={isSelected ? 6 : 5}
+        fill={color}
+        stroke="#fff"
+        strokeWidth={isSelected ? 2 : 1.5}
+        pointerEvents="all"
+        style={{ cursor: 'move' }}
+        onPointerDown={beginDrag(i)}
+      />
+    )
+  }
+
+  // ── Support / Resistance ──
+  if (drawing.type === 'support' || drawing.type === 'resistance') {
+    if (first.y === null) return null
+    return (
+      <g key={key}>
+        <line
+          x1="0"
+          y1={first.y}
+          x2="100%"
+          y2={first.y}
+          {...common}
+        />
+        {/* Alça sempre visível quando selectable — não depende de isSelected */}
+        {selectable && handle('50%', first.y, 0)}
+      </g>
+    )
+  }
+
+  // ── Trendline ──
+  if (drawing.type === 'trendline') {
+    if (points.length < 2) return null
+    const second = points[1]
+    if (
+      first.x === null || first.y === null ||
+      second.x === null || second.y === null
+    ) {
+      return null
+    }
+    return (
+      <g key={key}>
+        <line x1={first.x} y1={first.y} x2={second.x} y2={second.y} {...common} />
+        {selectable && points.map((p, i) => handle(p.x, p.y, i))}
+      </g>
+    )
+  }
+
+  // ── Channel ──
+  if (drawing.type === 'channel') {
+    if (points.length < 2) return null
+    const second = points[1]
+
+    if (points.length < 3) {
+      if (
+        first.x === null || first.y === null ||
+        second.x === null || second.y === null
+      ) {
+        return null
+      }
+      return (
+        <g key={key}>
+          <line x1={first.x} y1={first.y} x2={second.x} y2={second.y} {...common} />
+          {selectable && points.map((p, i) => handle(p.x, p.y, i))}
+        </g>
+      )
+    }
+
+    const third = points[2]
+    if (
+      first.x === null || first.y === null ||
+      second.x === null || second.y === null ||
+      third.x === null || third.y === null
+    ) {
+      return null
+    }
+
+    const dx = second.x - first.x
+    const dy = second.y - first.y
+    const length = Math.hypot(dx, dy) || 1
+    const offset = ((third.x - first.x) * -dy + (third.y - first.y) * dx) / length
+    const offsetX = (-dy / length) * offset
+    const offsetY = (dx / length) * offset
+
+    return (
+      <g key={key}>
+        <polygon
+          points={`${first.x},${first.y} ${second.x},${second.y} ${second.x + offsetX},${second.y + offsetY} ${first.x + offsetX},${first.y + offsetY}`}
+          fill={color}
+          fillOpacity="0.08"
+          pointerEvents="none"
+        />
+        <line x1={first.x} y1={first.y} x2={second.x} y2={second.y} {...common} />
+        <line
+          x1={first.x + offsetX}
+          y1={first.y + offsetY}
+          x2={second.x + offsetX}
+          y2={second.y + offsetY}
+          {...common}
+        />
+        {selectable && points.map((p, i) => handle(p.x, p.y, i))}
+      </g>
+    )
+  }
+
+  // ── Fibonacci ──
+  if (drawing.type === 'fibonacci') {
+    if (points.length < 2) return null
+    const second = points[1]
+    if (first.x === null || second.x === null) return null
+
+    const priceDelta = drawing.points[1].price - drawing.points[0].price
+
+    return (
+      <g key={key}>
+        {FIBONACCI_LEVELS.map(level => {
+          const y = series.priceToCoordinate(
+            drawing.points[0].price + priceDelta * level
+          )
+          if (y === null) return null
+          return (
+            <g key={level}>
+              <line
+                x1={first.x}
+                y1={y}
+                x2={second.x}
+                y2={y}
+                {...common}
+                strokeOpacity="0.8"
+              />
+              <text
+                x={Math.max(first.x, second.x) + 5}
+                y={y - 3}
+                fill={color}
+                fontSize="10"
+                pointerEvents="none"
+              >
+                {(level * 100).toFixed(1)}%
+              </text>
+            </g>
+          )
+        })}
+        {selectable && points.map((p, i) => handle(p.x, p.y, i))}
+      </g>
+    )
+  }
+
+  return null
+}
   const draftPoints = draft && preview ? [...draft.points, preview] : draft?.points
 
   return (
     <svg className="graphics-renko__analysis-overlay" aria-hidden="true" data-render-version={renderVersion}>
-      {drawings.map((drawing, index) => renderDrawing(drawing, `drawing-${index}`))}
-      {draft && renderDrawing({ ...draft, points: draftPoints }, 'drawing-preview')}
+      {drawings.map((drawing, index) => renderDrawing(drawing, `drawing-${index}`, index))}
+      {draft && renderDrawing({ ...draft, points: draftPoints }, 'drawing-preview', null, true)}
     </svg>
   )
 }
@@ -641,14 +763,143 @@ const GraphicsRenko = () => {
   const [analysisRenderVersion, setAnalysisRenderVersion] = React.useState(0);
   const [analysisChart, setAnalysisChart] = React.useState(null);
   const [analysisSeries, setAnalysisSeries] = React.useState(null);
+  const [selectedAnalysisDrawing, setSelectedAnalysisDrawing] = React.useState(null);
   const activeAnalysisToolRef = React.useRef(activeAnalysisTool);
   const analysisDraftRef = React.useRef(null);
+  const analysisDragRef = React.useRef(null);
   const [dateErro, setDateErro] = React.useState(null);
   const [disabledButton, setDisabledButton] = React.useState(false);
 
   React.useEffect(() => {
     activeAnalysisToolRef.current = activeAnalysisTool
   }, [activeAnalysisTool])
+
+  React.useEffect(() => {
+    const getChartPoint = (event) => {
+      const chart = chartRef.current
+      const series = candlestickSeriesRef.current
+      const bounds = chartContainerRef.current?.getBoundingClientRect()
+      if (!chart || !series || !bounds) return null
+
+      const priceScaleWidth = chart.priceScale('right').width()
+      const timeScaleHeight = chart.timeScale().height()
+      const chartWidth = bounds.width - priceScaleWidth
+      const chartHeight = bounds.height - timeScaleHeight
+
+      const x = Math.max(0, Math.min(chartWidth - 1, event.clientX - bounds.left))
+      const y = Math.max(0, Math.min(chartHeight - 1, event.clientY - bounds.top))
+
+      const time = chart.timeScale().coordinateToTime(x)
+      const price = series.coordinateToPrice(y)
+      if (time === null || price === null) return null
+      return { x, y, time, price }
+    }
+    const handlePointerMove = (event) => {
+      const drag = analysisDragRef.current
+      const chart = chartRef.current
+      const series = candlestickSeriesRef.current
+      if (!drag || !chart || !series) return
+
+      const current = getChartPoint(event)
+      if (!current) return
+
+      setAnalysisDrawings(drawings => drawings.map((drawing, index) => {
+        if (index !== drag.drawingIndex) return drawing
+
+        // ── Arrastar UMA alça ──
+        if (drag.pointIndex !== null) {
+          return {
+            ...drawing,
+            points: drawing.points.map((point, i) => {
+              if (i !== drag.pointIndex) return point
+              return {
+                time: (drawing.type === 'support' || drawing.type === 'resistance')
+                  ? point.time
+                  : current.time,
+                price: current.price,
+              }
+            }),
+          }
+        }
+
+        // ── Arrastar o desenho INTEIRO ──
+        const priceDelta = current.price - drag.startPoint.price
+        const timeDelta =
+          (typeof current.time === 'number' && typeof drag.startPoint.time === 'number')
+            ? current.time - drag.startPoint.time
+            : 0
+
+        return {
+          ...drawing,
+          points: drawing.points.map(point => ({
+            time: (drawing.type === 'support' || drawing.type === 'resistance')
+              ? point.time
+              : (typeof point.time === 'number' ? point.time + timeDelta : point.time),
+            price: point.price + priceDelta,
+          })),
+        }
+      }))
+
+      // força re-render do overlay (senão o SVG pode não atualizar em alguns casos)
+      setAnalysisRenderVersion(v => v + 1)
+    }
+    const handlePointerUp = () => {
+      if (analysisDragRef.current) {
+        analysisDragRef.current = null
+        setAnalysisRenderVersion(v => v + 1) // força re-render
+      }
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      const target = event.target
+      if (target instanceof HTMLElement && (
+        target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+      )) return
+
+      event.preventDefault()
+      if (analysisDraftRef.current) {
+        analysisDraftRef.current = null
+        setAnalysisDraft(null)
+        setAnalysisPreview(null)
+        return
+      }
+
+      setAnalysisDrawings(drawings => drawings.slice(0, -1))
+      setSelectedAnalysisDrawing(null)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
+
+  const handleAnalysisDrawingPointerDown = (drawingIndex, pointIndex, event) => {
+    const chart = chartRef.current
+    const series = candlestickSeriesRef.current
+    const bounds = chartContainerRef.current?.getBoundingClientRect()
+    if (!chart || !series || !bounds) return
+
+    const x = event.clientX - bounds.left
+    const y = event.clientY - bounds.top
+    const time = chart.timeScale().coordinateToTime(x)
+    const price = series.coordinateToPrice(y)
+    if (time === null || price === null) return
+
+    const drawing = analysisDrawings[drawingIndex]
+    if (!drawing) return
+    setSelectedAnalysisDrawing(drawingIndex)
+    analysisDragRef.current = {
+      drawingIndex,
+      pointIndex,
+      startPoint: { x, y, time, price },
+    }
+  }
 
   //===================/ Chama os hooks /===================//
   const { retestPointsStateRef } = useOperatingData(trend);
@@ -839,6 +1090,8 @@ const GraphicsRenko = () => {
 
       if (tool === 'support' || tool === 'resistance') {
         setAnalysisDrawings(current => [...current, { type: tool, points: [point] }])
+        setActiveAnalysisTool('cursor')
+        activeAnalysisToolRef.current = 'cursor'
         return
       }
 
@@ -853,6 +1106,8 @@ const GraphicsRenko = () => {
         analysisDraftRef.current = null
         setAnalysisDraft(null)
         setAnalysisPreview(null)
+        setActiveAnalysisTool('cursor')
+        activeAnalysisToolRef.current = 'cursor'
       } else {
         analysisDraftRef.current = nextDraft
         setAnalysisDraft(nextDraft)
@@ -896,9 +1151,11 @@ const GraphicsRenko = () => {
       hadRenkoCandlesRef.current = false
       lastChartSymbolRef.current = activeSymbol
       analysisDraftRef.current = null
+      analysisDragRef.current = null
       setAnalysisDraft(null)
       setAnalysisPreview(null)
       setAnalysisDrawings([])
+      setSelectedAnalysisDrawing(null)
 
       retestLevelMarkersRef.current.forEach((markers) => markers.setMarkers([]))
       retestLevelMarkersRef.current.clear()
@@ -1243,15 +1500,18 @@ const GraphicsRenko = () => {
             onToolSelect={(tool) => {
               activeAnalysisToolRef.current = tool
               setActiveAnalysisTool(tool)
+              setSelectedAnalysisDrawing(null)
               analysisDraftRef.current = null
               setAnalysisDraft(null)
               setAnalysisPreview(null)
             }}
             onClear={() => {
               analysisDraftRef.current = null
+              analysisDragRef.current = null
               setAnalysisDraft(null)
               setAnalysisPreview(null)
               setAnalysisDrawings([])
+              setSelectedAnalysisDrawing(null)
             }}
           />
           <div className="graphics-renko__chart" ref={chartContainerRef}>
@@ -1262,192 +1522,195 @@ const GraphicsRenko = () => {
               draft={analysisDraft}
               preview={analysisPreview}
               renderVersion={analysisRenderVersion}
+              activeTool={activeAnalysisTool}
+              selectedDrawingIndex={selectedAnalysisDrawing}
+              onDrawingPointerDown={handleAnalysisDrawingPointerDown}
             />
-          <div className='button-simulation'>
-            <button
-              onClick={buttonSimulation}
-            >
-              {mode === "simulation" ? "Simulation" : "Real time"}
-            </button>
-
-
-            {/*-----------------/Calendário/-----------------*/}
-            {mode === "simulation" &&
-              <div
-                className="card-dates flex justify-content-center ">
-                <Calendar
-                  value={dates}
-                  onChange={(e) => handleDatesChange(e.value)}
-                  selectionMode="range"
-                  minDate={calendarMinDate}
-                  readOnlyInput
-                  hideOnRangeSelection
-                  showIcon
-                  showButtonBar
-                />
-                {dateErro && <p style={{ color: "red" }}>{dateErro}</p>}
-
-                {Array.isArray(formattedDates) && formattedDates[1] !== null && !dateErro &&
-                  <div className={loading ? 'loaded' : 'download'}>
-                    <Button
-                      label="⤓" icon="pi pi-check" loading={download} onClick={!loading ? handleSubmitDate : null}
-                      disabled={loading}
-                    />
-                  </div>
-                }
-              </div>
-            }
-
-            {/*-----------------/Botão de controle/-----------------*/}
-            {!incrementalEngine.isRunning ? (
+            <div className='button-simulation'>
               <button
-                type="button"
-                onClick={incrementalEngine?.play}
-                disabled={incrementalEngine?.isRunning}
-                title="Play"
+                onClick={buttonSimulation}
               >
-                Play
+                {mode === "simulation" ? "Simulation" : "Real time"}
               </button>
-            ) : (
-              <button
-                type="button"
-                onClick={incrementalEngine?.pause}
-                disabled={!incrementalEngine?.isRunning}
-                title="Pause"
-              >
-                Pause
-              </button>
-            )}
-            {loading && mode === "simulation" &&
 
-              <div className='simulation-control'>
 
-                {!incrementalEngine.isRunning ? (
-                  <button
-                    type="button"
-                    onClick={incrementalEngine?.play}
-                    disabled={incrementalEngine?.isRunning}
-                    title="Play"
-                  >
-                    Play
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={incrementalEngine?.pause}
-                    disabled={!incrementalEngine?.isRunning}
-                    title="Pause"
-                  >
-                    Pause
-                  </button>
-                )}
+              {/*-----------------/Calendário/-----------------*/}
+              {mode === "simulation" &&
+                <div
+                  className="card-dates flex justify-content-center ">
+                  <Calendar
+                    value={dates}
+                    onChange={(e) => handleDatesChange(e.value)}
+                    selectionMode="range"
+                    minDate={calendarMinDate}
+                    readOnlyInput
+                    hideOnRangeSelection
+                    showIcon
+                    showButtonBar
+                  />
+                  {dateErro && <p style={{ color: "red" }}>{dateErro}</p>}
 
+                  {Array.isArray(formattedDates) && formattedDates[1] !== null && !dateErro &&
+                    <div className={loading ? 'loaded' : 'download'}>
+                      <Button
+                        label="⤓" icon="pi pi-check" loading={download} onClick={!loading ? handleSubmitDate : null}
+                        disabled={loading}
+                      />
+                    </div>
+                  }
+                </div>
+              }
+
+              {/*-----------------/Botão de controle/-----------------*/}
+              {!incrementalEngine.isRunning ? (
                 <button
                   type="button"
-                  onClick={incrementalEngine?.continue}
-                  disabled={incrementalEngine?.isRunning || incrementalEngine?.status === 'completed'}
-                  title="Continue"
+                  onClick={incrementalEngine?.play}
+                  disabled={incrementalEngine?.isRunning}
+                  title="Play"
                 >
-                  Continue
+                  Play
                 </button>
+              ) : (
                 <button
-                  id='button-reset'
                   type="button"
-                  onClick={resetSimulation}
-                  title="Reset"
+                  onClick={incrementalEngine?.pause}
+                  disabled={!incrementalEngine?.isRunning}
+                  title="Pause"
                 >
-                  Reset
+                  Pause
                 </button>
-                <span className='separates-speed'></span>
-                <div className='controlle-speed-container'>
-                  <div className='controlle-speed'>
-                    <button
-                      type="button"
-                      onClick={decreaseSimulationSpeed}
-                      disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) >= MAX_ENGINE_SPEED}
-                      title="Reduzir velocidade"
-                    >
-                      Slower -
-                    </button>
-                    <span className="simulation-control__speed">{speedLabel}</span>
-                    <button
-                      type="button"
-                      onClick={increaseSimulationSpeed}
-                      disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) <= MIN_ENGINE_SPEED}
-                      title="Aumentar velocidade"
-                    >
-                      Faster +
-                    </button>
-                  </div>
+              )}
+              {loading && mode === "simulation" &&
 
-                  <div className='controlle-step'>
-                    <label htmlFor="slider">Step: {stepLabel}</label>
-                    <input
-                      type="range"
-                      id="slider"
-                      name="slider"
-                      min="1"
-                      max="10"
-                      value={stepLabel}
-                      onChange={handleStepChange}
-                    />
+                <div className='simulation-control'>
+
+                  {!incrementalEngine.isRunning ? (
+                    <button
+                      type="button"
+                      onClick={incrementalEngine?.play}
+                      disabled={incrementalEngine?.isRunning}
+                      title="Play"
+                    >
+                      Play
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={incrementalEngine?.pause}
+                      disabled={!incrementalEngine?.isRunning}
+                      title="Pause"
+                    >
+                      Pause
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={incrementalEngine?.continue}
+                    disabled={incrementalEngine?.isRunning || incrementalEngine?.status === 'completed'}
+                    title="Continue"
+                  >
+                    Continue
+                  </button>
+                  <button
+                    id='button-reset'
+                    type="button"
+                    onClick={resetSimulation}
+                    title="Reset"
+                  >
+                    Reset
+                  </button>
+                  <span className='separates-speed'></span>
+                  <div className='controlle-speed-container'>
+                    <div className='controlle-speed'>
+                      <button
+                        type="button"
+                        onClick={decreaseSimulationSpeed}
+                        disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) >= MAX_ENGINE_SPEED}
+                        title="Reduzir velocidade"
+                      >
+                        Slower -
+                      </button>
+                      <span className="simulation-control__speed">{speedLabel}</span>
+                      <button
+                        type="button"
+                        onClick={increaseSimulationSpeed}
+                        disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) <= MIN_ENGINE_SPEED}
+                        title="Aumentar velocidade"
+                      >
+                        Faster +
+                      </button>
+                    </div>
+
+                    <div className='controlle-step'>
+                      <label htmlFor="slider">Step: {stepLabel}</label>
+                      <input
+                        type="range"
+                        id="slider"
+                        name="slider"
+                        min="1"
+                        max="10"
+                        value={stepLabel}
+                        onChange={handleStepChange}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            }
+              }
 
-            {!loading && mode === "simulation" &&
-              <div className='simulation-control'>
-                Please select another asset or download the date range.
-              </div>
-            }
-          </div>
-          {renkoCandles.length === 0 && (
-            <div className="graphics-renko__empty">
-              Waiting for enough movement to form the blocks.
+              {!loading && mode === "simulation" &&
+                <div className='simulation-control'>
+                  Please select another asset or download the date range.
+                </div>
+              }
             </div>
-          )}
+            {renkoCandles.length === 0 && (
+              <div className="graphics-renko__empty">
+                Waiting for enough movement to form the blocks.
+              </div>
+            )}
 
-          {/**==========================|Botão para compra e venda|============================ */}
-          <div className='button-buy-sell'>
-            <button
-              className="btn btn-buy"
-              onClick={() => handleClick("buy")}
-              disabled={disabledButton}
-            >Buy</button>
-            <button
-              className="btn btn-sell"
-              onClick={() => handleClick("sell")}
-              disabled={disabledButton}
-            >Sell</button>
-            <button
-              className="btn btn-exit"
-              onClick={() => handleClick("exit")}
-              disabled={disabledButton}
-            >Exit
-            </button>
+            {/**==========================|Botão para compra e venda|============================ */}
+            <div className='button-buy-sell'>
+              <button
+                className="btn btn-buy"
+                onClick={() => handleClick("buy")}
+                disabled={disabledButton}
+              >Buy</button>
+              <button
+                className="btn btn-sell"
+                onClick={() => handleClick("sell")}
+                disabled={disabledButton}
+              >Sell</button>
+              <button
+                className="btn btn-exit"
+                onClick={() => handleClick("exit")}
+                disabled={disabledButton}
+              >Exit
+              </button>
 
-            <div className="result">
-              <div className="result-panel">
-                <span>Result:</span>
-                <span className="result-value">{Number(resultOperations?.results?.netPnl ?? 0).toFixed(2)} </span>
-              </div>
-              <div className="result-panel">
-                <span>Balance:</span>
-                <span className="result-value">{Number(resultOperations?.capital?.balance ?? 0).toFixed(2)}</span>
-              </div>
-              <div className="result-panel">
-                <span>Risk:</span>
-                <span className="result-value">{Number(resultOperations?.capital?.risk?.percentage ?? 0)}</span>
-              </div>
-              <div className="result-panel">
-                <span>Size:</span>
-                <span className="result-value">{Number(resultOperations?.capital?.positionSize ?? 0)}</span>
+              <div className="result">
+                <div className="result-panel">
+                  <span>Result:</span>
+                  <span className="result-value">{Number(resultOperations?.results?.netPnl ?? 0).toFixed(2)} </span>
+                </div>
+                <div className="result-panel">
+                  <span>Balance:</span>
+                  <span className="result-value">{Number(resultOperations?.capital?.balance ?? 0).toFixed(2)}</span>
+                </div>
+                <div className="result-panel">
+                  <span>Risk:</span>
+                  <span className="result-value">{Number(resultOperations?.capital?.risk?.percentage ?? 0)}</span>
+                </div>
+                <div className="result-panel">
+                  <span>Size:</span>
+                  <span className="result-value">{Number(resultOperations?.capital?.positionSize ?? 0)}</span>
+                </div>
               </div>
             </div>
-          </div>
 
-        </div>
+          </div>
         </div>
 
         {/**==========================|Painel dos indicadores|============================ */}

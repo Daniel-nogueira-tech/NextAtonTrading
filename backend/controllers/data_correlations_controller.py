@@ -31,7 +31,6 @@ def data_correlations():
         ]
     ))
 
-    print("Total de símbolos filtrados:", len(symbols_to_download))
 
     def download_symbol(symbol):
         try:
@@ -63,7 +62,7 @@ def data_correlations():
     save_corr_matrix(corr_matrix)
 
     # ============================================================================= #
-    # ====|Pegar os principais ativos que se correlacionam com ativos do usuario|=== #
+    # ====|Pegar os principais ativos que se correlacionam com ativos do usuário|=== #
     # ============================================================================= #
     # Para cada símbolo do usuário, pegar os mais correlacionados
     for sym in symbols_user:

@@ -18,6 +18,13 @@
   text-transform: uppercase;
 }
 
+.analysis-tools__hint {
+  color: #787b86;
+  font-size: 0.52rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
 .analysis-tools__list {
   display: flex;
   flex-direction: column;
@@ -76,6 +83,22 @@
   outline-offset: 2px;
 }
 
+.graphics-renko__analysis-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;   /* ← deixa cliques passarem pro chart */
+  z-index: 5;
+}
+
+.graphics-renko__analysis-overlay .hit-area {
+  pointer-events: stroke; /* só a linha de hit captura */
+}
+
+.graphics-renko__analysis-overlay .handle {
+  pointer-events: all;    /* alças capturam */
+}
 @media (max-width: 720px) {
   .analysis-tools {
     flex: 0 0 auto;
@@ -87,6 +110,10 @@
 
   .analysis-tools__heading {
     padding: 0 5px;
+  }
+
+  .analysis-tools__hint {
+    max-width: 65px;
   }
 
   .analysis-tools__list {
