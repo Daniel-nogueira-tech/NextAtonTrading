@@ -21,6 +21,33 @@ const hasStoredData = (value) => {
     return value != null && typeof value === 'object' && Object.keys(value).length > 0;
 };
 
+const normalizeSchrodingerFeed = (payload, fallbackSymbol) => {
+    const collection = payload?.data ?? payload;
+
+    if (Array.isArray(collection)) {
+        return collection
+            .filter(item => item && typeof item === 'object' && Array.isArray(item.power_surges))
+            .map(item => ({
+                ...item,
+                symbol: item.symbol || fallbackSymbol,
+            }));
+    }
+
+    if (!collection || typeof collection !== 'object') return [];
+
+    if (Array.isArray(collection.power_surges)) {
+        return [{
+            ...collection,
+            symbol: collection.symbol || fallbackSymbol,
+        }];
+    }
+
+    return Object.entries(collection).flatMap(([symbol, item]) => {
+        if (!item || typeof item !== 'object' || !Array.isArray(item.power_surges)) return [];
+        return [{ ...item, symbol }];
+    });
+};
+
 // Helper para calcular o delay até o próximo limite de 5 minutos
 const getNextFiveMinuteBoundaryDelay = () => {
     const now = new Date();
@@ -274,7 +301,7 @@ export const ContextGraphicsProvider = ({ children }) => {
                     trend: trendData,
                     vppr: vpprData,
                     rsi: rsiData,
-                    schrodinger: schrodingerData,
+                    schrodinger: normalizeSchrodingerFeed(schrodingerData, activeSymbol),
                 }
             } else {
                 const [
@@ -290,7 +317,7 @@ export const ContextGraphicsProvider = ({ children }) => {
                     requestFeed('trend', `${urlBackend}/api/trend?mode=${mode}&symbol=${activeSymbol}`),
                     requestFeed('vppr', `${urlBackend}/api/vppr?mode=${mode}&symbol=${activeSymbol}`),
                     requestFeed('rsi', `${urlBackend}/api/rsi?mode=${mode}&symbol=${activeSymbol}`),
-                    requestFeed('schrodinger',`${urlBackend}/api/schrodinger?mode=${mode}`)
+                    requestFeed('schrodinger', `${urlBackend}/api/schrodinger?mode=${mode}&symbol=${encodeURIComponent(activeSymbol)}`)
                 ]);
 
                 nextSources = {
@@ -299,10 +326,9 @@ export const ContextGraphicsProvider = ({ children }) => {
                     trend: trendData,
                     vppr: vpprData,
                     rsi: rsiData,
-                    schrodinger:schrodingerData,
+                    schrodinger: normalizeSchrodingerFeed(schrodingerData, activeSymbol),
 
                 }
-                console.log('schrodingerData:',schrodingerData)
             }
 
             if (!nextSources?.fullPrice) {
@@ -444,8 +470,6 @@ export const ContextGraphicsProvider = ({ children }) => {
                     operation: payloadOperation
                 })
 
-            console.log('TESTE API:', responseOperation.data)
-
             return responseOperation.data;
 
         } catch (error) {
@@ -468,11 +492,6 @@ export const ContextGraphicsProvider = ({ children }) => {
 
             setSignalsBySymbolStateRealTime(getOperations.signalsBySymbolState)
             setResultOperationsRealTime(getOperations.resultOperations)
-
-            console.log('>', {
-                signalsBySymbolState: getOperations.signalsBySymbolState,
-                resultOperations: getOperations.resultOperations
-            })
 
         } catch (error) {
             console.error('Error sending operation data:', error);
@@ -557,6 +576,7 @@ export const ContextGraphicsProvider = ({ children }) => {
     }, [mode]);
 
 
+    console.log("schrodinger:",schrodinger)
     //Define o valor do contexto a ser fornecido aos componentes filhos
     const contextValue = {
         // usuário
@@ -596,7 +616,7 @@ export const ContextGraphicsProvider = ({ children }) => {
         rsi,
         fullRsi: fullSources?.rsi ?? rsi,
         schrodinger,
-        schrodinger:fullSources?.schrodinger ?? schrodinger,
+        fullSchrodinger: fullSources?.schrodinger ?? schrodinger,
         incrementalEngine: {
             status: engineStatus,
             cursor: engineCursor,

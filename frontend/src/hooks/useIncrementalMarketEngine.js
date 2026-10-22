@@ -12,7 +12,7 @@ const DEFAULT_FEEDS = {
 
 // Nomes de propriedades que contêm arrays de séries temporais dentro de cada item do feed. 
 // O motor irá automaticamente detectar e fazer merge desses arrays ao atualizar os dados.
-const ARRAY_KEYS = ['movements', 'result', 'prices', 'data']
+const ARRAY_KEYS = ['movements', 'result', 'prices', 'data', 'power_surges']
 const TIME_KEYS = ['Tempo', 'time', 'closeTime', 'openTime', 'open_time']
 
 

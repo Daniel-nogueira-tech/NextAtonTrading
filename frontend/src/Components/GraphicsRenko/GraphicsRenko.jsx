@@ -54,6 +54,8 @@ const AnalysisDrawingOverlay = ({
   chart,
   series,
   drawings,
+  energySurges = [],
+  candles = [],
   draft,
   preview,
   renderVersion,
@@ -265,8 +267,52 @@ const toCoordinates = (point) => {
   }
   const draftPoints = draft && preview ? [...draft.points, preview] : draft?.points
 
+  // ===============================|Mostra no Gráfico os pontos de maior energia|=============================== //
   return (
     <svg className="graphics-renko__analysis-overlay" aria-hidden="true" data-render-version={renderVersion}>
+      {energySurges.map((surge, index) => {
+        if (
+          surge?.time == null ||
+          surge?.power_surges_price == null ||
+          surge?.energia == null
+        ) return null
+
+        const time = parseChartTime(surge?.time, index)
+        const price = Number(surge?.power_surges_price)
+        const energy = Number(surge?.energia)
+        if (!Number.isFinite(time) || !Number.isFinite(price) || !Number.isFinite(energy)) return null
+
+        let x = chart.timeScale().timeToCoordinate(time)
+        if (!Number.isFinite(x) && candles.length > 0) {
+          const nearestCandle = candles.reduce((nearest, candle) => (
+            Math.abs(candle.time - time) < Math.abs(nearest.time - time) ? candle : nearest
+          ))
+          x = chart.timeScale().timeToCoordinate(nearestCandle.time)
+        }
+        const y = series.priceToCoordinate(price)
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+
+        return (
+          <g key={`${time}-${surge?.ordem ?? index}`} pointerEvents="none">
+            <title>
+              {`Energia: ${surge.energia} | Ordem: ${surge.ordem ?? '—'} | Preço: ${price}`}
+            </title>
+            <circle cx={x} cy={y} r="5" fill="#ff3030" stroke="#fff" strokeWidth="1.5" />
+            <text
+              x={x + 8}
+              y={y - 8}
+              fill="#ff3030"
+              fontSize="11"
+              fontWeight="700"
+              stroke="#101820"
+              strokeWidth="3"
+              paintOrder="stroke"
+            >
+              {energy.toFixed(4)}
+            </text>
+          </g>
+        )
+      })}
       {drawings.map((drawing, index) => renderDrawing(drawing, `drawing-${index}`, index))}
       {draft && renderDrawing({ ...draft, points: draftPoints }, 'drawing-preview', null, true)}
     </svg>
@@ -393,8 +439,6 @@ const buildRetestLevelSegments = (movements, chartEndTime) => {
 
       if (!trade || typeof trade !== 'object' || time == null) return []
 
-      const direction = String(pivot?.direcao_para || '').trim().toLowerCase()
-
       return [{
         time: parseChartTime(time, index),
         pivot: trade.pivot,
@@ -438,7 +482,7 @@ const buildRetestLevelSegments = (movements, chartEndTime) => {
     }))
 }
 
-// Constrói marcadores de sinal para o gráfico
+// ==================|Constrói marcadores de sinal para o gráfico|================== //
 const normalizeSignalTime = (value, fallbackIndex) => {
   if (value == null) return fallbackIndex + 1
   if (typeof value === 'number') {
@@ -594,7 +638,7 @@ const updateSeriesData = (seriesApi, data, metaRef) => {
   }
 }
 
-//--------------/Formata datas/--------------
+//=================/Formata datas/================= //
 const formatDate = (date) => {
   if (!date) return null
   return date.toISOString().split('T')[0];
@@ -791,6 +835,7 @@ const GraphicsRenko = () => {
   const {
     trend,
     trendPrimary,
+    schrodinger,
     activeSymbol,
     rsi,
     vppr,
@@ -833,8 +878,6 @@ const GraphicsRenko = () => {
   const [dateErro, setDateErro] = React.useState(null);
   const [disabledButton, setDisabledButton] = React.useState(false);
 
- 
-  console.log(trend)
   
   React.useEffect(() => {
     activeAnalysisToolRef.current = activeAnalysisTool
@@ -991,6 +1034,14 @@ const GraphicsRenko = () => {
   const selectedVpprMarket = React.useMemo(() => {
     return selectMarketBySymbol(vppr, activeSymbol)
   }, [vppr, activeSymbol])
+
+  const selectedSchrodingerMarket = React.useMemo(() => {
+    return selectMarketBySymbol(schrodinger, activeSymbol)
+  }, [schrodinger, activeSymbol])
+
+  const energySurges = Array.isArray(selectedSchrodingerMarket?.power_surges)
+    ? selectedSchrodingerMarket.power_surges
+    : []
 
   const renkoCandles = React.useMemo(() => buildRenkoCandles(
     selectedMarket?.movements || []
@@ -1370,7 +1421,7 @@ const GraphicsRenko = () => {
     requestAnimationFrame(() => {
       setAnalysisRenderVersion(version => version + 1)
     })
-  }, [renkoCandles, analysisDrawings, analysisChart])
+  }, [renkoCandles, analysisDrawings, analysisChart, schrodinger])
 
   //-------------------------/Calendário/-------------------------
   // Função para formatar quando precisar salvar ou mostrar
@@ -1670,6 +1721,8 @@ const GraphicsRenko = () => {
               chart={analysisChart}
               series={analysisSeries}
               drawings={analysisDrawings}
+              energySurges={energySurges}
+              candles={renkoCandles}
               draft={analysisDraft}
               preview={analysisPreview}
               renderVersion={analysisRenderVersion}

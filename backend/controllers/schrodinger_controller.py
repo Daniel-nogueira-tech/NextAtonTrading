@@ -372,18 +372,45 @@ def collapse_wave_function(evolution_series, potential_energy, energy_kinetic, o
     return collapsed_series
 
 def _calculate_schrodinger(orders):
-
     peaks = power_surges(orders, smooth=1, prominence=0.65)
 
     higher_probability = wave_function(orders)
 
-    energy_kinetic = calculate_kinetic_energy(orders)
-    potential_energy = calculate_Potential_energy(orders, window=500, k=1.0)
-    h_market, ema_series = calculate_planck_constant(orders)
+    # Energia cinética com time
+    energy_kinetic = []
+    raw_kinetic = calculate_kinetic_energy(orders)
+    for i, e in enumerate(raw_kinetic):
+        energy_kinetic.append({
+            "value": float(e),
+            "time": orders[i]["time"].strftime("%Y-%m-%d %H:%M:%S")
+        })
 
+    # Energia potencial com time
+    potential_energy = []
+    raw_potential = calculate_Potential_energy(orders, window=500, k=1.0)
+    for i, e in enumerate(raw_potential):
+        potential_energy.append({
+            "value": float(e),
+            "time": orders[i]["time"].strftime("%Y-%m-%d %H:%M:%S")
+        })
+
+    # Constante de Planck com série temporal
+    h_market, ema_series = calculate_planck_constant(orders)
+    ema_series_with_time = []
+    for i, e in enumerate(ema_series):
+        ema_series_with_time.append({
+            "value": float(e),
+            "time": orders[i]["time"].strftime("%Y-%m-%d %H:%M:%S")
+        })
+
+    # Evolução da função de onda com time
     evolution_series = evolve_wave_function(orders, h_market)
+    for i, e in enumerate(evolution_series):
+        e["time"] = orders[i]["time"].strftime("%Y-%m-%d %H:%M:%S")
+
+    # Colapso da função de onda com time
     collapsed = collapse_wave_function(
-        evolution_series, potential_energy, energy_kinetic, orders
+        evolution_series, raw_potential, raw_kinetic, orders
     )
     for item in collapsed:
         order_index = item["ordem"] - 1
@@ -391,16 +418,15 @@ def _calculate_schrodinger(orders):
             order_time = orders[order_index]["time"]
             item["time"] = order_time.strftime("%Y-%m-%d %H:%M:%S")
 
-
     return {
         "higher_probability": higher_probability,
-        "energy_kinetic": list(map(float, energy_kinetic)),
-        "potential_energy": list(map(float, potential_energy)),
+        "energy_kinetic": energy_kinetic,
+        "potential_energy": potential_energy,
         "h_market": float(h_market),
-        "ema_series": list(map(float, ema_series)),
+        "ema_volume": ema_series_with_time,
         "evolution_series": evolution_series,
         "collapsed": collapsed,
-        "power_surges":peaks,
+        "power_surges": peaks,
     }
 
 def get_schrodinger(
