@@ -23,6 +23,32 @@ const MAX_ENGINE_SPEED = 5000
 const DEFAULT_ENGINE_SPEED = 500
 
 const FIBONACCI_LEVELS = [0, 0.382, 0.5, 0.618, 1]
+const FUTURE_PROJECTION_DAYS = 10
+const SECONDS_PER_DAY = 24 * 60 * 60
+
+const buildFutureProjectionTimes = (candles, drawings) => {
+  const lastTime = candles[candles.length - 1]?.time
+  if (typeof lastTime !== 'number') return []
+
+  const drawingTimes = drawings.flatMap(drawing => drawing.points)
+    .map(point => point.time)
+    .filter(Number.isFinite)
+  const furthestDrawingTime = Math.max(lastTime, ...drawingTimes)
+  const projectionDays = Math.max(
+    FUTURE_PROJECTION_DAYS,
+    Math.ceil((furthestDrawingTime - lastTime) / SECONDS_PER_DAY),
+  )
+  const projectionTimes = new Set(
+    Array.from({ length: projectionDays }, (_, index) => (
+      lastTime + (index + 1) * SECONDS_PER_DAY
+    )),
+  )
+  drawingTimes.forEach(time => projectionTimes.add(time))
+
+  return Array.from(projectionTimes)
+    .sort((first, second) => first - second)
+    .map(time => ({ time }))
+}
 
 const AnalysisDrawingOverlay = ({
   chart,
@@ -38,116 +64,90 @@ const AnalysisDrawingOverlay = ({
   if (!chart || !series) return null
 
 const toCoordinates = (point) => {
-  const x = chart.timeScale().timeToCoordinate(point.time)
+  const rawX = chart.timeScale().timeToCoordinate(point.time)
   const y = series.priceToCoordinate(point.price)
-  return { x, y }
+
+  // LOG apenas quando o ponto está na zona estendida (time > lastCandle)
+  if (typeof point.time === 'number' && window.__lastCandleTime && point.time > window.__lastCandleTime) {
+    console.log('[toCoord]', {
+      time: point.time,
+      rawX,
+      lastCandle: window.__lastCandleTime,
+      barSpacing: chart.timeScale().options().barSpacing,
+      rightOffset: chart.timeScale().options().rightOffset,
+      visibleRange: chart.timeScale().getVisibleRange(),
+      logicalRange: chart.timeScale().getVisibleLogicalRange(),
+    })
+  }
+
+  return { x: rawX, y }
 }
-const renderDrawing = (drawing, key, drawingIndex = null, isPreview = false) => {
-  const points = drawing.points.map(toCoordinates)
-  if (points.every(p => p.x === null || p.y === null)) return null
+  const renderDrawing = (drawing, key, drawingIndex = null, isPreview = false) => {
+    const points = drawing.points.map(toCoordinates)
+    if (points.every(p => p.x === null || p.y === null)) return null
 
-  const color =
-    drawing.type === 'support' ? '#22ab94'
-      : drawing.type === 'resistance' ? '#f23645'
-        : '#a88aff'
+    const color =
+      drawing.type === 'support' ? '#22ab94'
+        : drawing.type === 'resistance' ? '#f23645'
+          : '#a88aff'
 
-  const common = {
-    stroke: color,
-    strokeWidth: 1.5,
-    vectorEffect: 'non-scaling-stroke',
-    pointerEvents: 'none',
-  }
-
-  const first = points[0]
-  const selectable = !isPreview && activeTool === 'cursor' && drawingIndex !== null
-  const isSelected = selectedDrawingIndex === drawingIndex
-
-  const beginDrag = (pointIndex) => (event) => {
-    if (!selectable) return
-    event.preventDefault()
-    event.stopPropagation()
-    onDrawingPointerDown(drawingIndex, pointIndex, event)
-  }
-
-  const handle = (cx, cy, i) => {
-    if (!selectable || cx === null || cy === null) return null
-    return (
-      <circle
-        key={`handle-${i}`}
-        cx={cx}
-        cy={cy}
-        r={isSelected ? 6 : 5}
-        fill={color}
-        stroke="#ffff"
-        strokeWidth={isSelected ? 3.5 : 1}
-        pointerEvents="all"
-        style={{ cursor: 'move' }}
-        onPointerDown={beginDrag(i)}
-      />
-    )
-  }
-  const hitArea = (x1, y1, x2, y2) => {
-    if (!selectable) return null
-    return (
-      <line
-        className="hit-area"
-        x1={x1}
-        y1={y1}
-        x2={x2}
-        y2={y2}
-        stroke="transparent"
-        strokeWidth="14"
-        pointerEvents="stroke"
-        style={{ cursor: 'grab' }}
-        onPointerDown={beginDrag(null)}
-      />
-    )
-  }
-
-  // ── Support / Resistance ──
-  if (drawing.type === 'support' || drawing.type === 'resistance') {
-    if (first.y === null) return null
-    return (
-      <g key={key}>
-        <line
-          x1="0"
-          y1={first.y}
-          x2="100%"
-          y2={first.y}
-          {...common}
-        />
-        {hitArea(0, first.y, '100%', first.y)}
-        {/* Alça sempre visível quando selectable — não depende de isSelected */}
-        {selectable && handle('50%', first.y, 0)}
-      </g>
-    )
-  }
-
-  // ── Trendline ──
-  if (drawing.type === 'trendline') {
-    if (points.length < 2) return null
-    const second = points[1]
-    if (
-      first.x === null || first.y === null ||
-      second.x === null || second.y === null
-    ) {
-      return null
+    const common = {
+      stroke: color,
+      strokeWidth: 2,
+      vectorEffect: 'non-scaling-stroke',
+      pointerEvents: 'none',
     }
-    return (
-      <g key={key}>
-        <line x1={first.x} y1={first.y} x2={second.x} y2={second.y} {...common} />
-        {hitArea(first.x, first.y, second.x, second.y)}
-        {selectable && points.map((p, i) => handle(p.x, p.y, i))}
-      </g>
-    )
-  }
 
-  // ── Channel ──
-  if (drawing.type === 'channel') {
-    if (points.length < 2) return null
-    const second = points[1]
+    const first = points[0]
+    const selectable = !isPreview && activeTool === 'cursor' && drawingIndex !== null
+    const isSelected = selectedDrawingIndex === drawingIndex
 
-    if (points.length < 3) {
+    const beginDrag = (pointIndex) => (event) => {
+      if (!selectable) return
+      event.preventDefault()
+      event.stopPropagation()
+      onDrawingPointerDown(drawingIndex, pointIndex, event)
+    }
+
+    const handle = (cx, cy, i) => {
+      if (!selectable || cx === null || cy === null) return null
+      return (
+        <circle
+          key={`handle-${i}`}
+          cx={cx}
+          cy={cy}
+          r={isSelected ? 6 : 5}
+          fill={color}
+          stroke="#ffff"
+          strokeWidth={isSelected ? 3.5 : 1}
+          pointerEvents="all"
+          style={{ cursor: 'move' }}
+          onPointerDown={beginDrag(i)}
+        />
+      )
+    }
+    // ── Support / Resistance ──
+    if (drawing.type === 'support' || drawing.type === 'resistance') {
+      if (first.y === null) return null
+      return (
+        <g key={key}>
+          <line
+            x1="0"
+            y1={first.y}
+            x2="95%"
+            y2={first.y}
+            {...common}
+          />
+          {/* Alça sempre visível quando selectable — não depende de isSelected */}
+          {selectable && handle('50%', first.y, 0)}
+        </g>
+      )
+    }
+
+    // ── Trendline ──
+    if (drawing.type === 'trendline') {
+      if (points.length < 2) return null
+      const second = points[1]
       if (
         first.x === null || first.y === null ||
         second.x === null || second.y === null
@@ -157,104 +157,112 @@ const renderDrawing = (drawing, key, drawingIndex = null, isPreview = false) => 
       return (
         <g key={key}>
           <line x1={first.x} y1={first.y} x2={second.x} y2={second.y} {...common} />
-          {hitArea(first.x, first.y, second.x, second.y)}
           {selectable && points.map((p, i) => handle(p.x, p.y, i))}
         </g>
       )
     }
 
-    const third = points[2]
-    if (
-      first.x === null || first.y === null ||
-      second.x === null || second.y === null ||
-      third.x === null || third.y === null
-    ) {
-      return null
+    // ── Channel ──
+    if (drawing.type === 'channel') {
+      if (points.length < 2) return null
+      const second = points[1]
+
+      if (points.length < 3) {
+        if (
+          first.x === null || first.y === null ||
+          second.x === null || second.y === null
+        ) {
+          return null
+        }
+        return (
+          <g key={key}>
+            <line x1={first.x} y1={first.y} x2={second.x} y2={second.y} {...common} />
+            {selectable && points.map((p, i) => handle(p.x, p.y, i))}
+          </g>
+        )
+      }
+
+      const third = points[2]
+      if (
+        first.x === null || first.y === null ||
+        second.x === null || second.y === null ||
+        third.x === null || third.y === null
+      ) {
+        return null
+      }
+
+      const dx = second.x - first.x
+      const dy = second.y - first.y
+      const length = Math.hypot(dx, dy) || 1
+      const offset = ((third.x - first.x) * -dy + (third.y - first.y) * dx) / length
+      const offsetX = (-dy / length) * offset
+      const offsetY = (dx / length) * offset
+
+      return (
+        <g key={key}>
+          <polygon
+            points={`${first.x},${first.y} ${second.x},${second.y} ${second.x + offsetX},${second.y + offsetY} ${first.x + offsetX},${first.y + offsetY}`}
+            fill={color}
+            fillOpacity="0.08"
+            pointerEvents="none"
+          />
+          <line x1={first.x} y1={first.y} x2={second.x} y2={second.y} {...common} />
+          <line
+            x1={first.x + offsetX}
+            y1={first.y + offsetY}
+            x2={second.x + offsetX}
+            y2={second.y + offsetY}
+            {...common}
+          />
+          {selectable && points.map((p, i) => handle(p.x, p.y, i))}
+        </g>
+      )
     }
 
-    const dx = second.x - first.x
-    const dy = second.y - first.y
-    const length = Math.hypot(dx, dy) || 1
-    const offset = ((third.x - first.x) * -dy + (third.y - first.y) * dx) / length
-    const offsetX = (-dy / length) * offset
-    const offsetY = (dx / length) * offset
+    // ── Fibonacci ──
+    if (drawing.type === 'fibonacci') {
+      if (points.length < 2) return null
+      const second = points[1]
+      if (first.x === null || second.x === null) return null
 
-    return (
-      <g key={key}>
-        <polygon
-          points={`${first.x},${first.y} ${second.x},${second.y} ${second.x + offsetX},${second.y + offsetY} ${first.x + offsetX},${first.y + offsetY}`}
-          fill={color}
-          fillOpacity="0.08"
-          pointerEvents="none"
-        />
-        <line x1={first.x} y1={first.y} x2={second.x} y2={second.y} {...common} />
-        <line
-          x1={first.x + offsetX}
-          y1={first.y + offsetY}
-          x2={second.x + offsetX}
-          y2={second.y + offsetY}
-          {...common}
-        />
-        {selectable && (
-          <polygon
-            className="channel-hit-area"
-            points={`${first.x},${first.y} ${second.x},${second.y} ${second.x + offsetX},${second.y + offsetY} ${first.x + offsetX},${first.y + offsetY}`}
-            fill="transparent"
-            pointerEvents="all"
-            style={{ cursor: 'grab' }}
-            onPointerDown={beginDrag(null)}
-          />
-        )}
-        {selectable && points.map((p, i) => handle(p.x, p.y, i))}
-      </g>
-    )
+      const priceDelta = drawing.points[1].price - drawing.points[0].price
+
+      return (
+        <g key={key}>
+          {FIBONACCI_LEVELS.map(level => {
+            const y = series.priceToCoordinate(
+              drawing.points[0].price + priceDelta * level
+            )
+            if (y === null) return null
+            return (
+              <g key={level}>
+                <line
+                  x1={first.x}
+                  y1={y}
+                  x2={second.x}
+                  y2={y}
+                  {...common}
+                  strokeOpacity="0.8"
+                />
+                <text
+                  x={Math.max(first.x, second.x) + 5}
+                  y={y - 3}
+                  fill={color}
+                  fontSize="10"
+                  pointerEvents="none"
+                >
+                  {(level * 100).toFixed(1)}%
+                </text>
+              </g>
+            )
+          })}
+          {selectable && points.map((p, i) => handle(p.x, p.y, i))}
+        </g>
+      )
+    }
+
+    return null
   }
-
-  // ── Fibonacci ──
-  if (drawing.type === 'fibonacci') {
-    if (points.length < 2) return null
-    const second = points[1]
-    if (first.x === null || second.x === null) return null
-
-    const priceDelta = drawing.points[1].price - drawing.points[0].price
-
-    return (
-      <g key={key}>
-        {FIBONACCI_LEVELS.map(level => {
-          const y = series.priceToCoordinate(
-            drawing.points[0].price + priceDelta * level
-          )
-          if (y === null) return null
-          return (
-            <g key={level}>
-              <line
-                x1={first.x}
-                y1={y}
-                x2={second.x}
-                y2={y}
-                {...common}
-                strokeOpacity="0.8"
-              />
-              {hitArea(first.x, y, second.x, y)}
-              <text
-                x={Math.max(first.x, second.x) + 5}
-                y={y - 3}
-                fill={color}
-                fontSize="10"
-                pointerEvents="none"
-              >
-                {(level * 100).toFixed(1)}%
-              </text>
-            </g>
-          )
-        })}
-        {selectable && points.map((p, i) => handle(p.x, p.y, i))}
-      </g>
-    )
-  }
-
-  return null
-}
   const draftPoints = draft && preview ? [...draft.points, preview] : draft?.points
 
   return (
@@ -361,17 +369,6 @@ const buildLineData = (market, valueKey) => {
     .filter((point) => Number.isFinite(point.value))
 }
 
-const buildMovementLineData = (market, valueKey) => {
-  const movements = Array.isArray(market?.movements) ? market.movements : []
-
-  return movements
-    .map((movement, index) => ({
-      time: parseChartTime(movement?.closeTime, index),
-      value: Number(movement?.[valueKey]),
-    }))
-    .filter((point) => Number.isFinite(point.value))
-}
-
 const buildReferenceLineData = (baseData, value) => {
   return baseData.map((point) => ({
     time: point.time,
@@ -385,30 +382,30 @@ const RETEST_LEVELS = [
   { name: 'pivot', label: 'Pivot', color: '#ffffff' },
   { name: 'stop', label: 'Stop', color: '#414141' },
 ]
-const MAX_RETEST_LEVELS = 1;
+const MAX_RETEST_LEVELS = 11;
 
-const operationToObject = (operation) => {
-  if (!Array.isArray(operation)) return null
+const buildRetestLevelSegments = (movements, chartEndTime) => {
+  const points = (Array.isArray(movements) ? movements : [])
+    .flatMap((movement, index) => {
+      const pivot = movement?.pivot
+      const trade = pivot?.trade
+      const time = pivot?.pivot_closeTime ?? movement?.closeTime
 
-  return operation.reduce((result, item) => {
-    if (item?.name) result[item.name] = item.value
-    return result
-  }, {})
-}
+      if (!trade || typeof trade !== 'object' || time == null) return []
 
-const buildRetestLevelSegments = (operations, chartEndTime) => {
-  const points = operations
-    .map(operationToObject)
-    .filter(point => point && point.time != null)
-    .map((point, index) => ({
-      ...point,
-      time: parseChartTime(point.time, index),
-    }))
-    .filter(point => typeof point.time === 'number')
+      const direction = String(pivot?.direcao_para || '').trim().toLowerCase()
+
+      return [{
+        time: parseChartTime(time, index),
+        pivot: trade.pivot,
+        stop: trade.stop,
+      }]
+    })
+    .filter(point => Number.isFinite(point.time))
     .sort((first, second) => first.time - second.time)
 
   return RETEST_LEVELS.flatMap(({ name, label, color }) => points
-    .filter(point => Number.isFinite(Number(point[name])))
+    .filter(point => point[name] != null && point[name] !== '' && Number.isFinite(Number(point[name])))
     .reduce((uniquePoints, point) => {
       const previousPoint = uniquePoints[uniquePoints.length - 1]
 
@@ -665,6 +662,7 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
         borderColor: 'rgba(117, 134, 150, 0.22)',
         timeVisible: true,
         secondsVisible: false,
+        rightOffset: 5,
       },
       localization: {
         priceFormatter: (price) => Number(price).toFixed(2),
@@ -678,6 +676,7 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
       seriesMetaMapRef.current.clear()
     }
   }, [])
+
 
   React.useEffect(() => {
     const chart = chartRef.current
@@ -727,9 +726,40 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
       updateSeriesData(lineSeries, item.data, seriesMetaMapRef.current.get(item.name))
     })
 
+    // ── Aplica margem à direita (rightOffset) proporcional aos dados ──
+    const applyRightOffset = () => {
+      // Pega a série "principal" do painel (a primeira visível que tem dados)
+      const base = visibleSeries[0]?.data
+      if (!base || base.length < 2) {
+        chart.timeScale().applyOptions({ rightOffset: 20 })
+        return
+      }
+
+      const firstTime = base[0].time
+      const lastTime = base[base.length - 1].time
+
+      // Se time for numérico (segundos), estima candles por dia
+      if (typeof firstTime === 'number' && typeof lastTime === 'number') {
+        const totalDays = Math.max(1, (lastTime - firstTime) / 86400)
+        const pointsPerDay = base.length / totalDays
+        const DAYS_AHEAD = 3
+        const desiredOffset = Math.ceil(pointsPerDay * DAYS_AHEAD)
+        const rightOffset = Math.max(10, Math.min(50, desiredOffset))
+        chart.timeScale().applyOptions({ rightOffset })
+      } else {
+        chart.timeScale().applyOptions({ rightOffset: 20 })
+      }
+    }
+
     if (visibleSeries.length > 0 && !hadVisibleSeriesRef.current) {
       chart.timeScale().fitContent()
+      // ⚠️ fitContent() zera o rightOffset — reaplicar em seguida
+      applyRightOffset()
+    } else {
+      // Mesmo sem fitContent, garante o offset em cada atualização
+      applyRightOffset()
     }
+
     hadVisibleSeriesRef.current = visibleSeries.length > 0
   }, [visibleSeries, resetKey])
 
@@ -782,6 +812,7 @@ const GraphicsRenko = () => {
   const chartContainerRef = React.useRef(null);
   const chartRef = React.useRef(null);
   const candlestickSeriesRef = React.useRef(null);
+  const futureProjectionSeriesRef = React.useRef(null);
   const retestLevelSeriesRef = React.useRef(new Map());
   const retestLevelMarkersRef = React.useRef(new Map());
   const candlestickSeriesMetaRef = React.useRef(null);
@@ -802,6 +833,9 @@ const GraphicsRenko = () => {
   const [dateErro, setDateErro] = React.useState(null);
   const [disabledButton, setDisabledButton] = React.useState(false);
 
+ 
+  console.log(trend)
+  
   React.useEffect(() => {
     activeAnalysisToolRef.current = activeAnalysisTool
   }, [activeAnalysisTool])
@@ -838,37 +872,18 @@ const GraphicsRenko = () => {
       setAnalysisDrawings(drawings => drawings.map((drawing, index) => {
         if (index !== drag.drawingIndex) return drawing
 
-        // ── Arrastar UMA alça ──
-        if (drag.pointIndex !== null) {
-          return {
-            ...drawing,
-            points: drawing.points.map((point, i) => {
-              if (i !== drag.pointIndex) return point
-              return {
-                time: (drawing.type === 'support' || drawing.type === 'resistance')
+        return {
+          ...drawing,
+          points: drawing.points.map((point, pointIndex) => (
+            pointIndex === drag.pointIndex
+              ? {
+                time: drawing.type === 'support' || drawing.type === 'resistance'
                   ? point.time
                   : current.time,
                 price: current.price,
               }
-            }),
-          }
-        }
-
-        // ── Arrastar o desenho INTEIRO ──
-        const priceDelta = current.price - drag.startPoint.price
-        const timeDelta =
-          (typeof current.time === 'number' && typeof drag.startPoint.time === 'number')
-            ? current.time - drag.startPoint.time
-            : 0
-
-        return {
-          ...drawing,
-          points: drawing.points.map(point => ({
-            time: (drawing.type === 'support' || drawing.type === 'resistance')
-              ? point.time
-              : (typeof point.time === 'number' ? point.time + timeDelta : point.time),
-            price: point.price + priceDelta,
-          })),
+              : point
+          )),
         }
       }))
 
@@ -926,7 +941,7 @@ const GraphicsRenko = () => {
     const chart = chartRef.current
     const series = candlestickSeriesRef.current
     const bounds = chartContainerRef.current?.getBoundingClientRect()
-    if (!chart || !series || !bounds) return
+    if (!chart || !series || !bounds || !Number.isInteger(pointIndex)) return
 
     const x = event.clientX - bounds.left
     const y = event.clientY - bounds.top
@@ -946,7 +961,7 @@ const GraphicsRenko = () => {
   }
 
   //===================/ Chama os hooks /===================//
-  const { retestPointsStateRef } = useOperatingData(trend);
+  useOperatingData(trend);
   const { retestPointsStatePrimaryRef } = useOperatingDataPrimary(trendPrimary);
   const { vpprDataRef } = useVpprData(vppr);
   const { amrsiDataRef } = useAmrsiData(rsi);
@@ -981,11 +996,6 @@ const GraphicsRenko = () => {
     selectedMarket?.movements || []
   ), [selectedMarket])
 
-  const selectedMacdMarket = React.useMemo(() => {
-    return selectMarketBySymbol(trendCurrent, activeSymbol)
-  }, [trendCurrent, activeSymbol])
-
-  console.log('selectedMacdMarket', selectedMacdMarket)
   // Serie RSI
   const rsiSeries = React.useMemo(() => {
     const rsiData = buildLineData(selectedRsiMarket, 'rsi')
@@ -1087,6 +1097,7 @@ const GraphicsRenko = () => {
         borderColor: 'rgba(117, 134, 150, 0.22)',
         timeVisible: true,
         secondsVisible: false,
+        rightOffset: 5,   // ← margem inicial
       },
       localization: {
         priceFormatter: (price) => Number(price).toFixed(2),
@@ -1106,6 +1117,14 @@ const GraphicsRenko = () => {
         precision: 2,
         minMove: 0.01,
       },
+    })
+    futureProjectionSeriesRef.current = chartRef.current.addSeries(LineSeries, {
+      color: 'rgba(0, 0, 0, 0)',
+      lineWidth: 1,
+      priceScaleId: '',
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
     })
     setAnalysisChart(chartRef.current)
     setAnalysisSeries(candlestickSeriesRef.current)
@@ -1171,19 +1190,85 @@ const GraphicsRenko = () => {
     chartRef.current.subscribeClick(handleChartClick)
     chartRef.current.subscribeCrosshairMove(handleCrosshairMove)
     chartRef.current.timeScale().subscribeVisibleLogicalRangeChange(refreshDrawings)
+    // ---
+    chartRef.current.timeScale().subscribeVisibleTimeRangeChange(refreshDrawings)
+    chartRef.current.timeScale().subscribeSizeChange(refreshDrawings)
+
+
+
+    // --- Loop de rAF enquanto o usuário interage ---
+    let rafId = null
+    let isInteracting = false
+
+    const startRefreshLoop = () => {
+      if (isInteracting) return
+      isInteracting = true
+      const tick = () => {
+        refreshDrawings()
+        if (isInteracting) rafId = requestAnimationFrame(tick)
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+
+    const stopRefreshLoop = () => {
+      isInteracting = false
+      if (rafId) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
+      refreshDrawings()
+    }
+    let wheelTimeout = null
+    const onWheel = () => {
+      startRefreshLoop()
+      clearTimeout(wheelTimeout)
+      wheelTimeout = setTimeout(stopRefreshLoop, 150)
+    }
+
+    const containerEl = chartContainerRef.current
+    containerEl?.addEventListener('pointerdown', startRefreshLoop)
+    window.addEventListener('pointerup', stopRefreshLoop)
+    window.addEventListener('pointercancel', stopRefreshLoop)
+    containerEl?.addEventListener('wheel', onWheel, { passive: true })
+
+
+
+    const resizeObserver = new ResizeObserver(() => {
+      refreshDrawings()
+    })
+    if (containerEl) resizeObserver.observe(containerEl)
 
     return () => {
-      chartRef.current?.unsubscribeClick(handleChartClick)
-      chartRef.current?.unsubscribeCrosshairMove(handleCrosshairMove)
-      chartRef.current?.timeScale().unsubscribeVisibleLogicalRangeChange(refreshDrawings)
-      retestLevelMarkersRef.current.forEach((markers) => markers.setMarkers([]))
-      retestLevelMarkersRef.current.clear()
-      retestLevelSeriesRef.current.forEach((series) => chartRef.current?.removeSeries(series))
-      retestLevelSeriesRef.current.clear()
-      chartRef.current?.remove()
+      const chart = chartRef.current
+      if (chart) {
+        chart.unsubscribeClick(handleChartClick)
+        chart.unsubscribeCrosshairMove(handleCrosshairMove)
+        chart.timeScale().unsubscribeVisibleLogicalRangeChange(refreshDrawings)
+        chart.timeScale().unsubscribeVisibleTimeRangeChange(refreshDrawings)
+        chart.timeScale().unsubscribeSizeChange(refreshDrawings)
+        //chart.priceScale('right').unsubscribeSizeChange(refreshDrawings)
+
+        retestLevelMarkersRef.current.forEach((markers) => markers.setMarkers([]))
+        retestLevelMarkersRef.current.clear()
+        retestLevelSeriesRef.current.forEach((series) => chart.removeSeries(series))
+        retestLevelSeriesRef.current.clear()
+
+        chart.remove()
+      }
+
       chartRef.current = null
       candlestickSeriesRef.current = null
+      futureProjectionSeriesRef.current = null
       candlestickSeriesMetaRef.current = null
+
+      stopRefreshLoop()
+      containerEl?.removeEventListener('pointerdown', startRefreshLoop)
+      containerEl?.removeEventListener('wheel', startRefreshLoop)
+      containerEl?.removeEventListener('wheel', onWheel)   // ← faltava remover o onWheel
+      window.removeEventListener('pointerup', stopRefreshLoop)
+      window.removeEventListener('pointercancel', stopRefreshLoop)
+      resizeObserver.disconnect()
+      clearTimeout(wheelTimeout)
     }
   }, [])
 
@@ -1211,14 +1296,18 @@ const GraphicsRenko = () => {
 
     updateSeriesData(candlestickSeriesRef.current, renkoCandles, candlestickSeriesMetaRef)
 
-    const activeRetestGroup = retestPointsStateRef.current?.find(
-      group => normalizeSymbol(group?.symbol) === normalizeSymbol(activeSymbol)
-    )
     const chartEndTime = renkoCandles[renkoCandles.length - 1]?.time
-    const retestSegments = buildRetestLevelSegments(
-      activeRetestGroup?.operations || [],
+    let retestSegments = null
+    retestSegments = isTrend ?
+    retestSegments = buildRetestLevelSegments(
+      selectMarketBySymbol(trend, activeSymbol)?.movements,
+      chartEndTime
+    ):
+    retestSegments = buildRetestLevelSegments(
+      selectMarketBySymbol(trendPrimary, activeSymbol)?.movements,
       chartEndTime
     )
+
     const visibleSegmentKeys = new Set(retestSegments.map(segment => segment.key))
 
     retestLevelSeriesRef.current.forEach((series, key) => {
@@ -1266,9 +1355,22 @@ const GraphicsRenko = () => {
 
     if (renkoCandles.length > 0 && !hadRenkoCandlesRef.current) {
       chartRef.current.timeScale().fitContent()
+      requestAnimationFrame(() => {
+        setAnalysisRenderVersion(v => v + 1)
+      })
     }
     hadRenkoCandlesRef.current = renkoCandles.length > 0
-  }, [renkoCandles, activeSymbol, signalsBySymbol, trend, retestPointsStateRef])
+  }, [renkoCandles, activeSymbol, signalsBySymbol, trend])
+
+  React.useEffect(() => {
+    if (!futureProjectionSeriesRef.current) return
+    futureProjectionSeriesRef.current.setData(
+      buildFutureProjectionTimes(renkoCandles, analysisDrawings),
+    )
+    requestAnimationFrame(() => {
+      setAnalysisRenderVersion(version => version + 1)
+    })
+  }, [renkoCandles, analysisDrawings, analysisChart])
 
   //-------------------------/Calendário/-------------------------
   // Função para formatar quando precisar salvar ou mostrar

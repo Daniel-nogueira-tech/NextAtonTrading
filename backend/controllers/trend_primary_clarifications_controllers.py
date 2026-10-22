@@ -91,7 +91,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 15000):
     print(f"✅ ATR inicial: {base_atr}, limite inicial: {atr}, confirmação inicial: {confir_round}")
     
 
-    limit = atr
+    limit = atr / 8
     confirmar = confir_round
 
     # Inicializa variáveis de controle

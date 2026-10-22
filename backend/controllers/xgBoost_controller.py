@@ -1,6 +1,5 @@
 import xgboost as xgb
 from sklearn.metrics import (
-    mean_squared_error, mean_absolute_error, r2_score,
     accuracy_score, f1_score, confusion_matrix, classification_report
 )
 import matplotlib.pyplot as plt
@@ -16,18 +15,14 @@ data_service.add_trend_primary(symbols="ETHUSDT", time="15m", mode="simulation")
 data_service.add_trend(symbols="ETHUSDT", time="15m", mode="simulation")
 data_service.add_vppr(modo="simulation", symbols="ETHUSDT", time="15m", accumulation_period="month")
 #data_service.add_rsi(mode="simulation", symbols="ETHUSDT", period=2, media_period=20)
-data_service.add_rsi_primary(mode="simulation", symbols="ETHUSDT", period=5, media_period=20)
+data_service.add_rsi_primary(mode="simulation", symbols="ETHUSDT", period=10, media_period=20)
 data_service.add_price(mode="simulation", symbol="ETHUSDT", time="15m")
 data_service.add_Schrodinger(modo="simulation", symbols="ETHUSDT", time="15m", accumulation_period="month")
 
 def normalize_data():
-    data = data_service.indicators_dataframe()
-    return data
+    return data_service.indicators_dataframe()
 
-# pega os dados normalizados
 df = normalize_data()
-
-
 
 print("Primeiras linhas do DataFrame:")
 print(df.head())
@@ -38,65 +33,49 @@ print("\nColunas disponíveis:", df.columns.tolist())
 # ============================================================
 target_col = "trendPrice_TREND"
 
-feature_cols = [
-    c for c in df.columns
-    if c not in [
-        target_col, "close", "close_VPPR", "Volume","Abertura","Maximo", "Minimo","Fechamento","open",
-        "symbol", "time", "volume",
-        "vppr_macd","macd","macd_signal",
-        "macd_histogram",
-        "ema_fast", "ema_slow", 'vppr_ema','limite_TREND_PRIMARY','schrodinger_buy', 'schrodinger_sell','type_TREND_PRIMARY',
-        "rsi_ma",'limite_TREND','vppr','schrodinger_H', 'schrodinger_potencial',
-        'trendPrice_TREND', 'type_TREND','rsi','trendPrice_TREND_PRIMARY',
-        'ema_TREND', 'ema_fast_TREND', 'ema_slow_TREND', 'macd_TREND', 'macd_signal_TREND', 'macd_histogram_TREND'
-    ]
-]
+# Guard clause para evitar execução sem dados
+if df is None or df.empty:
+    print("⚠️ Nenhum dado disponível no DataFrame. Encerrando execução.")
+    exit()
 
-# 1) Com que frequência a tendência MUDA de valor?
-s = df[target_col].copy().reset_index(drop=True)
-mudou = (s.diff() != 0).sum()
-print(f"trendPrice_TREND mudou de valor em {mudou} de {len(s)} candles ({100*mudou/len(s):.1f}%)")
-print(f"  → Ficou PARADO em {100 - 100*mudou/len(s):.1f}% dos candles")
-print()
+# limpa nomes ANTES de montar feature_cols
+df.columns = df.columns.str.strip()
 
-# 2) Distribuição do alvo t+1
-y_dir_t1 = (s.shift(-1) > s).astype(int)
-print("Distribuição de y_dir_t1:")
-print(y_dir_t1.value_counts(normalize=True))
-print()
+exclude_cols = {
+    target_col,
+    "close", "close_VPPR", "Volume", "Abertura", "Maximo", "Minimo",
+    "Fechamento", "open", "symbol", "time", "volume",
+    "macd", "macd_signal", "macd_histogram",
+    "vppr_macd", "rsi_ma",'vppr', 'vppr_ema', 'rsi',
+    "trendPrice_TREND_PRIMARY", "limite_TREND_PRIMARY",'rsi_ma_primary',
+    "type_TREND",'wave_function','schrodinger_H', 'schrodinger_potencial','rsi_primary',
+    "ema_fast_TREND", "ema_slow_TREND",'vppr_signal','type_TREND_PRIMARY','schrodinger_buy', 'schrodinger_sell',
+    "macd_TREND", "macd_signal_TREND", "macd_histogram_TREND", 'ema_TREND','limite_TREND'
+}
 
-# 3) Quando y_dir_t1 = 1, o que significa?
-mudou_para_cima = ((s.shift(-1) > s) & (s.shift(-1) != s)).sum()
-print(f"y_dir_t1=1 significa ROMpimento para cima: {mudou_para_cima} vezes ({100*mudou_para_cima/len(s):.1f}%)")
-print(f"y_dir_t1=0 significa: ficou parado OU caiu = {len(s) - mudou_para_cima} vezes")
-print()
+feature_cols = [c for c in df.columns if c not in exclude_cols]
 
-# 4) Confirmação: rsi_signal + movimento do preço ANTECEDE o rompimento?
-retorno_atual = df["Fechamento"].pct_change()
-mask_sobrecompra = df["rsi_signal"] == 0
-mask_sobrevenda = df["rsi_signal"] == 1
+df = df.reset_index(drop=True)
 
-print("Probabilidade de y_dir_t1=1 DADO o rsi_signal:")
-for sig in [0, 1, 2]:
-    mask = df["rsi_signal"] == sig
-    if mask.sum() > 0:
-        prob = y_dir_t1[mask].mean()
-        print(f"  rsi_signal={sig}: P(y=1) = {prob:.4f}  (n={mask.sum()})")
+print(df[["time","rsi_primary_signal", "Fechamento"]].head(20))
+print(f"\nFeatures usadas ({len(feature_cols)}): {feature_cols}")
 
 # ============================================================
-# 3. CRIAÇÃO DOS ALVOS t+1 ... t+5
+# 3. CRIAÇÃO DOS ALVOS t+1 ... t+7
 # ============================================================
-horizontes = [1,2,3 ] 
+horizontes = [1, 2, 3]
 
 for h in horizontes:
-    df[f"y_next_t{h}"] = df[target_col].shift(-h)
-    # força binário: 1 se subiu, 0 se caiu (ignora "ficou igual")
-    df[f"y_dir_t{h}"] = np.where(
-        df[f"y_next_t{h}"] > df[target_col], 1, 0
+    df.loc[:, f"y_next_t{h}"] = df[target_col].shift(-h)
+
+    # 1 = subiu, 0 = caiu, NaN = ficou igual (será removido no dropna)
+    df.loc[:, f"y_dir_t{h}"] = np.where(
+        df[f"y_next_t{h}"] > df[target_col], 1,
+        np.where(df[f"y_next_t{h}"] < df[target_col], 0, np.nan)
     )
 
-# remove NaN (últimas 5 linhas terão NaN em algum horizonte)
-df = df.dropna(subset=[target_col]).reset_index(drop=True)
+cols_alvo = [f"y_dir_t{h}" for h in horizontes] + [f"y_next_t{h}" for h in horizontes]
+df = df.dropna(subset=[target_col] + cols_alvo).reset_index(drop=True)
 
 print("\nTotal de linhas após limpeza:", len(df))
 
@@ -109,108 +88,123 @@ X = df[feature_cols]
 X_train, X_test = X.iloc[:split], X.iloc[split:]
 
 print(f"\nTreino: {len(X_train)} | Teste: {len(X_test)}")
-print(f"Features usadas ({len(feature_cols)}): {feature_cols}")
-
 
 # ============================================================
-# 5. FUNÇÕES AUXILIARES
+# 5. FUNÇÃO DE AVALIAÇÃO POR HORIZONTE
 # ============================================================
-def make_classifier(n_classes):
-    if n_classes == 2:
-        return xgb.XGBClassifier(
-            n_estimators=3000,
-            max_depth=4,
-            learning_rate=0.01,
-            subsample=0.7,
-            colsample_bytree=0.7,
-            gamma=1,
-            reg_alpha=0.1,
-            reg_lambda=1,
-            objective="binary:logistic",
-            eval_metric="logloss",
-            random_state=42,
-        )
-    else:
-        return xgb.XGBClassifier(
-            n_estimators=3000,
-            max_depth=4,
-            learning_rate=0.01,
-            subsample=0.7,
-            colsample_bytree=0.7,
-            gamma=1,
-            reg_alpha=0.1,
-            reg_lambda=1,
-            objective="multi:softprob",
-            num_class=n_classes,
-            eval_metric="mlogloss",
-            random_state=42,
-        )
-
-
 def avaliar_horizonte(h):
-    """
-    Treina um classificador de direção para o horizonte t+h
-    e retorna métricas + modelo + previsões.
-    """
     col_dir = f"y_dir_t{h}"
     y_dir = df[col_dir]
 
-    # split primeiro
     y_train_raw = y_dir.iloc[:split]
-    y_test_raw = y_dir.iloc[split:]
+    y_test_raw  = y_dir.iloc[split:]
 
-    # --------------------------------------------------------
-    # classes presentes APENAS no treino
-    # --------------------------------------------------------
-    classes_treino = sorted(y_train_raw.unique())
-
+    classes_treino = sorted(y_train_raw.dropna().unique())
     if len(classes_treino) < 2:
         print(f"\n⚠️  t+{h}: apenas 1 classe no treino — pulando.")
         return None
 
-    # mapa baseado só no treino
     mapa = {c: i for i, c in enumerate(classes_treino)}
     n_classes = len(mapa)
 
-    # aplica o mapa; no teste, classes desconhecidas viram -1 (vamos filtrar)
     y_train = y_train_raw.map(mapa)
-    y_test = y_test_raw.map(mapa)
+    y_test  = y_test_raw.map(mapa)
 
-    # --------------------------------------------------------
-    # remove amostras do teste cuja classe não existe no treino
-    # --------------------------------------------------------
-    mask_valid = y_test.notna()
-    y_test = y_test[mask_valid].astype(int)
-    X_test_h = X_test[mask_valid.values]  # alinha X_test com y_test
+    mask_train = y_train.notna()
+    mask_test  = y_test.notna()
+
+    y_train = y_train[mask_train].astype(int)
+    X_train_h = X_train.loc[mask_train]
+
+    y_test = y_test[mask_test].astype(int)
+    X_test_h = X_test.loc[mask_test]
 
     if len(y_test) == 0:
         print(f"\n⚠️  t+{h}: nenhuma amostra válida no teste — pulando.")
         return None
 
-    # distribuição (do dataset inteiro, só pra log)
-    dist = y_dir.value_counts(normalize=True).sort_index()
+    # --- balanceamento ---
+    n_neg = (y_train == 0).sum()
+    n_pos = (y_train == 1).sum()
+    scale_pos_weight = n_neg / max(n_pos, 1)
 
-    model = make_classifier(n_classes)
-    model.fit(X_train, y_train)
-    pred = model.predict(X_test_h)
+    print(f"t+{h} | treino → 0: {n_neg} | 1: {n_pos} | scale_pos_weight = {scale_pos_weight:.2f}")
 
-    # baseline: classe majoritária do treino
+    # validação temporal
+    val_size = max(int(len(X_train_h) * 0.2), 50)
+    X_tr, X_val = X_train_h.iloc[:-val_size], X_train_h.iloc[-val_size:]
+    y_tr, y_val = y_train.iloc[:-val_size], y_train.iloc[-val_size:]
+
+    dtrain = xgb.DMatrix(X_tr, label=y_tr)
+    dval   = xgb.DMatrix(X_val, label=y_val)
+    dtest  = xgb.DMatrix(X_test_h)
+
+    params = {
+        "max_depth": 3,
+        "learning_rate": 0.02,
+        "subsample": 0.6,
+        "colsample_bytree": 0.6,
+        "min_child_weight": 5,
+        "gamma": 1.0,
+        "reg_alpha": 0.5,
+        "reg_lambda": 1.5,
+        "random_state": 42,
+        "verbosity": 0,
+    }
+
+    if n_classes == 2:
+        params["objective"] = "binary:logistic"
+        params["eval_metric"] = "logloss"
+        params["scale_pos_weight"] = scale_pos_weight
+    else:
+        params["objective"] = "multi:softprob"
+        params["eval_metric"] = "mlogloss"
+        params["num_class"] = n_classes
+
+    model = xgb.train(
+        params,
+        dtrain,
+        num_boost_round=2500,
+        evals=[(dval, "validation")],
+        early_stopping_rounds=100,
+        verbose_eval=False,
+    )
+
+    print(f"t+{h} | best_iteration = {model.best_iteration}")
+
+    # --- melhor threshold na validação ---
+    if n_classes == 2:
+        val_proba = model.predict(dval, iteration_range=(0, model.best_iteration + 1))
+        best_thr, best_f1 = 0.5, 0.0
+        for thr in np.linspace(0.15, 0.85, 29):
+            pred_val = (val_proba > thr).astype(int)
+            f1 = f1_score(y_val, pred_val, average="macro", zero_division=0)
+            if f1 > best_f1:
+                best_f1 = f1
+                best_thr = thr
+        print(f"t+{h} | melhor threshold = {best_thr:.3f} | F1 val = {best_f1:.4f}")
+
+        pred_proba = model.predict(dtest, iteration_range=(0, model.best_iteration + 1))
+        pred = (pred_proba > best_thr).astype(int)
+    else:
+        pred_proba = model.predict(dtest, iteration_range=(0, model.best_iteration + 1))
+        pred = np.argmax(pred_proba, axis=1)
+
+    # baseline
     classe_maj = y_train.mode()[0]
     baseline = np.full(len(y_test), classe_maj)
 
-    acc = accuracy_score(y_test, pred)
-    f1m = f1_score(y_test, pred, average="macro")
+    acc   = accuracy_score(y_test, pred)
+    f1m   = f1_score(y_test, pred, average="macro", zero_division=0)
     acc_b = accuracy_score(y_test, baseline)
-    f1m_b = f1_score(y_test, baseline, average="macro")
+    f1m_b = f1_score(y_test, baseline, average="macro", zero_division=0)
 
     cm = confusion_matrix(y_test, pred)
-    report = classification_report(y_test, pred, digits=4, output_dict=True)
 
     resultado = {
         "h": h,
         "n_classes": n_classes,
         "mapa": mapa,
-        "dist": dist.to_dict(),
         "acc": acc,
         "f1_macro": f1m,
         "acc_baseline": acc_b,
@@ -218,29 +212,24 @@ def avaliar_horizonte(h):
         "gap_acc": acc - acc_b,
         "gap_f1": f1m - f1m_b,
         "matriz_confusao": cm,
-        "report": report,
         "model": model,
         "pred": pred,
         "y_test": y_test,
         "bateu_baseline": (acc > acc_b) and (f1m > f1m_b),
+        "best_iteration": model.best_iteration,
     }
 
     print(f"\n{'='*60}")
     print(f"HORIZONTE t+{h}")
     print(f"{'='*60}")
-    print(f"Distribuição (dataset): {dist.to_dict()}")
-    print(f"Classes no treino: {classes_treino} | mapa: {mapa}")
-    print(f"Amostras teste válidas: {len(y_test)} / {len(y_test_raw)}")
     print(f"Acurácia:  modelo = {acc:.4f}  |  baseline = {acc_b:.4f}  |  gap = {acc - acc_b:+.4f}")
     print(f"F1 macro:  modelo = {f1m:.4f}  |  baseline = {f1m_b:.4f}  |  gap = {f1m - f1m_b:+.4f}")
     print(f"Bateu baseline? {'✅ SIM' if resultado['bateu_baseline'] else '❌ NÃO'}")
     print("\nMatriz de confusão:")
     print(cm)
-    print("\nClassification report:")
-    print(classification_report(y_test, pred, digits=4))
+    print(classification_report(y_test, pred, digits=4, zero_division=0))
 
     return resultado
-
 
 # ============================================================
 # 6. LOOP NOS HORIZONTES
@@ -254,9 +243,9 @@ for h in horizontes:
 # ============================================================
 # 7. TABELA RESUMO
 # ============================================================
-print("\n\n" + "="*80)
+print("\n\n" + "=" * 80)
 print("RESUMO — DIREÇÃO POR HORIZONTE")
-print("="*80)
+print("=" * 80)
 
 tabela = []
 for r in resultados:
@@ -270,445 +259,222 @@ for r in resultados:
         "F1 baseline": r["f1_baseline"],
         "Gap F1": r["gap_f1"],
         "Bateu?": "✅" if r["bateu_baseline"] else "❌",
+        "Best iter": r["best_iteration"],
     })
 
 df_resumo = pd.DataFrame(tabela)
 print(df_resumo.to_string(index=False))
 
-from sklearn.metrics import roc_curve, auc, precision_recall_curve
-from matplotlib.patches import Patch
-import seaborn as sns
+# ============================================================
+# 8. VISUALIZAÇÃO — ACURÁCIA vs HORIZONTE
+# ============================================================
+fig, ax = plt.subplots(figsize=(10, 5))
+
+hs = [r["h"] for r in resultados]
+accs = [r["acc"] for r in resultados]
+accs_b = [r["acc_baseline"] for r in resultados]
+f1s = [r["f1_macro"] for r in resultados]
+
+ax.plot(hs, accs, marker="o", label="Model accuracy", linewidth=2)
+ax.plot(hs, accs_b, marker="s", label="Baseline accuracy", linewidth=2, linestyle="--")
+ax.plot(hs, f1s, marker="^", label="F1 macro model", linewidth=2, linestyle=":")
+
+ax.set_xlabel("Horizon (t+h)")
+ax.set_ylabel("Metric")
+ax.set_title("Performance by horizon — direction")
+ax.set_xticks(hs)
+ax.legend()
+ax.grid(alpha=0.3)
+
+plt.tight_layout()
+plt.show()
 
 # ============================================================
-# 8. VISUALIZAÇÃO AVANÇADA — DIAGNÓSTICO DO MODELO
+# 9. VISUALIZAÇÃO MELHORADA — DIAGNÓSTICO POR HORIZONTE
 # ============================================================
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, ConfusionMatrixDisplay
 
-# ---------- 8.1 Matrizes de confusão lado a lado ----------
-n = len(resultados)
-fig, axes = plt.subplots(1, n, figsize=(5*n, 4.5))
-if n == 1: axes = [axes]
+horizontes_para_plotar = [1, 2, 3]
+resultados_plot = [r for r in resultados if r["h"] in horizontes_para_plotar]
 
-for ax, r in zip(axes, resultados):
-    cm = r["matriz_confusao"]
-    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", cbar=False, ax=ax,
-                xticklabels=["Prev 0", "Prev 1"][:cm.shape[1]],
-                yticklabels=["Real 0", "Real 1"][:cm.shape[0]])
-    ax.set_title(f"t+{r['h']}  |  Acc={r['acc']:.3f} (base {r['acc_baseline']:.3f})")
-    ax.set_xlabel("Previsto"); ax.set_ylabel("Real")
+preco_full = df[target_col].values
 
-plt.suptitle("Matrizes de confusão por horizonte", fontsize=14, y=1.02)
-plt.tight_layout(); plt.show()
+for r in resultados_plot:
+    h = r["h"]
+    idx        = r["y_test"].index.values
+    y_real     = r["y_test"].values
+    pred       = r["pred"]
+    preco_t    = preco_full[idx]
+    preco_real_h = df[f"y_next_t{h}"].values[idx]
+    acertos    = (pred == y_real)
+
+    fig = plt.figure(figsize=(16, 11))
+    gs  = fig.add_gridspec(3, 3, height_ratios=[1.1, 1.0, 1.0], hspace=0.35, wspace=0.25)
+
+    # ---------- PAINEL 1: preço real com fundo colorido por acerto/erro ----------
+    ax0 = fig.add_subplot(gs[0, :])
+    ax0.plot(preco_real_h, color="black", linewidth=1.0, label=f"Actual price t+{h}", zorder=3)
+
+    # faixas de fundo: verde = acertou, vermelho claro = errou
+    erro_bool = (~acertos).astype(int)
+    ax0.fill_between(
+        np.arange(len(preco_real_h)), 
+        preco_real_h.min(), preco_real_h.max(),
+        where=erro_bool == 1, color="red", alpha=0.15, step="mid", label="Erro"
+    )
+    ax0.set_title(f"t+{h} — Actual price t+{h} (red bands = steering errors)  |  acc = {r['acc']:.3f}  (baseline {r['acc_baseline']:.3f})")
+    ax0.set_ylabel("Price")
+    ax0.legend(loc="upper left")
+    ax0.grid(alpha=0.25)
+
+    # ---------- PAINEL 2: matriz de confusão ----------
+    ax1 = fig.add_subplot(gs[1, 0])
+    ConfusionMatrixDisplay.from_predictions(
+        y_real, pred,
+        display_labels=["Low", "High"],
+        cmap="Blues", ax=ax1, colorbar=False, values_format="d",
+    )
+    ax1.set_title(f"Confusion matrix — t+{h}")
+
+    # ---------- PAINEL 3: curva ROC / PR ----------
+    ax2 = fig.add_subplot(gs[1, 1])
+    if hasattr(r["model"], "predict") and r["n_classes"] == 2:
+        dtest_h = xgb.DMatrix(X_test.loc[idx])
+        proba = r["model"].predict(dtest_h, iteration_range=(0, r["model"].best_iteration + 1))
+        fpr, tpr, _ = roc_curve(y_real, proba)
+        roc_auc = auc(fpr, tpr)
+        ax2.plot(fpr, tpr, label=f"ROC (AUC = {roc_auc:.3f})", linewidth=2)
+        ax2.plot([0, 1], [0, 1], "k--", alpha=0.4)
+        ax2.set_title("Curve ROC")
+        ax2.set_xlabel("FPR"); ax2.set_ylabel("TPR")
+        ax2.legend(); ax2.grid(alpha=0.25)
+    else:
+        ax2.text(0.5, 0.5, "ROC unavailable\n(multiclasse)", ha="center", va="center")
+        ax2.axis("off")
+
+    # ---------- PAINEL 4: distribuição da confiança das predições ----------
+    ax3 = fig.add_subplot(gs[1, 2])
+    if r["n_classes"] == 2:
+        dtest_h = xgb.DMatrix(X_test.loc[idx])
+        proba = r["model"].predict(dtest_h, iteration_range=(0, r["model"].best_iteration + 1))
+        ax3.hist(proba[acertos],  bins=30, alpha=0.7, color="green", label="Acerto")
+        ax3.hist(proba[~acertos], bins=30, alpha=0.7, color="red",   label="Erro")
+        ax3.axvline(0.5, color="black", linestyle="--", alpha=0.5)
+        ax3.set_title("Confidence distribution (proba)")
+        ax3.set_xlabel("P(high)"); ax3.set_ylabel("Frequency")
+        ax3.legend(); ax3.grid(alpha=0.25)
+    else:
+        ax3.axis("off")
+
+    # ---------- PAINEL 5: acurácia acumulada (janela) ----------
+    ax4 = fig.add_subplot(gs[2, :])
+    janela = max(50, len(acertos) // 20)
+    acc_rol = pd.Series(acertos.astype(float)).rolling(janela, min_periods=janela // 2).mean()
+    ax4.plot(acc_rol.values, color="teal", linewidth=1.5, label=f"Rolling accuracy (janela={janela})")
+    ax4.axhline(r["acc_baseline"], color="orange", linestyle="--", label=f"Baseline ({r['acc_baseline']:.3f})")
+    ax4.axhline(r["acc"], color="teal", linestyle=":", alpha=0.6, label=f"Overall accuracy ({r['acc']:.3f})")
+    ax4.set_ylim(0, 1)
+    ax4.set_title("Accuracy accumulated over the test duration")
+    ax4.set_xlabel("Index (time)"); ax4.set_ylabel("Accuracy")
+    ax4.legend(); ax4.grid(alpha=0.25)
+
+    plt.suptitle(f"Diagnosis t+{h}", fontsize=14, y=0.995)
+    plt.show()
 
 
-# ---------- 8.2 Curvas ROC e Precision-Recall ----------
+# ============================================================
+# 10. IMPORTÂNCIA DE FEATURES (top 15 por horizonte)
+# ============================================================
+fig, axes = plt.subplots(1, len(resultados_plot), figsize=(5 * len(resultados_plot), 6), sharey=False)
+
+if len(resultados_plot) == 1:
+    axes = [axes]
+
+for ax, r in zip(axes, resultados_plot):
+    model = r["model"]
+    score = model.get_score(importance_type="gain")
+    if not score:
+        ax.text(0.5, 0.5, "unimportant", ha="center")
+        ax.axis("off"); continue
+
+    top = sorted(score.items(), key=lambda x: x[1], reverse=True)[:15]
+    names = [k for k, _ in top][::-1]
+    vals  = [v for _, v in top][::-1]
+
+    ax.barh(names, vals, color="steelblue")
+    ax.set_title(f"Top 15 features — t+{r['h']}")
+    ax.set_xlabel("Gain")
+    ax.grid(alpha=0.25, axis="x")
+
+plt.tight_layout()
+plt.show()
+
+
+# ============================================================
+# 11. COMPARAÇÃO GLOBAL — baseline vs modelo (todos horizontes)
+# ============================================================
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-for r in resultados:
-    if r["n_classes"] != 2:
-        continue
-    model = r["model"]
-    y_test = r["y_test"].values
-    # pega probabilidade da classe positiva
-    proba = model.predict_proba(X_test.loc[r["y_test"].index])[:, 1]
+hs_     = [r["h"] for r in resultados]
+gap_acc = [r["gap_acc"] for r in resultados]
+gap_f1  = [r["gap_f1"]  for r in resultados]
 
-    fpr, tpr, _ = roc_curve(y_test, proba)
-    roc_auc = auc(fpr, tpr)
-    axes[0].plot(fpr, tpr, linewidth=2, label=f"t+{r['h']} (AUC={roc_auc:.3f})")
+cores_acc = ["#2ca02c" if g > 0 else "#d62728" for g in gap_acc]
+cores_f1  = ["#2ca02c" if g > 0 else "#d62728" for g in gap_f1]
 
-    prec, rec, _ = precision_recall_curve(y_test, proba)
-    axes[1].plot(rec, prec, linewidth=2, label=f"t+{r['h']}")
+axes[0].bar([f"t+{h}" for h in hs_], gap_acc, color=cores_acc)
+axes[0].axhline(0, color="black", linewidth=1)
+axes[0].set_title("Accuracy gap (model − baseline)")
+axes[0].set_ylabel("Δ accuracy")
+axes[0].grid(alpha=0.25, axis="y")
 
-axes[0].plot([0,1],[0,1],'k--',alpha=0.5,label="Aleatório")
-axes[0].set_xlabel("FPR"); axes[0].set_ylabel("TPR")
-axes[0].set_title("Curva ROC"); axes[0].legend(); axes[0].grid(alpha=0.3)
+axes[1].bar([f"t+{h}" for h in hs_], gap_f1, color=cores_f1)
+axes[1].axhline(0, color="black", linewidth=1)
+axes[1].set_title("Macro F1 gap (model − baseline)")
+axes[1].set_ylabel("Δ F1")
+axes[1].grid(alpha=0.25, axis="y")
 
-axes[1].set_xlabel("Recall"); axes[1].set_ylabel("Precision")
-axes[1].set_title("Curva Precision-Recall"); axes[1].legend(); axes[1].grid(alpha=0.3)
-
-plt.tight_layout(); plt.show()
-
-
-# ---------- 8.3 Importância das features ----------
-fig, axes = plt.subplots(1, n, figsize=(6*n, 5))
-if n == 1: axes = [axes]
-for ax, r in zip(axes, resultados):
-    imp = pd.Series(r["model"].feature_importances_, index=feature_cols).sort_values()
-    imp.tail(15).plot.barh(ax=ax, color="teal")
-    ax.set_title(f"Top features — t+{r['h']}")
-    ax.grid(alpha=0.3, axis="x")
-plt.tight_layout(); plt.show()
-
-
-# ---------- 8.4 Distribuição de retornos por classe prevista ----------
-fig, axes = plt.subplots(1, n, figsize=(6*n, 4))
-if n == 1: axes = [axes]
-for ax, r in zip(axes, resultados):
-    h = r["h"]
-    idx = r["y_test"].index.values
-    preco_t   = df[target_col].values[idx]
-    preco_th  = df[f"y_next_t{h}"].values[idx]
-    ret_real  = (preco_th - preco_t) / preco_t * 100
-    pred      = r["pred"]
-
-    ax.hist(ret_real[pred==1], bins=40, alpha=0.6, label="Previsto ALTA", color="green")
-    ax.hist(ret_real[pred==0], bins=40, alpha=0.6, label="Previsto BAIXA", color="red")
-    ax.axvline(0, color="black", linestyle="--")
-    ax.set_title(f"Retorno real t+{h} condicionado à previsão")
-    ax.set_xlabel("Retorno (%)"); ax.set_ylabel("Frequência")
-    ax.legend(); ax.grid(alpha=0.3)
-plt.tight_layout(); plt.show()
-
-
-# ============================================================
-# 9. GRÁFICO HONESTO: PREÇO + SINAIS DO MODELO
-# ============================================================
-# Aqui mostramos o preço REAL contínuo e marcamos no tempo
-# os pontos onde o modelo previu ALTA (verde) e BAIXA (vermelho),
-# evidenciando acertos e erros.
-
-fig, axes = plt.subplots(len(resultados), 1,
-                         figsize=(15, 4.5*len(resultados)), sharex=False)
-if len(resultados) == 1: axes = [axes]
-
-for ax, r in zip(axes, resultados):
-    h   = r["h"]
-    idx = r["y_test"].index.values
-    preco_t  = df[target_col].values[idx]
-    preco_th = df[f"y_next_t{h}"].values[idx]
-    y_real   = r["y_test"].values
-    pred     = r["pred"]
-
-    x = np.arange(len(idx))
-    ax.plot(x, preco_t, color="black", linewidth=1.2, label="Preço atual", alpha=0.8)
-
-    # pontos onde o modelo acertou / errou
-    acerto_alta  = (pred==1) & (y_real==1)
-    acerto_baixa = (pred==0) & (y_real==0)
-    erro_alta    = (pred==1) & (y_real==0)   # previu alta, caiu
-    erro_baixa   = (pred==0) & (y_real==1)   # previu baixa, subiu
-
-    ax.scatter(x[acerto_alta],  preco_t[acerto_alta],  s=18, c="lime",   label=f"Acerto ALTA ({acerto_alta.sum()})",  zorder=3)
-    ax.scatter(x[acerto_baixa], preco_t[acerto_baixa], s=18, c="green",  label=f"Acerto BAIXA ({acerto_baixa.sum()})", zorder=3)
-    ax.scatter(x[erro_alta],    preco_t[erro_alta],    s=22, c="red",    marker="x", label=f"Erro (previu alta) ({erro_alta.sum()})",  zorder=4)
-    ax.scatter(x[erro_baixa],   preco_t[erro_baixa],   s=22, c="orange", marker="x", label=f"Erro (previu baixa) ({erro_baixa.sum()})", zorder=4)
-
-    ax.set_title(f"t+{h}  |  Acertos: {acerto_alta.sum()+acerto_baixa.sum()}/{len(pred)}  ({100*r['acc']:.1f}%)")
-    ax.set_ylabel("Preço")
-    ax.grid(alpha=0.3)
-    ax.legend(loc="upper left", fontsize=8, ncol=2)
-
-plt.xlabel("Amostras (tempo)")
-plt.tight_layout(); plt.show()
-
-
-# ============================================================
-# 10. EVOLUÇÃO TEMPORAL DA ACURÁCIA (janela deslizante)
-# ============================================================
-# Mostra se o modelo degrada com o tempo (drift).
-
-fig, axes = plt.subplots(len(resultados), 1,
-                         figsize=(14, 3.5*len(resultados)))
-if len(resultados) == 1: axes = [axes]
-
-window = max(30, len(resultados[0]["pred"]) // 20)  # janela adaptativa
-for ax, r in zip(axes, resultados):
-    corretos = (r["pred"] == r["y_test"].values).astype(int)
-    serie = pd.Series(corretos)
-    acc_rol = serie.rolling(window).mean()
-    ax.plot(acc_rol, color="navy", linewidth=1.8)
-    ax.axhline(r["acc"], color="red", linestyle="--", label=f"Acc global = {r['acc']:.3f}")
-    ax.axhline(r["acc_baseline"], color="gray", linestyle=":", label=f"Baseline = {r['acc_baseline']:.3f}")
-    ax.set_title(f"Acurácia em janela deslizante (t+{r['h']}, janela={window})")
-    ax.set_ylabel("Acurácia"); ax.grid(alpha=0.3); ax.legend()
-plt.xlabel("Amostras do teste")
-plt.tight_layout(); plt.show()
-
-#------------------
-idx = resultados[0]["y_test"].index.values
-preco_t  = df[target_col].values[idx]
-preco_th = df["y_next_t1"].values[idx]
-
-print("preco_t  -> NaN:", np.isnan(preco_t).sum(), "| zeros:", (preco_t==0).sum(), "| min:", np.nanmin(preco_t), "| max:", np.nanmax(preco_t))
-print("preco_th -> NaN:", np.isnan(preco_th).sum(), "| zeros:", (preco_th==0).sum(), "| min:", np.nanmin(preco_th), "| max:", np.nanmax(preco_th))
-
-ret_real = (preco_th - preco_t) / preco_t
-print("\nret_real -> NaN:", np.isnan(ret_real).sum(), "| inf:", np.isinf(ret_real).sum())
-print("ret_real stats:", pd.Series(ret_real).describe())
-
-# limpeza defensiva antes do backtest
-col_preco = target_col
-df[col_preco] = df[col_preco].replace([np.inf, -np.inf], np.nan)
-df = df[(df[col_preco] > 0)].reset_index(drop=True)
-
-# re-split para garantir alinhamento
-split = int(len(df) * 0.8)
-X = df[feature_cols]
-X_train, X_test = X.iloc[:split], X.iloc[split:]# limpeza defensiva antes do backtest
-col_preco = target_col
-df[col_preco] = df[col_preco].replace([np.inf, -np.inf], np.nan)
-df = df[(df[col_preco] > 0)].reset_index(drop=True)
-
-# re-split para garantir alinhamento
-split = int(len(df) * 0.8)
-X = df[feature_cols]
-X_train, X_test = X.iloc[:split], X.iloc[split:]
-#------------------
-# ============================================================
-# 11. BACKTEST SIMPLES — CLASSIFICADOR DE DIREÇÃO
-# ============================================================
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-
-# ---------- configuração ----------
-CUSTO_BPS = 5          # custo por trade em basis points (5 bps = 0.05%)
-CAPITAL_INICIAL = 1000 # banca inicial (unidades arbitrárias)
-THRESHOLD = 0.55       # confiança mínima para entrar (só para 2 classes)
-
-
-def backtest_horizonte(r, custo_bps=CUSTO_BPS, capital_inicial=CAPITAL_INICIAL,
-                        threshold=THRESHOLD):
-    """
-    Simula operações usando a previsão de direção do modelo.
-    - Entra LONG se previu alta (1) e prob > threshold
-    - Entra SHORT se previu baixa (0) e prob < (1 - threshold)
-    - Caso contrário, fica fora (cash)
-    Retorna um DataFrame com retornos por operação e a curva de capital.
-    """
-    h = r["h"]
-    idx = r["y_test"].index.values
-    y_real = r["y_test"].values
-    pred = r["pred"]
-
-    # preços
-    preco_t  = df[target_col].values[idx]        # preço no instante da decisão
-    preco_th = df[f"y_next_t{h}"].values[idx]    # preço em t+h (realizado)
-
-    # retorno realizado t -> t+h
-    ret_real = (preco_th - preco_t) / preco_t
-
-    # probabilidade (se disponível)
-    if hasattr(r["model"], "predict_proba") and r["n_classes"] == 2:
-        proba = r["model"].predict_proba(X_test.loc[r["y_test"].index])[:, 1]
-    else:
-        proba = pred.astype(float)  # fallback: 0/1 puro
-
-    # decisão
-    posicao = np.zeros(len(pred))
-    posicao[(pred == 1) & (proba > threshold)]  =  1.0    # LONG
-    posicao[(pred == 0) & (proba < (1 - threshold))] = -1.0  # SHORT
-    # restante = 0 (cash)
-
-    # retorno da estratégia POR OPERAÇÃO (não somado ainda)
-    # custo só quando muda de posição
-    posicao_ant = np.concatenate([[0.0], posicao[:-1]])
-    trocou = (posicao != posicao_ant).astype(float)
-    custo = trocou * (custo_bps / 10000.0)
-
-    ret_estrategia = posicao * ret_real - custo
-
-    # curva de capital
-    capital = capital_inicial * np.cumprod(1 + ret_estrategia)
-    # buy & hold equivalente
-    bh = capital_inicial * np.cumprod(1 + ret_real)
-
-    # ---------- métricas de trading ----------
-    trades = ret_estrategia[posicao != 0]   # só operações reais
-    n_trades = len(trades)
-
-    if n_trades > 0:
-        win_rate = (trades > 0).mean()
-        avg_win  = trades[trades > 0].mean() if (trades > 0).any() else 0.0
-        avg_loss = trades[trades < 0].mean() if (trades < 0).any() else 0.0
-        profit_factor = (trades[trades > 0].sum() /
-                         abs(trades[trades < 0].sum())) if (trades < 0).any() else np.inf
-    else:
-        win_rate = avg_win = avg_loss = 0.0
-        profit_factor = 0.0
-
-    retorno_total = capital[-1] / capital_inicial - 1
-    bh_total      = bh[-1] / bh[0] - 1
-
-    # max drawdown
-    pico = np.maximum.accumulate(capital)
-    dd   = (capital - pico) / pico
-    max_dd = dd.min()
-
-    # sharpe (assumindo anualização grosseira pelo horizonte)
-    if ret_estrategia.std() > 0:
-        sharpe = ret_estrategia.mean() / ret_estrategia.std() * np.sqrt(252 * (96 / h))
-    else:
-        sharpe = 0.0
-
-    return {
-        "h": h,
-        "n_trades": n_trades,
-        "win_rate": win_rate,
-        "avg_win": avg_win,
-        "avg_loss": avg_loss,
-        "profit_factor": profit_factor,
-        "retorno_total": retorno_total,
-        "bh_total": bh_total,
-        "max_drawdown": max_dd,
-        "sharpe": sharpe,
-        "capital": capital,
-        "bh": bh,
-        "posicao": posicao,
-        "ret_real": ret_real,
-        "ret_estrategia": ret_estrategia,
-        "proba": proba,
-    }
-
-
-# ============================================================
-# 12. RODA O BACKTEST PARA CADA HORIZONTE
-# ============================================================
-backtests = [backtest_horizonte(r) for r in resultados]
-
-print("\n" + "="*90)
-print(f"BACKTEST — custo = {CUSTO_BPS} bps | threshold = {THRESHOLD}")
-print("="*90)
-
-tabela_bt = []
-for bt in backtests:
-    tabela_bt.append({
-        "Horizonte":     f"t+{bt['h']}",
-        "Trades":        bt["n_trades"],
-        "Win rate":      f"{bt['win_rate']*100:.1f}%",
-        "Profit factor": f"{bt['profit_factor']:.2f}",
-        "Retorno":       f"{bt['retorno_total']*100:+.2f}%",
-        "B&H":           f"{bt['bh_total']*100:+.2f}%",
-        "Max DD":        f"{bt['max_drawdown']*100:.2f}%",
-        "Sharpe":        f"{bt['sharpe']:.2f}",
-    })
-
-print(pd.DataFrame(tabela_bt).to_string(index=False))
-
-
-# ============================================================
-# 13. GRÁFICO — CURVA DE CAPITAL vs BUY & HOLD
-# ============================================================
-fig, axes = plt.subplots(len(backtests), 1,
-                         figsize=(14, 3.8*len(backtests)), sharex=False)
-if len(backtests) == 1: axes = [axes]
-
-for ax, bt in zip(axes, backtests):
-    ax.plot(bt["capital"], color="navy", linewidth=1.8,
-            label=f"Estratégia ({bt['retorno_total']*100:+.1f}%)")
-    ax.plot(bt["bh"], color="gray", linewidth=1.2, linestyle="--",
-            label=f"Buy & Hold ({bt['bh_total']*100:+.1f}%)")
-    ax.axhline(CAPITAL_INICIAL, color="black", linewidth=0.6, alpha=0.5)
-    ax.set_title(f"Curva de capital — t+{bt['h']}  |  "
-                 f"{bt['n_trades']} trades, win {bt['win_rate']*100:.1f}%, "
-                 f"PF {bt['profit_factor']:.2f}, MaxDD {bt['max_drawdown']*100:.1f}%")
-    ax.set_ylabel("Capital")
-    ax.legend(loc="upper left")
-    ax.grid(alpha=0.3)
-
-plt.xlabel("Amostras do teste")
 plt.tight_layout()
 plt.show()
 
 
 # ============================================================
-# 14. THRESHOLD TUNING — escolhe o melhor corte de confiança
+# 12. PREÇO REAL vs PREVISTO — versão honesta
 # ============================================================
-thresholds = np.arange(0.50, 0.90, 0.02)
-
-fig, axes = plt.subplots(1, len(resultados), figsize=(5*len(resultados), 4.5))
-if len(resultados) == 1: axes = [axes]
-
-for ax, r in zip(axes, resultados):
-    h = r["h"]
-    idx = r["y_test"].index.values
-    preco_t  = df[target_col].values[idx]
-    preco_th = df[f"y_next_t{h}"].values[idx]
-    ret_real = (preco_th - preco_t) / preco_t
-
-    proba = r["model"].predict_proba(X_test.loc[r["y_test"].index])[:, 1]
+# Em vez de "escada" com mov_alta/mov_baixa fixos, mostramos
+# o retorno real t→t+h versus o retorno "esperado" pelo modelo,
+# separado por classe prevista. Assim você vê a separação real.
+for r in resultados_plot:
+    h     = r["h"]
+    idx   = r["y_test"].index.values
     pred  = r["pred"]
+    y_real = r["y_test"].values
 
-    retornos_por_th = []
-    n_trades_por_th = []
-    for t in thresholds:
-        pos = np.zeros(len(pred))
-        pos[(pred == 1) & (proba > t)]      =  1.0
-        pos[(pred == 0) & (proba < (1-t))]  = -1.0
+    preco_t      = preco_full[idx]
+    preco_real_h = df[f"y_next_t{h}"].values[idx]
+    retorno_real = (preco_real_h - preco_t) / preco_t * 100  # %
 
-        pos_ant = np.concatenate([[0.0], pos[:-1]])
-        custo   = (pos != pos_ant) * (CUSTO_BPS / 10000.0)
-        ret     = pos * ret_real - custo
+    fig, axes = plt.subplots(1, 2, figsize=(15, 5), gridspec_kw={"width_ratios": [2, 1]})
 
-        ret_total = np.prod(1 + ret) - 1
-        retornos_por_th.append(ret_total)
-        n_trades_por_th.append((pos != 0).sum())
+    # --- Esquerda: retorno real vs direção prevista ---
+    ax = axes[0]
+    ax.scatter(np.arange(len(retorno_real))[pred == 1], retorno_real[pred == 1],
+               s=8, alpha=0.5, color="green", label="Expected: HIGH")
+    ax.scatter(np.arange(len(retorno_real))[pred == 0], retorno_real[pred == 0],
+               s=8, alpha=0.5, color="red", label="Expected: LOW")
+    ax.axhline(0, color="black", linewidth=1)
+    ax.set_title(f"t+{h} — Real return t→t+{h} separated by designated class")
+    ax.set_xlabel("Index (time)"); ax.set_ylabel("Real return (%)")
+    ax.legend(); ax.grid(alpha=0.25)
 
-    ax.plot(thresholds, np.array(retornos_por_th) * 100,
-            marker="o", color="purple", linewidth=2, label="Retorno total (%)")
-    ax.axhline(0, color="black", linestyle="--", alpha=0.5)
-    ax.set_title(f"t+{h} — retorno vs threshold")
-    ax.set_xlabel("Threshold de confiança")
-    ax.set_ylabel("Retorno total (%)")
-    ax.grid(alpha=0.3)
+    # --- Direita: distribuição de retorno por classe prevista ---
+    ax = axes[1]
+    ax.hist(retorno_real[pred == 1], bins=40, alpha=0.6, color="green", label="Expected: HIGH",  density=True)
+    ax.hist(retorno_real[pred == 0], bins=40, alpha=0.6, color="red",   label="Expected: LOW", density=True)
+    ax.axvline(0, color="black", linewidth=1)
+    ax.set_title(f"t+{h} — Distribution of real returns\nby predicted class")
+    ax.set_xlabel("Real return (%)"); ax.set_ylabel("Density")
+    ax.legend(); ax.grid(alpha=0.25)
 
-    # anota o melhor threshold
-    best_i = int(np.argmax(retornos_por_th))
-    ax.scatter([thresholds[best_i]], [retornos_por_th[best_i]*100],
-               s=120, facecolors="none", edgecolors="red", linewidth=2,
-               label=f"Melhor: t={thresholds[best_i]:.2f} "
-                     f"({retornos_por_th[best_i]*100:+.1f}%, {n_trades_por_th[best_i]} trades)")
-    ax.legend(fontsize=8)
-
-plt.suptitle("Threshold tuning — busca do melhor corte de confiança", y=1.02, fontsize=13)
-plt.tight_layout()
-plt.show()
-
-
-# ============================================================
-# 15. GRÁFICO — POSIÇÃO AO LONGO DO TEMPO
-# ============================================================
-fig, axes = plt.subplots(len(backtests), 1,
-                         figsize=(14, 2.8*len(backtests)))
-if len(backtests) == 1: axes = [axes]
-
-for ax, bt in zip(axes, backtests):
-    idx = np.arange(len(bt["posicao"]))
-    ax.fill_between(idx, 0, bt["posicao"],
-                    where=(bt["posicao"] > 0), color="green", alpha=0.5, label="LONG")
-    ax.fill_between(idx, 0, bt["posicao"],
-                    where=(bt["posicao"] < 0), color="red", alpha=0.5, label="SHORT")
-    ax.axhline(0, color="black", linewidth=0.5)
-    ax.set_ylim(-1.2, 1.2)
-    ax.set_yticks([-1, 0, 1])
-    ax.set_title(f"Posição — t+{bt['h']}  ({bt['n_trades']} trades)")
-    ax.grid(alpha=0.3)
-    ax.legend(loc="upper right", fontsize=8)
-
-plt.xlabel("Amostras do teste")
-plt.tight_layout()
-plt.show()
-
-
-# ============================================================
-# 16. DISTRIBUIÇÃO DOS RETORNOS POR TRADE
-# ============================================================
-fig, axes = plt.subplots(1, len(backtests), figsize=(5*len(backtests), 4))
-if len(backtests) == 1: axes = [axes]
-
-for ax, bt in zip(axes, backtests):
-    trades = bt["ret_estrategia"][bt["posicao"] != 0]
-    if len(trades) == 0:
-        ax.text(0.5, 0.5, "Sem trades", ha="center", va="center",
-                transform=ax.transAxes)
-        continue
-    ax.hist(trades * 100, bins=40, color="steelblue", alpha=0.8, edgecolor="black")
-    ax.axvline(0, color="black", linestyle="--")
-    ax.axvline(trades.mean()*100, color="red", linestyle=":",
-               label=f"Média {trades.mean()*100:+.3f}%")
-    ax.set_title(f"Retornos por trade — t+{bt['h']}  (n={len(trades)})")
-    ax.set_xlabel("Retorno (%)"); ax.set_ylabel("Frequência")
-    ax.legend(); ax.grid(alpha=0.3)
-
-plt.suptitle("Distribuição dos retornos por trade", y=1.02, fontsize=13)
-plt.tight_layout()
-plt.show()
+    plt.tight_layout()
+    plt.show()

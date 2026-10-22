@@ -116,15 +116,15 @@ def _get_rsi_single(symbol="BTCUSDT", period=14, media_period=6, mode="", time="
         result.append(
             {
                 "time": timestamp,
-                "rsi": round(rsi, 2) if not pd.isna(rsi) else None,
-                "rsi_ma": round(ma, 2) if not pd.isna(ma) else None,
+                "rsi_primary": round(rsi, 2) if not pd.isna(rsi) else None,
+                "rsi_ma_primary": round(ma, 2) if not pd.isna(ma) else None,
             }
         )
 
     return result
 
 
-def get_rsi(symbols=None, symbol=None, period=15, media_period=15, mode=""):
+def get_rsi_primary(symbols=None, symbol=None, period=15, media_period=15, mode=""):
     default_symbols = get_stored_symbols()
 
     if period is None or period <= 0:

@@ -14,6 +14,7 @@ from routes.schrodinger_routes import schrodinger_bp
 from controllers.data_correlations_controller import data_correlations
 from utils.all_symbols import get_binance_symbols 
 from routes.data_correlations_routes import data_correlations_bp
+from routes.rsi_primary_routes import rsi_pri_bp
 
 app = Flask(__name__)
 CORS(app)  # libera acesso do frontend
@@ -21,8 +22,7 @@ CORS(app)  # libera acesso do frontend
 #Cria tabelas no banco de dados
 create_table_symbols() # cria tabela para simbolos do usuário
 get_binance_symbols() # pega todos simbolos
-
-#data_correlations() 
+ 
 
 
 # registra as rotas
@@ -37,6 +37,8 @@ app.register_blueprint(data_operation_bp)
 app.register_blueprint(xgboost_bp)
 app.register_blueprint(schrodinger_bp)
 app.register_blueprint(data_correlations_bp)
+app.register_blueprint(rsi_pri_bp)
+
 
 @app.route('/')
 def home():

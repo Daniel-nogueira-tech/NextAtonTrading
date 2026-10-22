@@ -2,6 +2,7 @@ import unicodedata
 
 import pandas as pd
 from controllers.rsi_controller import get_rsi
+from controllers.rsi_primary_controllers import get_rsi_primary
 from controllers.vppr_controller import get_vppr
 from controllers.trend_clarifications_controllers import trend_clarifications_atr
 from controllers.trend_primary_clarifications_controllers import trend_primary_clarifications_atr
@@ -29,9 +30,9 @@ class DataService:
             for row in block["result"]:
                 rsi_val = row.get("rsi")
                 if rsi_val is not None:
-                    if rsi_val >= 70:
+                    if rsi_val >= 60:
                         row["rsi_signal"] = 0   # sobrecompra
-                    elif rsi_val <= 30:
+                    elif rsi_val <= 40:
                         row["rsi_signal"] = 1   # sobrevenda
                     else:
                         row["rsi_signal"] = 2 # Neltral  
@@ -40,7 +41,7 @@ class DataService:
         return result
 
     def add_rsi_primary(self, symbols=None, symbol=None, period=15, media_period=15, mode=""):
-            result = get_rsi(
+            result = get_rsi_primary(
                 symbols=symbols,
                 symbol=symbol,
                 period=period,
@@ -52,16 +53,16 @@ class DataService:
             # cada bloco tem uma lista em "result"
               if "result" in block and isinstance(block["result"], list):
                 for row in block["result"]:
-                    rsi_val = row.get("rsi")
+                    rsi_val = row.get("rsi_primary")
                     if rsi_val is not None:
-                        if rsi_val >= 70:
-                            row["rsi_signal"] = 0   # sobrecompra
-                        elif rsi_val <= 30:
-                            row["rsi_signal"] = 1   # sobrevenda
+                        if rsi_val >= 60:
+                            row["rsi_primary_signal"] = 0   # sobrecompra
+                        elif rsi_val <= 40:
+                            row["rsi_primary_signal"] = 1   # sobrevenda
                         else:
-                            row["rsi_signal"] = 2 # Neltral  
+                            row["rsi_primary_signal"] = 2 # Neltral  
     
-            self.dados["RSI"] = result[-1]
+            self.dados["RSI_PRIMARY"] = result[-1]
             return result
 
     def add_vppr(self, symbols=None, time=None, modo="", accumulation_period=None):

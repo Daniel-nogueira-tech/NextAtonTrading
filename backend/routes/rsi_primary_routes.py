@@ -1,10 +1,10 @@
 from flask import Blueprint, jsonify, request
 from data_service.data_service import data_service
 
-rsi_bp = Blueprint('rsi', __name__)
+rsi_pri_bp = Blueprint('rsi_pri', __name__)
 
-@rsi_bp.route('/api/rsi_primary', methods=['GET', 'POST'])
-def rsi_route():
+@rsi_pri_bp.route('/api/rsi_primary', methods=['GET', 'POST'])
+def rsi_pri_route():
     try:
         symbols = request.args.getlist('symbols')
         if len(symbols) == 1 and ',' in symbols[0]:

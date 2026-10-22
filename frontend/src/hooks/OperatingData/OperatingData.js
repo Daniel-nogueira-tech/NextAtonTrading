@@ -897,7 +897,6 @@ export const useOperatingData = (trend) => {
           };
         };
       };
-      console.log('>>>', pivoRallyPrimary && naturalReaction && canExecuteReactionRef.current && !state.executeEntrieRally)
       // ======================|RETEST NO PIVO DE RALLY|====================== //
       if (pivoRallyPrimary && naturalReaction && canExecuteReactionRef.current && !state.executeEntrieRally) {
         const limite = pivoRallyPrimary.limite;
@@ -1101,12 +1100,6 @@ export const useOperatingData = (trend) => {
         };
       };
 
-      console.log('Pivot saída:', {
-        TrendPivot: TrendPivot,
-        pivoRallySecExit: pivoRallySecExit,
-        pivoRallySecExit: pivoRallySecExit,
-        rallySecExit: rallySecExit
-      })
       // ======================|RETEST NO PIVO DE RALLY EM UMA REAÇÃO SECUNDÁRIA (pullback pós-breakout)|====================== //
       if (pivoRallyPrimary && naturalReactionSec && canExecuteReactionSecRef.current && !state.executeEntrieRallySec) {
         const limite = pivoRallyPrimary.limite;
@@ -1727,8 +1720,6 @@ export const useOperatingData = (trend) => {
       }));
 
     retestPointsStateRef.current = operationsArray
-    console.log('retestPointsStateRef.current >', retestPointsStateRef.current)
-
 
   }, [trendGroups]);
 

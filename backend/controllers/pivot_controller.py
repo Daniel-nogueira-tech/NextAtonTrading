@@ -17,6 +17,22 @@ def direcao(tipo: str) -> str:
     else:
         return "Indef"
 
+def calcular_trade(pivot, direcao, limite):
+    if direcao == "Alta":
+        return {
+            "entry": pivot['closePrice'],
+            "stop": pivot['closePrice'] - (limite / 2),
+            "pivot": pivot['closePrice']
+        }
+    elif direcao == "Baixa":
+        return {
+            "entry": pivot['closePrice'],
+            "stop": pivot['closePrice'] + (limite / 2),
+            "pivot": pivot['closePrice'] 
+        }
+    else:
+        return None
+    
 def pivots_classification(movements):
     if not movements:
         return []
@@ -25,6 +41,7 @@ def pivots_classification(movements):
     prev_cat = categoria(movements[0]['tipo'])
     prev_dir = direcao(movements[0]['tipo'])
     prev_mov = movements[0]
+    limit = movements[0]['limite']
 
     for i, mov in enumerate(movements[1:], start=1):
         cat = categoria(mov['tipo'])
@@ -32,8 +49,10 @@ def pivots_classification(movements):
 
         # Mudança de regime
         if cat != prev_cat:
+            trade = calcular_trade(prev_mov, dir, limit)
             # Regra especial: Rally -> Tendência
-            if prev_cat == "Rally" and cat == "Tendência":
+            if (prev_cat in ["Rally", "Reação"]) and cat == "Tendência":
+                pass
                 # Só marca se direção mudar
                 if prev_dir != dir:
                     pivots.append({
@@ -44,7 +63,8 @@ def pivots_classification(movements):
                         "from": prev_cat,
                         "to": cat,
                         "direcao_de": prev_dir,
-                        "direcao_para": dir
+                        "direcao_para": dir,
+                         "trade": trade
                     })
             else:
                 # Outras mudanças sempre são pivô
@@ -56,7 +76,8 @@ def pivots_classification(movements):
                     "from": prev_cat,
                     "to": cat,
                     "direcao_de": prev_dir,
-                    "direcao_para": dir
+                    "direcao_para": dir,
+                     "trade": trade,
                 })
 
         prev_cat = cat

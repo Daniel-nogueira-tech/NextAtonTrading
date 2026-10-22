@@ -85,17 +85,6 @@
   z-index: 5;
 }
 
-.graphics-renko__analysis-overlay .hit-area {
-  pointer-events: stroke; /* só a linha de hit captura */
-}
-
-.graphics-renko__analysis-overlay .handle {
-  pointer-events: all;    /* alças capturam */
-}
-
-.graphics-renko__analysis-overlay .channel-hit-area {
-  pointer-events: all;
-}
 @media (max-width: 720px) {
   .analysis-tools {
     flex: 0 0 auto;

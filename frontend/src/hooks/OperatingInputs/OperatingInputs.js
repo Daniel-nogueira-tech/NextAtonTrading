@@ -292,8 +292,6 @@ export const useOperatingInputs = () => {
             const lastVppr = lastVpprArray[lastVpprArray.length - 1];
             const lastPrice = lastPriceArray[lastPriceArray.length - 1];
 
-
-            console.log('lastVppr:', lastVppr)
             // Verifica se os dados necessários existem
             if (!lastTrend || !lastTrendPrimary || !lastPrice || !lastVppr || !lastAmrsi) {
                 console.log(`⚠️ [${symbol}] Dados insuficientes:`, {

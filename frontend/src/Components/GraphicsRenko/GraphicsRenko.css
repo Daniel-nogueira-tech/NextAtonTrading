@@ -97,14 +97,13 @@
 
 .graphics-renko__indicators {
   display: grid;
-  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
   gap: 5px;
   right: 0;
   left: 0;
   bottom: 0;
   z-index: 100;
   margin-top: 6px;
-
 }
 
 .graphics-renko__indicator-panel {
@@ -169,6 +168,7 @@
   gap: 8px;
   width: 100%;
   min-width: 0;
+  height: 740px;
 }
 
 .graphics-renko__chart {
@@ -707,5 +707,10 @@
   .button-graphic {
     position: absolute;
     top: 10%;
+  }
+}
+@media (max-width: 1520px) {
+    .graphics-renko__workspace {
+    height:435px
   }
 }

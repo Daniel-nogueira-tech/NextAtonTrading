@@ -427,8 +427,6 @@ export const useVpprData = (vppr) => {
         }));
 
         vpprDataRef.current = signalsArray;
-
-        console.log('vpprDataRef.current :>', vpprDataRef.current)
     }, [vpprGroups]);
 
     return { vpprDataRef };
