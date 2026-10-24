@@ -244,22 +244,24 @@ export const ContextGraphicsProvider = ({ children }) => {
 
     // Envia as datas para baixar dados para simular
     const dateToSimulation = async (dates) => {
+        console.log(dates)
         if (mode !== 'simulation' || !dates) {
             return
         };
         const dateStart = dates.dateStart;
         const dateEnd = dates.dateEnd;
         try {
-            const response = await axios.post(`${urlBackend}/api/simulation`, {
+            await axios.post(`${urlBackend}/api/simulation`, {
                 "symbol": activeSymbol,
                 "dateStart": dateStart,
                 "dateEnd": dateEnd
             })
-            setDownload(false);
-            setLoading(true)
             await marketData()
+            setLoading(true)
         } catch (error) {
             console.error('Error fetching Simulation:', error)
+        } finally {
+            setDownload(false)
         }
     };
 
@@ -638,6 +640,7 @@ export const ContextGraphicsProvider = ({ children }) => {
         download,
         setDownload,
         loading,
+        setLoading,
         marketData,
         // tables de movimento
         movementTables,

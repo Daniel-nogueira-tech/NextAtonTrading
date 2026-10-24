@@ -34,7 +34,7 @@ def data_correlations():
 
     def download_symbol(symbol):
         try:
-            df = get_binance_data(symbol, "1h", 2026, "01")
+            df = get_binance_data(symbol, "1h", 2019, "01")
             return symbol, df
         except Exception as e:
             print(f"Erro ao baixar {symbol}: {e}")

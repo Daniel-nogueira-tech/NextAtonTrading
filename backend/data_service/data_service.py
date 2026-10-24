@@ -30,9 +30,9 @@ class DataService:
             for row in block["result"]:
                 rsi_val = row.get("rsi")
                 if rsi_val is not None:
-                    if rsi_val >= 60:
+                    if rsi_val >= 55:
                         row["rsi_signal"] = 0   # sobrecompra
-                    elif rsi_val <= 40:
+                    elif rsi_val <= 45:
                         row["rsi_signal"] = 1   # sobrevenda
                     else:
                         row["rsi_signal"] = 2 # Neltral  

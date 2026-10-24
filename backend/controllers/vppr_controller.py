@@ -130,7 +130,7 @@ def _get_vppr_single(symbol, modo="real", time="15m", total=5000, accumulation_p
     # transforma em Series
     vppr_series = pd.Series(vppr_values)
     # EMA do VPPR
-    vppr_ema = vppr_series.ewm(span=200, adjust=False).mean() # calcula média móvel exponencial com período de 96 (1 dia para gráficos de 15m)
+    vppr_ema = vppr_series.ewm(span=144, adjust=False).mean() # calcula média móvel exponencial com período de 96 (1 dia para gráficos de 15m)
     vppr_macd = _calculate_vppr_macd(vppr_values)
 
     # formatar datas e price

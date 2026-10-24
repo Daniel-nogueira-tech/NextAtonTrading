@@ -12,7 +12,18 @@ const DEFAULT_FEEDS = {
 
 // Nomes de propriedades que contêm arrays de séries temporais dentro de cada item do feed. 
 // O motor irá automaticamente detectar e fazer merge desses arrays ao atualizar os dados.
-const ARRAY_KEYS = ['movements', 'result', 'prices', 'data', 'power_surges']
+const ARRAY_KEYS = [
+  'movements',
+  'result',
+  'prices',
+  'data',
+  'power_surges',
+  'energy_kinetic',
+  'potential_energy',
+  'ema_volume',
+  'collapsed',
+  'evolution_series',
+]
 const TIME_KEYS = ['Tempo', 'time', 'closeTime', 'openTime', 'open_time']
 
 
@@ -35,6 +46,10 @@ const normalizeCollection = (payload) => {
 // Função para detectar qual chave contém a série temporal dentro de um item
 const getItemSeriesKey = (item) => {
   return ARRAY_KEYS.find(key => Array.isArray(item?.[key])) ?? null
+}
+
+const getItemSeriesKeys = (item) => {
+  return ARRAY_KEYS.filter(key => Array.isArray(item?.[key]))
 }
 
 // Tenta encontrar qualquer campo definido em `TIME_KEYS`.
@@ -125,25 +140,28 @@ const mergeFeed = (currentPayload, nextPayload, useReplaceMode = false) => {
       return
     }
 
-    const currentSeriesKey = getItemSeriesKey(currentItem)
-    const nextSeriesKey = getItemSeriesKey(nextItem)
-    const seriesKey = nextSeriesKey || currentSeriesKey
+    const seriesKeys = new Set([
+      ...getItemSeriesKeys(currentItem),
+      ...getItemSeriesKeys(nextItem),
+    ])
 
-    if (!seriesKey) {
+    if (seriesKeys.size === 0) {
       mergedMap.set(itemKey, { ...currentItem, ...nextItem })
       return
     }
 
-    // Usar replaceMode para atualizar apenas dados novos sem misturar com antigos
-    mergedMap.set(itemKey, {
+    const mergedItem = {
       ...currentItem,
       ...nextItem,
-      [seriesKey]: mergeSeries(
+    }
+    seriesKeys.forEach((seriesKey) => {
+      mergedItem[seriesKey] = mergeSeries(
         currentItem[seriesKey],
         nextItem[seriesKey],
         useReplaceMode
-      ),
+      )
     })
+    mergedMap.set(itemKey, mergedItem)
   })
 
   return Array.from(mergedMap.values())
@@ -211,23 +229,26 @@ const sliceFeed = (payload, cursor, clockMap, maxSnapshotPoints, isFullPrice = f
   if (!payload) return null
 
   return normalizeCollection(payload).map((item) => {
-    const seriesKey = getItemSeriesKey(item)
+    const seriesKeys = getItemSeriesKeys(item)
 
-    if (!seriesKey) return item
+    if (seriesKeys.length === 0) return item
 
     if (isFullPrice) {
-      return {
-        ...item,
-        [seriesKey]: limitWindow(item[seriesKey].slice(0, cursor), maxSnapshotPoints),
-      }
+      const primarySeriesKey = getItemSeriesKey(item)
+      return seriesKeys.reduce((snapshotItem, seriesKey) => ({
+        ...snapshotItem,
+        [seriesKey]: seriesKey === primarySeriesKey
+          ? limitWindow(item[seriesKey].slice(0, cursor), maxSnapshotPoints)
+          : item[seriesKey],
+      }), { ...item })
     }
 
     const currentTime = clockMap[item?.symbol]
 
-    return {
-      ...item,
+    return seriesKeys.reduce((snapshotItem, seriesKey) => ({
+      ...snapshotItem,
       [seriesKey]: sliceSeriesByTime(item[seriesKey], currentTime, maxSnapshotPoints),
-    }
+    }), { ...item })
   })
 }
 

@@ -20,15 +20,17 @@ def direcao(tipo: str) -> str:
 def calcular_trade(pivot, direcao, limite):
     if direcao == "Alta":
         return {
-            "entry": pivot['closePrice'],
+            "entry": pivot['closePrice'] + (limite / 2),
             "stop": pivot['closePrice'] - (limite / 2),
-            "pivot": pivot['closePrice']
+            "pivot": pivot['closePrice'],
+            "type": 'buy'
         }
     elif direcao == "Baixa":
         return {
-            "entry": pivot['closePrice'],
+            "entry": pivot['closePrice'] - (limite / 2),
             "stop": pivot['closePrice'] + (limite / 2),
-            "pivot": pivot['closePrice'] 
+            "pivot": pivot['closePrice'],
+            "type": 'sell'
         }
     else:
         return None

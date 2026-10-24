@@ -7,8 +7,8 @@ data_correlations_bp = Blueprint('correlations', __name__)
 def get_data_correlations():
     time = request.args.get('time','15m')
     mode = request.args.get('mode', 'simulation')
-    start = request.args.get('start','2024-01')
-    end = request.args.get('end','2024-12')
+    start = request.args.get('start','2022-01')
+    end = request.args.get('end','2022-12')
 
     correlated_indices = index_correlated(
         time=time,

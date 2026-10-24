@@ -6,7 +6,7 @@ from controllers.data_to_simulation_controllers import get_klines_data_simulatio
 from controllers.pivot_controller import pivots_classification
 from controllers.atr_controller import _get_atr_for_candle, calculate_atr_wilder_from_data
 from controllers.data_correlations_controller import get_correlated_index
-
+from controllers.macd_trend_controller import calculate_macd_ema
 
 # Helpers para normalizar retorno dos dados de simulação e tempo real
 def _format_candle_for_response(kline):
@@ -78,7 +78,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 15000):
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    verify_time_multiply = 8 #4
+    verify_time_multiply = 5 #4
     atr_period = 182
 
 
@@ -1207,6 +1207,15 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 15000):
                         }
                     )
                     added_movement = True
+    indicator_values = calculate_macd_ema(closes)
+
+    indicators_by_time = {
+        timestamp: indicator_values[index]
+        for index, timestamp in enumerate(timestamps)
+    }
+
+    for movement in movements:
+        movement.update(indicators_by_time.get(movement["closeTime"], {}))
 
     # Passa os dados para encontra pivôs
     point_pivot = pivots_classification(movements)

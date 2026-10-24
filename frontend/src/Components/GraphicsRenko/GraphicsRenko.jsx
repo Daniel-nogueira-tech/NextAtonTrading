@@ -3,8 +3,10 @@ import React from 'react'
 import './GraphicsRenko.css'
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx'
 import { CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, createChart, createSeriesMarkers } from 'lightweight-charts'
-import { Calendar } from 'primereact/calendar';
-import { Button } from 'primereact/button';
+
+import { DayPicker } from 'react-day-picker';
+import 'react-day-picker/dist/style.css';
+
 import MovementTables from '../MovementTables/MovementTables.jsx';
 import AnalysisTools from '../AnalysisTools/AnalysisTools.jsx';
 
@@ -65,25 +67,25 @@ const AnalysisDrawingOverlay = ({
 }) => {
   if (!chart || !series) return null
 
-const toCoordinates = (point) => {
-  const rawX = chart.timeScale().timeToCoordinate(point.time)
-  const y = series.priceToCoordinate(point.price)
+  const toCoordinates = (point) => {
+    const rawX = chart.timeScale().timeToCoordinate(point.time)
+    const y = series.priceToCoordinate(point.price)
 
-  // LOG apenas quando o ponto está na zona estendida (time > lastCandle)
-  if (typeof point.time === 'number' && window.__lastCandleTime && point.time > window.__lastCandleTime) {
-    console.log('[toCoord]', {
-      time: point.time,
-      rawX,
-      lastCandle: window.__lastCandleTime,
-      barSpacing: chart.timeScale().options().barSpacing,
-      rightOffset: chart.timeScale().options().rightOffset,
-      visibleRange: chart.timeScale().getVisibleRange(),
-      logicalRange: chart.timeScale().getVisibleLogicalRange(),
-    })
+    // LOG apenas quando o ponto está na zona estendida (time > lastCandle)
+    if (typeof point.time === 'number' && window.__lastCandleTime && point.time > window.__lastCandleTime) {
+      console.log('[toCoord]', {
+        time: point.time,
+        rawX,
+        lastCandle: window.__lastCandleTime,
+        barSpacing: chart.timeScale().options().barSpacing,
+        rightOffset: chart.timeScale().options().rightOffset,
+        visibleRange: chart.timeScale().getVisibleRange(),
+        logicalRange: chart.timeScale().getVisibleLogicalRange(),
+      })
+    }
+
+    return { x: rawX, y }
   }
-
-  return { x: rawX, y }
-}
   const renderDrawing = (drawing, key, drawingIndex = null, isPreview = false) => {
     const points = drawing.points.map(toCoordinates)
     if (points.every(p => p.x === null || p.y === null)) return null
@@ -297,7 +299,37 @@ const toCoordinates = (point) => {
             <title>
               {`Energia: ${surge.energia} | Ordem: ${surge.ordem ?? '—'} | Preço: ${price}`}
             </title>
-            <circle cx={x} cy={y} r="5" fill="#ff3030" stroke="#fff" strokeWidth="1.5" />
+            <svg viewBox="0 0 200 200" width="100" height="100" x={x - 50} y={y - 50} pointerEvents="none">
+              <g className="atom">
+                {/* Órbitas */}
+                <ellipse className="atom-orbit atom-orbit--1" cx="100" cy="100" rx="80" ry="30" />
+                <ellipse className="atom-orbit atom-orbit--2" cx="100" cy="100" rx="60" ry="60" />
+                <ellipse className="atom-orbit atom-orbit--3" cx="100" cy="100" rx="30" ry="80" />
+
+
+                {/* Núcleo */}
+                <circle
+                  className="energy-surge"
+                  cx="100"
+                  cy="100"
+                  r="10"
+                  fill="#b464ffaf"
+                  stroke="#fff"
+                  strokeWidth="1.5"
+                />
+
+                {/* Elétrons */}
+                <circle className="atom-electron atom-electron--1" cx="100" cy="100" r="3" fill="#fff" />
+                <circle className="atom-electron atom-electron--2" cx="100" cy="100" r="3" fill="#e0b0ff" />
+                <circle className="atom-electron atom-electron--3" cx="100" cy="100" r="3" fill="#fff" />
+                <circle className="atom-electron atom-electron--1" cx="100" cy="100" r="3" fill="#fff" />
+                <circle className="atom-electron atom-electron--2" cx="100" cy="100" r="3" fill="#e0b0ff" />
+                <circle className="atom-electron atom-electron--3" cx="100" cy="100" r="3" fill="#fff" />
+                <circle className="atom-electron atom-electron--1" cx="100" cy="100" r="3" fill="#fff" />
+                <circle className="atom-electron atom-electron--2" cx="100" cy="100" r="3" fill="#e0b0ff" />
+                <circle className="atom-electron atom-electron--3" cx="100" cy="100" r="3" fill="#fff" />
+              </g>
+            </svg>
             <text
               x={x + 8}
               y={y - 8}
@@ -404,15 +436,19 @@ const buildRenkoCandles = (movements) => {
   }, [])
 }
 
-const buildLineData = (market, valueKey) => {
-  const result = Array.isArray(market?.result) ? market.result : []
+const buildLineData = (market, valueKey, seriesKey = 'result') => {
+  const result = Array.isArray(market?.[seriesKey]) ? market[seriesKey] : []
 
   return result
     .map((point, index) => ({
       time: parseChartTime(point?.time, index),
       value: Number(point?.[valueKey]),
     }))
-    .filter((point) => Number.isFinite(point.value))
+    .filter((point, index) => (
+      result[index]?.[valueKey] != null &&
+      result[index][valueKey] !== '' &&
+      Number.isFinite(point.value)
+    ))
 }
 
 const buildReferenceLineData = (baseData, value) => {
@@ -428,7 +464,7 @@ const RETEST_LEVELS = [
   { name: 'pivot', label: 'Pivot', color: '#ffffff' },
   { name: 'stop', label: 'Stop', color: '#414141' },
 ]
-const MAX_RETEST_LEVELS = 11;
+const MAX_RETEST_LEVELS = 2;
 
 const buildRetestLevelSegments = (movements, chartEndTime) => {
   const points = (Array.isArray(movements) ? movements : [])
@@ -441,8 +477,12 @@ const buildRetestLevelSegments = (movements, chartEndTime) => {
 
       return [{
         time: parseChartTime(time, index),
+        entry: trade.entry,
         pivot: trade.pivot,
         stop: trade.stop,
+        // 👇buy/sell para o preço de entrada
+        buy: trade.type === 'buy' ? trade.entry : undefined,
+        sell: trade.type === 'sell' ? trade.entry : undefined,
       }]
     })
     .filter(point => Number.isFinite(point.time))
@@ -641,16 +681,10 @@ const updateSeriesData = (seriesApi, data, metaRef) => {
 //=================/Formata datas/================= //
 const formatDate = (date) => {
   if (!date) return null
-  return date.toISOString().split('T')[0];
-}
-
-const formattedDateToNumber = (date) => {
-  if (typeof date !== 'string') return null
-
-  const [day, month, year] = date.split('/').map(Number)
-  if (!day || !month || !year) return null
-
-  return year * 10000 + month * 100 + day
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 const hasInvalidDateRange = (range) => {
@@ -658,12 +692,10 @@ const hasInvalidDateRange = (range) => {
     return false
   }
 
-  const dateStart = formatDate(range[0])
-  const dateEnd = formatDate(range[1])
-  const start = formattedDateToNumber(dateStart)
-  const end = formattedDateToNumber(dateEnd)
+  const start = range[0] instanceof Date ? range[0].getTime() : new Date(range[0]).getTime()
+  const end = range[1] instanceof Date ? range[1].getTime() : new Date(range[1]).getTime()
 
-  return Boolean(start && end && start > end)
+  return Number.isFinite(start) && Number.isFinite(end) && start > end
 }
 
 const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
@@ -845,6 +877,7 @@ const GraphicsRenko = () => {
     download,
     setDownload,
     loading,
+    setLoading,
     movementTables,
     setMovementTables,
     incrementalEngine,
@@ -878,7 +911,8 @@ const GraphicsRenko = () => {
   const [dateErro, setDateErro] = React.useState(null);
   const [disabledButton, setDisabledButton] = React.useState(false);
 
-  
+  let footer = `Please pick the first day.`;
+
   React.useEffect(() => {
     activeAnalysisToolRef.current = activeAnalysisTool
   }, [activeAnalysisTool])
@@ -1042,6 +1076,36 @@ const GraphicsRenko = () => {
   const energySurges = Array.isArray(selectedSchrodingerMarket?.power_surges)
     ? selectedSchrodingerMarket.power_surges
     : []
+
+  const schrodingerIndicatorSeries = React.useMemo(() => ({
+    emaVolume: [{
+      name: 'EMA Volume',
+      color: '#cda1ff',
+      data: buildLineData(selectedSchrodingerMarket, 'value', 'ema_volume'),
+    }],
+    kineticEnergy: [{
+      name: 'Energia cinética',
+      color: '#22ab94',
+      data: buildLineData(selectedSchrodingerMarket, 'value', 'energy_kinetic'),
+    }],
+    potentialEnergy: [{
+      name: 'Energia potencial',
+      color: '#f5a623',
+      data: buildLineData(selectedSchrodingerMarket, 'value', 'potential_energy'),
+    }],
+    evolution_series: [
+      {
+        name: 'Buy',
+        color: '#22ab50',
+        data: buildLineData(selectedSchrodingerMarket, 'psi_buy', 'evolution_series'),
+      },
+      {
+        name: 'Sell',
+        color: '#fc5b5b',
+        data: buildLineData(selectedSchrodingerMarket, 'psi_sell', 'evolution_series'),
+      },
+    ],
+  }), [selectedSchrodingerMarket])
 
   const renkoCandles = React.useMemo(() => buildRenkoCandles(
     selectedMarket?.movements || []
@@ -1251,7 +1315,8 @@ const GraphicsRenko = () => {
     let rafId = null
     let isInteracting = false
 
-    const startRefreshLoop = () => {
+    const startRefreshLoop = (event) => {
+      if (event?.target instanceof Element && event.target.closest('.button-simulation')) return
       if (isInteracting) return
       isInteracting = true
       const tick = () => {
@@ -1270,8 +1335,8 @@ const GraphicsRenko = () => {
       refreshDrawings()
     }
     let wheelTimeout = null
-    const onWheel = () => {
-      startRefreshLoop()
+    const onWheel = (event) => {
+      startRefreshLoop(event)
       clearTimeout(wheelTimeout)
       wheelTimeout = setTimeout(stopRefreshLoop, 150)
     }
@@ -1350,14 +1415,14 @@ const GraphicsRenko = () => {
     const chartEndTime = renkoCandles[renkoCandles.length - 1]?.time
     let retestSegments = null
     retestSegments = isTrend ?
-    retestSegments = buildRetestLevelSegments(
-      selectMarketBySymbol(trend, activeSymbol)?.movements,
-      chartEndTime
-    ):
-    retestSegments = buildRetestLevelSegments(
-      selectMarketBySymbol(trendPrimary, activeSymbol)?.movements,
-      chartEndTime
-    )
+      retestSegments = buildRetestLevelSegments(
+        selectMarketBySymbol(trend, activeSymbol)?.movements,
+        chartEndTime
+      ) :
+      retestSegments = buildRetestLevelSegments(
+        selectMarketBySymbol(trendPrimary, activeSymbol)?.movements,
+        chartEndTime
+      )
 
     const visibleSegmentKeys = new Set(retestSegments.map(segment => segment.key))
 
@@ -1444,21 +1509,17 @@ const GraphicsRenko = () => {
     }
   }, [formattedDates]);
 
-  // Impede que o usuário selecione datas decrecentes 
-  const calendarMinDate = React.useMemo(() => {
-    return Array.isArray(dates) && dates[0] && !dates[1] ? dates[0] : null
-  }, [dates])
-
   const handleDatesChange = (value) => {
     if (hasInvalidDateRange(value)) {
       setDateErro("The start date cannot be greater than the end date.");
       return;
     }
+    setDateErro(null)
     setDates(value)
   }
   // Função para enviar datas
   const handleSubmitDate = async () => {
-    if (formattedDatesObj[1] === null) {
+    if (!formattedDatesObj?.dateStart || !formattedDatesObj?.dateEnd || dateErro) {
       return;
     };
     setDownload(true);
@@ -1732,6 +1793,7 @@ const GraphicsRenko = () => {
             />
             <div className='button-simulation'>
               <button
+                className="simulation-mode-toggle"
                 onClick={buttonSimulation}
               >
                 {mode === "simulation" ? "Simulation" : "Real time"}
@@ -1741,50 +1803,88 @@ const GraphicsRenko = () => {
               {/*-----------------/Calendário/-----------------*/}
               {mode === "simulation" &&
                 <div
-                  className="card-dates flex justify-content-center ">
-                  <Calendar
-                    value={dates}
-                    onChange={(e) => handleDatesChange(e.value)}
-                    selectionMode="range"
-                    minDate={calendarMinDate}
-                    readOnlyInput
-                    hideOnRangeSelection
-                    showIcon
-                    showButtonBar
-                  />
-                  {dateErro && <p style={{ color: "red" }}>{dateErro}</p>}
+                  className="card-dates flex justify-content-center "
+                  onClick={(event) => event.stopPropagation()}
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
 
-                  {Array.isArray(formattedDates) && formattedDates[1] !== null && !dateErro &&
-                    <div className={loading ? 'loaded' : 'download'}>
-                      <Button
-                        label="⤓" icon="pi pi-check" loading={download} onClick={!loading ? handleSubmitDate : null}
-                        disabled={loading}
+                  {loading === false &&
+                    <div style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    >
+                      <DayPicker animate
+                        autoFocus
+                        classNames={{
+                          selected: 'meu-dia-selecionado',
+                          range_start: 'meu-range-inicio',
+                          range_end: 'meu-range-fim',
+                          today: 'meu-hoje',
+                        }}
+
+
+                        captionLayout="dropdown"
+                        startMonth={new Date(2018, 0)}
+                        navLayout="around"
+                        mode="range"
+                        footer={footer}
+                        min={1}
+                        selected={dates && Array.isArray(dates) && dates.length === 2
+                          ? { from: dates[0], to: dates[1] }
+                          : undefined}
+                        onSelect={(range) => {
+                          // Converte { from, to } de volta para o array [Date, Date]
+                          if (range?.from && range?.to) {
+                            handleDatesChange([range.from, range.to]);
+                          } else if (range?.from) {
+                            // Se só o "from" foi selecionado, passa um array com um item
+                            // para o seu handleDatesChange lidar (como no Calendar antigo)
+                            handleDatesChange([range.from, null]);
+                          } else {
+                            handleDatesChange(null);
+                          }
+                        }}
                       />
+
+                      {dateErro && <p style={{ color: "red" }}>{dateErro}</p>}
+
+                      {formattedDatesObj?.dateStart && formattedDatesObj?.dateEnd && !dateErro &&
+                        <div className={download ? 'loading' : 'download'}>
+                          <button
+                            type="button"
+                            className="p-button"
+                            aria-label="Baixar simulação"
+                            disabled={loading || download}
+                            onClick={handleSubmitDate}
+                          >
+                            <span aria-live="polite">
+                              {download ? "Loading..." : "⤓ download"}
+                            </span>
+                          </button>
+                        </div>
+                      }
+                    </div>
+                  }
+                  { /**Mostra que foi caregado */}
+                  {loading === true &&
+                    <div className="loaded">
+                      <button
+                        type="button"
+                        className="p-button"
+                        aria-label="Baixar simulação"
+                        disabled={loading || download}
+                      >
+                        <span aria-hidden="true">⤓</span>
+                      </button>
                     </div>
                   }
                 </div>
               }
 
               {/*-----------------/Botão de controle/-----------------*/}
-              {!incrementalEngine.isRunning ? (
-                <button
-                  type="button"
-                  onClick={incrementalEngine?.play}
-                  disabled={incrementalEngine?.isRunning}
-                  title="Play"
-                >
-                  Play
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={incrementalEngine?.pause}
-                  disabled={!incrementalEngine?.isRunning}
-                  title="Pause"
-                >
-                  Pause
-                </button>
-              )}
               {loading && mode === "simulation" &&
 
                 <div className='simulation-control'>
@@ -1825,6 +1925,13 @@ const GraphicsRenko = () => {
                   >
                     Reset
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setLoading(false)}
+                    title="Liberar seleção e download de datas"
+                  >
+                    Reset loading
+                  </button>
                   <span className='separates-speed'></span>
                   <div className='controlle-speed-container'>
                     <div className='controlle-speed'>
@@ -1832,18 +1939,18 @@ const GraphicsRenko = () => {
                         type="button"
                         onClick={decreaseSimulationSpeed}
                         disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) >= MAX_ENGINE_SPEED}
-                        title="Reduzir velocidade"
+                        title="Decrease speed"
                       >
-                        Slower -
+                        -
                       </button>
                       <span className="simulation-control__speed">{speedLabel}</span>
                       <button
                         type="button"
                         onClick={increaseSimulationSpeed}
                         disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) <= MIN_ENGINE_SPEED}
-                        title="Aumentar velocidade"
+                        title="Increase speed"
                       >
-                        Faster +
+                        +
                       </button>
                     </div>
 
@@ -1863,11 +1970,6 @@ const GraphicsRenko = () => {
                 </div>
               }
 
-              {!loading && mode === "simulation" &&
-                <div className='simulation-control'>
-                  Please select another asset or download the date range.
-                </div>
-              }
             </div>
             {renkoCandles.length === 0 && (
               <div className="graphics-renko__empty">
@@ -1935,6 +2037,42 @@ const GraphicsRenko = () => {
               title="VPPR"
               series={vpprSeries}
               emptyMessage="No VPPR history available for this asset."
+              resetKey={activeSymbol}
+            />
+          </div>
+
+          <div className="indicators-container">
+            <IndicatorChart
+              title="EMA Volume"
+              series={schrodingerIndicatorSeries.emaVolume}
+              emptyMessage="No EMA volume history available for this asset."
+              resetKey={activeSymbol}
+            />
+          </div>
+
+          <div className="indicators-container">
+            <IndicatorChart
+              title="Energia cinética"
+              series={schrodingerIndicatorSeries.kineticEnergy}
+              emptyMessage="No kinetic energy history available for this asset."
+              resetKey={activeSymbol}
+            />
+          </div>
+
+          <div className="indicators-container">
+            <IndicatorChart
+              title="Energia potencial"
+              series={schrodingerIndicatorSeries.potentialEnergy}
+              emptyMessage="No potential energy history available for this asset."
+              resetKey={activeSymbol}
+            />
+          </div>
+
+          <div className="indicators-container">
+            <IndicatorChart
+              title="Função de onda  Schrödinger — Buy / Sell Ψ"
+              series={schrodingerIndicatorSeries.evolution_series}
+              emptyMessage="No collapsed probabilities available for this asset."
               resetKey={activeSymbol}
             />
           </div>

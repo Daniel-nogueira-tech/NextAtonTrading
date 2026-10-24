@@ -178,52 +178,100 @@ def calculate_planck_constant(orders, alpha=0.1):
     return h_market, ema
 
 # ===============Evolução de função de onda Ψ==============#
-def evolve_wave_function(orders, h_market=1.0, 
-                          drift_scale=1.0, 
-                          osc_amplitude=0.005):
+def evolve_wave_function(orders, h_market=1.0,
+                          drift_scale=1.0,
+                          osc_amplitude=0.005,
+                          mean_reversion=0.01,
+                          symmetric_drift=True,
+                          memory_bars=200,
+                          min_window=50):
+    """
+    Evolução da função de onda com correções de viés + janela móvel.
+
+    memory_bars: janela efetiva (EMA). α = 2/(memory_bars+1).
+                 - 50  → reage rápido
+                 - 200 → padrão
+                 - 400 → suave
+    min_window: nº mínimo de barras para começar a evoluir.
+    """
+    n_total = len(orders)
+    if n_total == 0:
+        return []
+
+    alpha = 2.0 / (memory_bars + 1.0)
+
+    # --- 1) Inicialização neutra baseada em wave_function, mas simetrizada ---
     psi = wave_function(orders)
     psi_buy  = float(psi["buy"])
     psi_sell = float(psi["sell"])
+    total0 = psi_buy + psi_sell
+    if total0 < 1e-12:
+        psi_buy, psi_sell = 0.5, 0.5
+    else:
+        psi_buy  /= total0
+        psi_sell /= total0
+    if symmetric_drift:
+        bias0 = (psi_buy - psi_sell) / 2.0
+        psi_buy  = 0.5 + bias0 * 0.5
+        psi_sell = 0.5 - bias0 * 0.5
 
     kinetic   = calculate_kinetic_energy(orders)
     potential = calculate_Potential_energy(orders)
-
     n = min(len(kinetic), len(potential), len(orders))
 
-    # Pré-calcula std do drift para normalizar
+    # --- 2) Drift robusto (mediana + MAD) ---
     drifts_raw = np.zeros(n)
     for i in range(1, n):
         p0 = orders[i-1]["price"]
         p1 = orders[i]["price"]
         drifts_raw[i] = (p1 - p0) / max(p0, 1e-9)
-    drift_std = drifts_raw.std() if drifts_raw.std() > 1e-12 else 1.0
+
+    if n > 1:
+        drift_median = np.median(drifts_raw[1:])
+        mad = np.median(np.abs(drifts_raw[1:] - drift_median)) * 1.4826
+        drift_std = max(mad, 1e-6) if mad < 1e-12 else mad
+        if symmetric_drift:
+            drifts_raw = drifts_raw - drift_median
+    else:
+        drift_std = 1.0
+
+    # --- 3) Fase acumulada para oscilação de média zero ---
+    phase = 0.0
 
     evolution = []
     for i in range(n):
         H = kinetic[i] + potential[i]
 
-        # Drift normalizado → em torno de [-1, 1]
+        # Drift normalizado → [-1, 1] simétrico
         drift = drifts_raw[i] / drift_std
         drift = np.tanh(drift * drift_scale)
 
-        # Oscilação: simétrica e atrelada ao estado
-        oscillation = osc_amplitude * np.sin(i * 0.3 + H * 10.0)
+        # Oscilação com fase acumulada
+        phase += 0.3 + H * 10.0
+        oscillation = osc_amplitude * np.sin(phase)
 
-        # Ganho simétrico: se drift>0, buy ganha mais; se <0, sell ganha mais
-        delta = (H / h_market) * 0.1
-        # O ganho de buy é proporcional a (1+drift),
-        # o de sell a (1-drift). Se drift = -1, buy ganha 0.
-        gain_buy  = delta * max(0.0, 1.0 + drift) + oscillation
-        gain_sell = delta * max(0.0, 1.0 - drift) - oscillation
+        # Ganho simétrico: drift>0 → buy ganha; drift<0 → sell ganha
+        delta = (H / max(h_market, 1e-6)) * 0.1
+        gain_buy  = delta * (1.0 + drift) / 2.0 + oscillation
+        gain_sell = delta * (1.0 - drift) / 2.0 - oscillation
 
-        psi_buy  = psi_buy  + gain_buy
-        psi_sell = psi_sell + gain_sell
+        # --- Janela móvel via EMA (memória decai exponencialmente) ---
+        # Se ainda não há min_window barras, evolução cheia (sem decaimento),
+        # para o estado "aquecer" sem perder informação inicial.
+        if i < min_window:
+            psi_buy  += gain_buy
+            psi_sell += gain_sell
+        else:
+            psi_buy  += alpha * gain_buy
+            psi_sell += alpha * gain_sell
 
-        # Clip ANTES de normalizar
+        # Reversão à média (âncora em 0.5)
+        psi_buy  += mean_reversion * (0.5 - psi_buy)
+        psi_sell += mean_reversion * (0.5 - psi_sell)
+
+        # Clip e normalização
         psi_buy  = max(0.0, psi_buy)
         psi_sell = max(0.0, psi_sell)
-
-        # Normalização
         total = psi_buy + psi_sell
         if total > 1e-12:
             psi_buy  /= total
@@ -236,12 +284,11 @@ def evolve_wave_function(orders, h_market=1.0,
             "psi_buy": psi_buy,
             "psi_sell": psi_sell,
             "H": H,
-            "drift": drift,
-            "oscillation": oscillation,
+            "drift": float(drift),
+            "oscillation": float(oscillation),
+            "phase": float(phase),
         })
-
     return evolution
-
 
 # =============== TUNELAMENTO QUÂNTICO =============== #
 def power_surges(orders, smooth=1, prominence=0.65):

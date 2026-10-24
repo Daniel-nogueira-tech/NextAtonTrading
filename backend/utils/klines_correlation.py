@@ -19,7 +19,7 @@ def _get_session():
         _thread_local.session = requests.Session()
     return _thread_local.session
 
-def get_binance_data(symbol, interval="15m", year=2020, month="01"):
+def get_binance_data(symbol, interval="15m", year=2019, month="01"):
     url = f"https://data.binance.vision/data/spot/monthly/klines/{symbol}/{interval}/{symbol}-{interval}-{year}-{month}.zip"
     for attempt in range(MAX_RETRIES + 1):
         response = _get_session().get(url, timeout=REQUEST_TIMEOUT)
@@ -51,7 +51,7 @@ def get_binance_data(symbol, interval="15m", year=2020, month="01"):
         return df
 
 
-def get_binance_range(symbol, interval="15m", start="2020-01", end="2020-12"):
+def get_binance_range(symbol, interval="15m", start="2019-01", end="2019-12"):
     start_year, start_month = map(int, start.split("-"))
     end_year, end_month = map(int, end.split("-"))
     if not 1 <= start_month <= 12 or not 1 <= end_month <= 12:

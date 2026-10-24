@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from utils.klines import get_klines
 from controllers.symbols_controller import get_stored_symbols
 from controllers.data_to_simulation_controllers import get_klines_data_simulation
-from controllers.trend_clarifications_controllers import trend_clarifications_atr
+from controllers.trend_primary_clarifications_controllers import trend_primary_clarifications_atr
 from controllers.data_correlations_controller import get_correlated_index
 
 
@@ -97,7 +97,7 @@ def _get_rsi_single(symbol="BTCUSDT", period=14, media_period=6, mode="", time="
     if not klines:
         return []
 
-    trend_results = trend_clarifications_atr(symbols=symbol, time=time, mode=mode)
+    trend_results = trend_primary_clarifications_atr(symbols=symbol, time=time, mode=mode)
     atr_closes, atr_times = _extract_clarification_series(trend_results)
 
     if atr_closes:

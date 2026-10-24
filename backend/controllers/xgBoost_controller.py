@@ -11,13 +11,13 @@ from data_service.data_service import data_service
 # ============================================================
 # 1. COLETA DE INDICADORES
 # ============================================================
-data_service.add_trend_primary(symbols="ETHUSDT", time="15m", mode="simulation")
-data_service.add_trend(symbols="ETHUSDT", time="15m", mode="simulation")
-data_service.add_vppr(modo="simulation", symbols="ETHUSDT", time="15m", accumulation_period="month")
-#data_service.add_rsi(mode="simulation", symbols="ETHUSDT", period=2, media_period=20)
-data_service.add_rsi_primary(mode="simulation", symbols="ETHUSDT", period=10, media_period=20)
-data_service.add_price(mode="simulation", symbol="ETHUSDT", time="15m")
-data_service.add_Schrodinger(modo="simulation", symbols="ETHUSDT", time="15m", accumulation_period="month")
+data_service.add_trend_primary(symbols="BTCUSDT", time="15m", mode="simulation")
+data_service.add_trend(symbols="BTCUSDT", time="15m", mode="simulation")
+data_service.add_vppr(modo="simulation", symbols="BTCUSDT", time="15m", accumulation_period="month")
+data_service.add_rsi(mode="simulation", symbols="BTCUSDT", period=10, media_period=20)
+data_service.add_rsi_primary(mode="simulation", symbols="BTCUSDT", period=2, media_period=20)
+data_service.add_price(mode="simulation", symbol="BTCUSDT", time="15m")
+data_service.add_Schrodinger(modo="simulation", symbols="BTCUSDT", time="15m", accumulation_period="month")
 
 def normalize_data():
     return data_service.indicators_dataframe()
@@ -27,7 +27,7 @@ df = normalize_data()
 print("Primeiras linhas do DataFrame:")
 print(df.head())
 print("\nColunas disponíveis:", df.columns.tolist())
-
+ 
 # ============================================================
 # 2. PREPARAÇÃO DAS FEATURES
 # ============================================================
@@ -48,22 +48,24 @@ exclude_cols = {
     "macd", "macd_signal", "macd_histogram",
     "vppr_macd", "rsi_ma",'vppr', 'vppr_ema', 'rsi',
     "trendPrice_TREND_PRIMARY", "limite_TREND_PRIMARY",'rsi_ma_primary',
-    "type_TREND",'wave_function','schrodinger_H', 'schrodinger_potencial','rsi_primary',
-    "ema_fast_TREND", "ema_slow_TREND",'vppr_signal','type_TREND_PRIMARY','schrodinger_buy', 'schrodinger_sell',
-    "macd_TREND", "macd_signal_TREND", "macd_histogram_TREND", 'ema_TREND','limite_TREND'
+    "type_TREND",'schrodinger_H', 'schrodinger_potencial',
+    "ema_fast_TREND", "ema_slow_TREND",'schrodinger_buy', 'schrodinger_sell','rsi_primary','rsi_primary_signal',
+    "macd_TREND", "macd_signal_TREND", "macd_histogram_TREND", 'ema_TREND','limite_TREND', 'ema_TREND_PRIMARY', 'ema_fast_TREND_PRIMARY',
+    'ema_slow_TREND_PRIMARY', 'macd_TREND_PRIMARY', 'macd_signal_TREND_PRIMARY', 'macd_histogram_TREND_PRIMARY','type_TREND_PRIMARY',
+    'macd_TREND'
 }
 
 feature_cols = [c for c in df.columns if c not in exclude_cols]
 
 df = df.reset_index(drop=True)
 
-print(df[["time","rsi_primary_signal", "Fechamento"]].head(20))
+print(df[["time", "Fechamento"]].head(20))
 print(f"\nFeatures usadas ({len(feature_cols)}): {feature_cols}")
 
 # ============================================================
 # 3. CRIAÇÃO DOS ALVOS t+1 ... t+7
 # ============================================================
-horizontes = [1, 2, 3]
+horizontes = [1, 2, 3, 4, 5, 6]
 
 for h in horizontes:
     df.loc[:, f"y_next_t{h}"] = df[target_col].shift(-h)
@@ -478,3 +480,35 @@ for r in resultados_plot:
 
     plt.tight_layout()
     plt.show()
+
+# ============================================================
+# 13. ALVO vs PREVISÃO — SOBREPOSTOS CONTINUAMENTE
+# ============================================================
+for r in resultados_plot:
+    h     = r["h"]
+    idx   = r["y_test"].index.values
+    pred  = r["pred"]                # direção prevista (0=queda, 1=alta)
+    preco_t      = preco_full[idx]   # preço atual
+    preco_real_h = df[f"y_next_t{h}"].values[idx]  # preço real futuro
+
+    # --- Construção de série prevista ---
+    # Aqui simplifico: se modelo prevê HIGH, uso preço futuro real como proxy;
+    # se prevê LOW, uso também preço futuro mas marcado como "queda".
+    # Alternativamente, pode-se aplicar um retorno médio histórico.
+    preco_previsto = np.where(pred == 1, preco_t * 1.01, preco_t * 0.99)
+
+    plt.figure(figsize=(15,6))
+    plt.plot(idx, preco_real_h, color="black", linewidth=1.5,
+             label="Preço real (Alvo)")
+    plt.plot(idx, preco_previsto, color="tab:blue", linewidth=1.2,
+             linestyle="--", label="Preço previsto (Modelo)")
+
+    plt.title(f"t+{h} — Evolução de preço: Alvo vs Previsão",
+              fontsize=13, fontweight="bold")
+    plt.xlabel("Tempo (índice do teste)")
+    plt.ylabel("Preço")
+    plt.legend(loc="best", fontsize=9)
+    plt.grid(alpha=0.25)
+    plt.tight_layout()
+    plt.show()
+
