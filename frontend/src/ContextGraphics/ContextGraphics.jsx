@@ -20,7 +20,7 @@ const hasStoredData = (value) => {
     if (Array.isArray(value)) return value.length > 0;
     return value != null && typeof value === 'object' && Object.keys(value).length > 0;
 };
-
+ 
 const normalizeSchrodingerFeed = (payload, fallbackSymbol) => {
     const collection = payload?.data ?? payload;
 
@@ -84,6 +84,7 @@ export const ContextGraphicsProvider = ({ children }) => {
     const retestPointsStateRef = useRef([]);
     const retestPointsStatePrimaryRef = useRef([]);
     const amrsiDataRef = useRef([]);
+    const schrodingerDataRef = useRef([]);
 
     // Dados do usuário
     const [userData, setUserData] = React.useState(null);
@@ -654,7 +655,9 @@ export const ContextGraphicsProvider = ({ children }) => {
         // classificação secundaria
         retestPointsStateRef,
         // Amrsi
-        amrsiDataRef,
+        amrsiDataRef, 
+        // schrodinger
+        schrodingerDataRef,
 
         // Botão de compra e venda
         buttonOperation,

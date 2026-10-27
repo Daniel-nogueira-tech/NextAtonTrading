@@ -10,7 +10,7 @@ def data_to_simulation():
     date_start = data.get("dateStart","").strip().upper()
     date_end = data.get("dateEnd","").strip()
     days = data.get("days", "").strip()
-
+ 
 
     if not symbol:
         return jsonify({"Error": "The parameters symbol, dateStart, and dateEnd are required."}),400

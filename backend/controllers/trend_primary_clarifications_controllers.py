@@ -78,7 +78,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 15000):
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    verify_time_multiply = 5 #4
+    verify_time_multiply = 4 #4
     atr_period = 182
 
 
@@ -89,10 +89,9 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 15000):
     confir = atr / 2
     confir_round = confir
     print(f"✅ ATR inicial: {base_atr}, limite inicial: {atr}, confirmação inicial: {confir_round}")
-    
 
-    limit = atr / 8
-    confirmar = confir_round
+
+    limit = atr 
 
     # Inicializa variáveis de controle
     cont = 0

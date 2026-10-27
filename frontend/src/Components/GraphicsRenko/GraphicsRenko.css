@@ -158,10 +158,71 @@
   border-radius: 50%;
 }
 
+.graphics-renko__indicator-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.graphics-renko__indicator-window-button {
+  flex: 0 0 auto;
+  border: 1px solid rgba(120, 144, 156, 0.35);
+  border-radius: 5px;
+  padding: 5px 8px;
+  background: rgba(120, 144, 156, 0.12);
+  color: var(--renko-text);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.graphics-renko__indicator-window-button:hover {
+  background: rgba(120, 144, 156, 0.24);
+}
+
+.graphics-renko__indicator-placeholder {
+  display: flex;
+  min-height: 70px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px dashed rgba(120, 144, 156, 0.3);
+  border-radius: 8px;
+  padding: 10px;
+  color: var(--renko-muted-text);
+  font-size: 0.8rem;
+}
+
 .graphics-renko__indicator-chart {
   position: relative;
   width: 100%;
   height: 148px;
+}
+
+body.graphics-renko-indicator-window {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+body.graphics-renko-indicator-window > .graphics-renko__indicator-panel {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+}
+
+body.graphics-renko-indicator-window .graphics-renko__indicator-header {
+  flex: 0 0 auto;
+}
+
+body.graphics-renko-indicator-window .graphics-renko__indicator-chart {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
 }
 
 .graphics-renko__workspace {
@@ -171,6 +232,45 @@
   width: 100%;
   min-width: 0;
   height: 740px;
+}
+
+.graphics-renko__indicator-sidebar {
+  display: flex;
+  flex: 0 0 310px;
+  flex-direction: column;
+  gap: 8px;
+  width: 310px;
+  min-width: 0;
+  max-height: 100%;
+}
+
+.graphics-renko__indicator-sidebar--collapsed {
+  flex-basis: 150px;
+  width: 150px;
+}
+
+.graphics-renko__indicator-toggle {
+  flex: 0 0 auto;
+  border: 1px solid rgba(120, 144, 156, 0.35);
+  border-radius: 5px;
+  padding: 7px 10px;
+  background: rgba(120, 144, 156, 0.12);
+  color: var(--renko-text);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.graphics-renko__indicator-toggle:hover {
+  background: rgba(120, 144, 156, 0.24);
+}
+
+.graphics-renko__indicator-sidebar .indicator-panel {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.graphics-renko__indicator-sidebar .indicator-panel__grid {
+  grid-template-columns: 1fr;
 }
 
 .graphics-renko__chart {
@@ -787,7 +887,7 @@ button.rdp-day_button {
 }
 
 @keyframes nucleus-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.9; }
+  0%, 100% { transform: scale(1.3); opacity: 0.9; }
   50%      { transform: scale(1.15); opacity: 1; }
 }
 
@@ -797,7 +897,7 @@ button.rdp-day_button {
   transform-box: view-box;
   fill: none;
   stroke: #b464ff88;
-  stroke-width: 1.2;
+  stroke-width: 0.8;
   stroke-dasharray: 1.3;
 }
 
@@ -820,10 +920,10 @@ button.rdp-day_button {
 .atom-electron--1 { animation: electron-spin 4s linear infinite; }
 .atom-electron--2 { animation: electron-spin 6s linear infinite reverse; }
 .atom-electron--3 { animation: electron-spin 8s linear infinite; }
-
+.atom-electron--4  { animation: electron-spin 5s linear infinite; }
 @keyframes electron-spin {
-  from { transform: rotate(0deg)   translateX(40px) rotate(0deg); }
-  to   { transform: rotate(360deg) translateX(40px) rotate(-360deg); }
+  from { transform: rotate(0deg)   translateX(25px) rotate(0deg); }
+  to   { transform: rotate(360deg) translateX(25px) rotate(-360deg); }
 }
 
 
@@ -879,6 +979,22 @@ button.rdp-day_button {
 
   .graphics-renko__workspace {
     flex-direction: column;
+    height: auto;
+  }
+
+  .graphics-renko__indicator-sidebar,
+  .graphics-renko__indicator-sidebar--collapsed {
+    flex: 0 0 auto;
+    width: 100%;
+    max-height: none;
+  }
+
+  .graphics-renko__indicator-sidebar .indicator-panel {
+    overflow-y: visible;
+  }
+
+  .graphics-renko__indicator-sidebar .indicator-panel__grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   }
 
   .button-graphic {

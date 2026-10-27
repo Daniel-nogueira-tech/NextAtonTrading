@@ -60,7 +60,7 @@ def download_historical_klines(
         all_klines = [k for k in all_klines if start_ms <= int(k[0]) <= end_ms]
 
     # Formatar para o mesmo formato da API (11 colunas)
-    klines_formatados = [tuple(k[:11]) for k in all_klines if k]
+    klines_formatados = [(int(k[0]), *k[1:11]) for k in all_klines if k]
     return klines_formatados
 
 # --------------------------------------------------

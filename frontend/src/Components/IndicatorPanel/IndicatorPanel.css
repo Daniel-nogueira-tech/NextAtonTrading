@@ -1,0 +1,287 @@
+/* IndicatorPanel.css */
+:root {
+  --primary-purple: #7c3aed;
+  --primary-purple-dark: #5b21b6;
+  --primary-purple-light: #8b5cf6;
+  --gray-900: #0f0f12;
+  --gray-800: #1a1a1e;
+  --gray-750: #202024;
+  --gray-700: #2a2a30;
+  --gray-600: #3a3a45;
+  --gray-500: #52525b;
+  --gray-400: #71717a;
+  --gray-300: #a1a1aa;
+  --gray-200: #d4d4d8;
+  --gray-100: #f4f4f5;
+
+  /* Fallback das cores dos sinais */
+  --signal-color-trend: gray;
+  --signal-color-trend-primary: gray;
+  --signal-color-vppr-trend: gray;
+  --signal-color-vppr-major: gray;
+  --signal-color-vppr-ema: gray;
+  --signal-color-vppr-macd: gray;
+  --signal-color-vppr-macd-close: gray;
+  --signal-color-amrsi: gray;
+  --signal-color-kinetic: gray;
+  --signal-color-potential: gray;
+  --signal-color-psi: gray;
+}
+
+/* Container */
+.indicator-panel {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(26, 26, 30, 0.6), rgba(15, 15, 18, 0.8));
+  border: 1px solid rgba(124, 58, 237, 0.15);
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(124, 58, 237, 0.08);
+}
+
+.indicator-panel--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 120px;
+  color: var(--gray-400);
+  font-size: 0.9rem;
+}
+
+.indicator-panel__symbol {
+  margin: 0 0 0.75rem;
+  color: var(--gray-200);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* Grid de cards */
+.indicator-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+/* Card individual */
+.indicator-panel__card {
+  background: linear-gradient(135deg, rgba(32, 32, 36, 0.9), rgba(20, 20, 24, 0.95));
+  border: 1px solid rgba(124, 58, 237, 0.12);
+  border-radius: 12px;
+  padding: 0.475rem 0.7rem;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.indicator-panel__card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.4), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.indicator-panel__card:hover {
+  border-color: rgba(124, 58, 237, 0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(124, 58, 237, 0.1);
+}
+
+.indicator-panel__card:hover::before {
+  opacity: 1;
+}
+
+/* Header do card */
+.indicator-panel__card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.55rem;
+  padding-bottom: 0.625rem;
+  border-bottom: 1px solid rgba(124, 58, 237, 0.1);
+}
+
+.indicator-panel__card-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  margin: 0;
+  background: linear-gradient(135deg, var(--primary-purple-light), var(--primary-purple));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  letter-spacing: 0.3px;
+}
+
+.indicator-panel__card-badge {
+  font-size: 0.45rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--primary-purple-light);
+  background: rgba(124, 58, 237, 0.12);
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  padding: 0.02rem 0.3rem;
+  border-radius: 6px;
+}
+
+/* Body do card */
+.indicator-panel__card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Linhas */
+.indicator-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.25rem 0;
+}
+
+.indicator-panel__label {
+  font-size: 0.60rem;
+  color: var(--gray-400);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+
+.indicator-panel__value {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--gray-200);
+  text-align: right;
+  word-break: break-word;
+}
+
+.indicator-panel__value--muted {
+  color: var(--gray-500);
+  font-weight: 400;
+  font-style: italic;
+}
+
+/* ===================== Círculos de sinal ===================== */
+.signal-circle {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+/* Brilho ao redor do círculo */
+.signal-circle::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: inherit;
+  opacity: 0.3;
+  filter: blur(4px);
+  z-index: -1;
+  animation: signalPulse 2s ease-in-out infinite;
+}
+
+@keyframes signalPulse {
+  0%, 100% {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+}
+
+.signal-circle--trend {
+  background-color: var(--signal-color-trend);
+  box-shadow: 0 0 8px var(--signal-color-trend);
+}
+
+.signal-circle--trend-primary {
+  background-color: var(--signal-color-trend-primary);
+  box-shadow: 0 0 8px var(--signal-color-trend-primary);
+}
+
+.signal-circle--vppr {
+  background-color: var(--signal-color-vppr-major);
+  box-shadow: 0 0 8px var(--signal-color-vppr-major);
+}
+
+.signal-circle--vppr-trend {
+  background-color: var(--signal-color-vppr-trend);
+  box-shadow: 0 0 8px var(--signal-color-vppr-trend);
+}
+
+.signal-circle--vppr-ema {
+  background-color: var(--signal-color-vppr-ema);
+  box-shadow: 0 0 8px var(--signal-color-vppr-ema);
+}
+
+.signal-circle--vppr-macd {
+  background-color: var(--signal-color-vppr-macd);
+  box-shadow: 0 0 8px var(--signal-color-vppr-macd);
+}
+
+.signal-circle--amrsi {
+  background-color: var(--signal-color-amrsi);
+  box-shadow: 0 0 8px var(--signal-color-amrsi);
+}
+
+.signal-circle--kinetic {
+  background-color: var(--signal-color-kinetic);
+  box-shadow: 0 0 8px var(--signal-color-kinetic);
+}
+
+.signal-circle--potential {
+  background-color: var(--signal-color-potential);
+  box-shadow: 0 0 8px var(--signal-color-potential);
+}
+
+.signal-circle--psi {
+  background-color: var(--signal-color-psi);
+  box-shadow: 0 0 8px var(--signal-color-psi);
+}
+
+/* Responsividade */
+@media (max-width: 640px) {
+  .indicator-panel {
+    padding: 0.75rem;
+    border-radius: 12px;
+  }
+
+  .indicator-panel__grid {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .indicator-panel__card {
+    padding: 0.75rem;
+  }
+
+  .indicator-panel__card-title {
+    font-size: 0.575rem;
+  }
+
+  .indicator-panel__value {
+    font-size: 0.75rem;
+  }
+}

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef } from 'react';
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics';
 
 const normalizeVpprData = (vppr) => {

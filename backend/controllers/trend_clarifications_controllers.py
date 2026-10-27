@@ -78,7 +78,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 10000):
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    verify_time_multiply =  8 # 16 
+    verify_time_multiply =  10 # 16 
     atr_period = 182
 
     # Sincroniza o ATR com cada candle para manter a classificação alinhada à volatilidade
@@ -90,7 +90,6 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 10000):
     print(f"✅ ATR inicial: {base_atr}, limite inicial: {atr}, confirmação inicial: {confir_round}")
     
     limit = atr 
-    confirmar = (confir_round / 4)
 
     # Inicializa variáveis de controle
     cont = 0

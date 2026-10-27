@@ -178,120 +178,112 @@ def calculate_planck_constant(orders, alpha=0.1):
     return h_market, ema
 
 # ===============Evolução de função de onda Ψ==============#
-def evolve_wave_function(orders, h_market=1.0,
-                          drift_scale=1.0,
-                          osc_amplitude=0.005,
-                          mean_reversion=0.01,
-                          symmetric_drift=True,
-                          memory_bars=200,
-                          min_window=50):
+def evolve_wave_function(orders,
+                          window=100,
+                          min_window=10,
+                          use_energy_weight=False,
+                          h_market=1.0):
     """
-    Evolução da função de onda com correções de viés + janela móvel.
+    Probabilidade simples (frequentista) de subida/queda por janela móvel.
+    """
+    # ===== COERÇÃO PARA INT (corrige slice indices must be integers) =====
+    window     = int(window)
+    min_window = int(min_window)
+    n_total    = len(orders)
 
-    memory_bars: janela efetiva (EMA). α = 2/(memory_bars+1).
-                 - 50  → reage rápido
-                 - 200 → padrão
-                 - 400 → suave
-    min_window: nº mínimo de barras para começar a evoluir.
-    """
-    n_total = len(orders)
     if n_total == 0:
         return []
 
-    alpha = 2.0 / (memory_bars + 1.0)
+    if window < 1:
+        window = 1
+    if min_window < 1:
+        min_window = 1
+    if min_window > window:
+        min_window = window
+    # ======================================================================
 
-    # --- 1) Inicialização neutra baseada em wave_function, mas simetrizada ---
-    psi = wave_function(orders)
-    psi_buy  = float(psi["buy"])
-    psi_sell = float(psi["sell"])
-    total0 = psi_buy + psi_sell
-    if total0 < 1e-12:
-        psi_buy, psi_sell = 0.5, 0.5
+    # --- Energia por barra (opcional) ---
+    if use_energy_weight:
+        kinetic   = calculate_kinetic_energy(orders)
+        potential = calculate_Potential_energy(orders)
+        n_e = min(len(kinetic), len(potential), n_total)
+        H = np.array([kinetic[i] + potential[i] for i in range(n_e)])
+        h_norm = H / max(float(h_market), 1e-6)
+        h_weight = np.tanh(h_norm)
+        h_weight = np.clip(h_weight, 0.0, 1.0)
+        h_weight = np.where(h_weight < 1e-9, 1.0, h_weight)
     else:
-        psi_buy  /= total0
-        psi_sell /= total0
-    if symmetric_drift:
-        bias0 = (psi_buy - psi_sell) / 2.0
-        psi_buy  = 0.5 + bias0 * 0.5
-        psi_sell = 0.5 - bias0 * 0.5
+        h_weight = None
 
-    kinetic   = calculate_kinetic_energy(orders)
-    potential = calculate_Potential_energy(orders)
-    n = min(len(kinetic), len(potential), len(orders))
-
-    # --- 2) Drift robusto (mediana + MAD) ---
-    drifts_raw = np.zeros(n)
-    for i in range(1, n):
-        p0 = orders[i-1]["price"]
-        p1 = orders[i]["price"]
-        drifts_raw[i] = (p1 - p0) / max(p0, 1e-9)
-
-    if n > 1:
-        drift_median = np.median(drifts_raw[1:])
-        mad = np.median(np.abs(drifts_raw[1:] - drift_median)) * 1.4826
-        drift_std = max(mad, 1e-6) if mad < 1e-12 else mad
-        if symmetric_drift:
-            drifts_raw = drifts_raw - drift_median
-    else:
-        drift_std = 1.0
-
-    # --- 3) Fase acumulada para oscilação de média zero ---
-    phase = 0.0
+    # --- Retorno de cada barra ---
+    prices = np.array([o["price"] for o in orders], dtype=float)
+    retornos = np.zeros(n_total)
+    for i in range(1, n_total):
+        retornos[i] = (prices[i] - prices[i-1]) / max(prices[i-1], 1e-9)
 
     evolution = []
-    for i in range(n):
-        H = kinetic[i] + potential[i]
+    for i in range(n_total):
+        # start e end agora são int com certeza
+        start = max(0, i - window + 1)
+        end   = i + 1
+        ret_win = retornos[start:end]
 
-        # Drift normalizado → [-1, 1] simétrico
-        drift = drifts_raw[i] / drift_std
-        drift = np.tanh(drift * drift_scale)
+        mask_valid = ret_win != 0
+        n_valid = int(mask_valid.sum())
 
-        # Oscilação com fase acumulada
-        phase += 0.3 + H * 10.0
-        oscillation = osc_amplitude * np.sin(phase)
-
-        # Ganho simétrico: drift>0 → buy ganha; drift<0 → sell ganha
-        delta = (H / max(h_market, 1e-6)) * 0.1
-        gain_buy  = delta * (1.0 + drift) / 2.0 + oscillation
-        gain_sell = delta * (1.0 - drift) / 2.0 - oscillation
-
-        # --- Janela móvel via EMA (memória decai exponencialmente) ---
-        # Se ainda não há min_window barras, evolução cheia (sem decaimento),
-        # para o estado "aquecer" sem perder informação inicial.
-        if i < min_window:
-            psi_buy  += gain_buy
-            psi_sell += gain_sell
-        else:
-            psi_buy  += alpha * gain_buy
-            psi_sell += alpha * gain_sell
-
-        # Reversão à média (âncora em 0.5)
-        psi_buy  += mean_reversion * (0.5 - psi_buy)
-        psi_sell += mean_reversion * (0.5 - psi_sell)
-
-        # Clip e normalização
-        psi_buy  = max(0.0, psi_buy)
-        psi_sell = max(0.0, psi_sell)
-        total = psi_buy + psi_sell
-        if total > 1e-12:
-            psi_buy  /= total
-            psi_sell /= total
-        else:
+        if n_valid < min_window:
             psi_buy, psi_sell = 0.5, 0.5
+            n_sobe, n_cai = 0, 0
+            n_total_valid = n_valid
+        else:
+            if use_energy_weight:
+                idx_global = np.arange(start, end)
+                w = h_weight[idx_global] if len(idx_global) <= len(h_weight) \
+                    else np.ones(len(idx_global))
+                w = w[mask_valid]
+                sobe = (ret_win[mask_valid] > 0).astype(float)
+                cai  = (ret_win[mask_valid] < 0).astype(float)
+                n_sobe_w = float(np.sum(w * sobe))
+                n_cai_w  = float(np.sum(w * cai))
+                total_w  = n_sobe_w + n_cai_w
+                if total_w > 1e-12:
+                    psi_buy  = n_sobe_w / total_w
+                    psi_sell = n_cai_w  / total_w
+                else:
+                    psi_buy, psi_sell = 0.5, 0.5
+                n_sobe = int(np.sum(sobe))
+                n_cai  = int(np.sum(cai))
+                n_total_valid = n_sobe + n_cai
+            else:
+                n_sobe = int(np.sum(ret_win[mask_valid] > 0))
+                n_cai  = int(np.sum(ret_win[mask_valid] < 0))
+                n_total_valid = n_sobe + n_cai
+                if n_total_valid > 0:
+                    psi_buy  = n_sobe / n_total_valid
+                    psi_sell = n_cai  / n_total_valid
+                else:
+                    psi_buy, psi_sell = 0.5, 0.5
+
+        if use_energy_weight and i < len(h_weight):
+            H_i = float(h_weight[i] * h_market)
+        else:
+            H_i = None
 
         evolution.append({
             "ordem": i + 1,
-            "psi_buy": psi_buy,
-            "psi_sell": psi_sell,
-            "H": H,
-            "drift": float(drift),
-            "oscillation": float(oscillation),
-            "phase": float(phase),
+            "psi_buy": float(psi_buy),
+            "psi_sell": float(psi_sell),
+            "n_sobe": n_sobe,
+            "n_cai": n_cai,
+            "n_total": n_total_valid,
+            "H": H_i,
+            "retorno": float(retornos[i]),
         })
+
     return evolution
 
 # =============== TUNELAMENTO QUÂNTICO =============== #
-def power_surges(orders, smooth=1, prominence=0.65):
+def power_surges(orders, smooth=5, prominence=0.65):
     # Calcula energias
     kinetic   = calculate_kinetic_energy(orders)
     potential = calculate_Potential_energy(orders)

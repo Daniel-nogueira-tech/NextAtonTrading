@@ -1,5 +1,6 @@
 
 import React from 'react'
+import { createPortal } from 'react-dom'
 import './GraphicsRenko.css'
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx'
 import { CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, createChart, createSeriesMarkers } from 'lightweight-charts'
@@ -15,6 +16,8 @@ import { useOperatingDataPrimary } from '../../hooks/OperationDataPrimary/Operat
 import { useVpprData } from '../../hooks/OperationDataVppr/OperationDataVppr.js';
 import { useAmrsiData } from '../../hooks/OperationDataAmrsi/OperationDataAmrsi.js';
 import { useOperatingInputs } from '../../hooks/OperatingInputs/OperatingInputs.js';
+import { useSchrodingerData } from '../../hooks/OperationDataSchrodinger/OperationDataSchrodinger.js';
+import IndicatorPanel from '../IndicatorPanel/IndicatorPanel.jsx'
 
 
 
@@ -25,7 +28,7 @@ const MAX_ENGINE_SPEED = 5000
 const DEFAULT_ENGINE_SPEED = 500
 
 const FIBONACCI_LEVELS = [0, 0.382, 0.5, 0.618, 1]
-const FUTURE_PROJECTION_DAYS = 10
+const FUTURE_PROJECTION_DAYS = 60
 const SECONDS_PER_DAY = 24 * 60 * 60
 
 const buildFutureProjectionTimes = (candles, drawings) => {
@@ -302,9 +305,9 @@ const AnalysisDrawingOverlay = ({
             <svg viewBox="0 0 200 200" width="100" height="100" x={x - 50} y={y - 50} pointerEvents="none">
               <g className="atom">
                 {/* Órbitas */}
-                <ellipse className="atom-orbit atom-orbit--1" cx="100" cy="100" rx="80" ry="30" />
-                <ellipse className="atom-orbit atom-orbit--2" cx="100" cy="100" rx="60" ry="60" />
-                <ellipse className="atom-orbit atom-orbit--3" cx="100" cy="100" rx="30" ry="80" />
+                <ellipse className="atom-orbit atom-orbit--1" cx="100" cy="100" rx="40" ry="20" />
+                <ellipse className="atom-orbit atom-orbit--2" cx="100" cy="100" rx="30" ry="30" />
+                <ellipse className="atom-orbit atom-orbit--3" cx="100" cy="100" rx="20" ry="40" />
 
 
                 {/* Núcleo */}
@@ -322,12 +325,7 @@ const AnalysisDrawingOverlay = ({
                 <circle className="atom-electron atom-electron--1" cx="100" cy="100" r="3" fill="#fff" />
                 <circle className="atom-electron atom-electron--2" cx="100" cy="100" r="3" fill="#e0b0ff" />
                 <circle className="atom-electron atom-electron--3" cx="100" cy="100" r="3" fill="#fff" />
-                <circle className="atom-electron atom-electron--1" cx="100" cy="100" r="3" fill="#fff" />
-                <circle className="atom-electron atom-electron--2" cx="100" cy="100" r="3" fill="#e0b0ff" />
-                <circle className="atom-electron atom-electron--3" cx="100" cy="100" r="3" fill="#fff" />
-                <circle className="atom-electron atom-electron--1" cx="100" cy="100" r="3" fill="#fff" />
-                <circle className="atom-electron atom-electron--2" cx="100" cy="100" r="3" fill="#e0b0ff" />
-                <circle className="atom-electron atom-electron--3" cx="100" cy="100" r="3" fill="#fff" />
+                <circle className="atom-electron atom-electron--4" cx="100" cy="100" r="3" fill="#fff" />
               </g>
             </svg>
             <text
@@ -701,15 +699,75 @@ const hasInvalidDateRange = (range) => {
 const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
   const containerRef = React.useRef(null)
   const chartRef = React.useRef(null)
+  const popupRef = React.useRef(null)
   const seriesMapRef = React.useRef(new Map())
   const seriesMetaMapRef = React.useRef(new Map())
   const hadVisibleSeriesRef = React.useRef(false)
   const lastResetKeyRef = React.useRef(resetKey)
+  const [popupWindow, setPopupWindow] = React.useState(null)
 
   const visibleSeries = React.useMemo(() => {
     return series.filter(item => item.data.length > 0)
   }, [series])
 
+  const restoreToPanel = () => {
+    popupRef.current?.close()
+    popupRef.current = null
+    setPopupWindow(null)
+  }
+
+  const openInWindow = () => {
+    const windowName = `indicator-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+    const indicatorWindow = window.open(
+      '',
+      windowName,
+      'popup=yes,width=900,height=420,resizable=yes,scrollbars=yes',
+    )
+
+    if (!indicatorWindow) {
+      window.alert('O navegador bloqueou a janela do indicador. Permita pop-ups para este site e tente novamente.')
+      return
+    }
+
+    indicatorWindow.document.title = `${title} | NextAtonTrading`
+    indicatorWindow.document.documentElement.style.height = '100%'
+    indicatorWindow.document.body.classList.add('graphics-renko-indicator-window')
+    indicatorWindow.document.body.style.margin = '0'
+    indicatorWindow.document.body.style.padding = '12px'
+    indicatorWindow.document.body.style.minWidth = '320px'
+    indicatorWindow.document.body.style.background = '#111318'
+
+    document.querySelectorAll('link[rel="stylesheet"], style').forEach((stylesheet) => {
+      if (stylesheet instanceof HTMLLinkElement) {
+        const link = indicatorWindow.document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = stylesheet.href
+        indicatorWindow.document.head.appendChild(link)
+      } else {
+        indicatorWindow.document.head.appendChild(stylesheet.cloneNode(true))
+      }
+    })
+
+    popupRef.current = indicatorWindow
+    setPopupWindow(indicatorWindow)
+  }
+
+  React.useEffect(() => {
+    if (!popupWindow) return undefined
+
+    const checkWindowClosed = window.setInterval(() => {
+      if (popupWindow.closed) {
+        popupRef.current = null
+        setPopupWindow(null)
+      }
+    }, 500)
+
+    return () => window.clearInterval(checkWindowClosed)
+  }, [popupWindow])
+
+  React.useEffect(() => {
+    return () => popupRef.current?.close()
+  }, [])
 
   React.useEffect(() => {
     if (!containerRef.current) return
@@ -751,7 +809,7 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
       seriesMapRef.current.clear()
       seriesMetaMapRef.current.clear()
     }
-  }, [])
+  }, [popupWindow])
 
 
   React.useEffect(() => {
@@ -837,19 +895,28 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
     }
 
     hadVisibleSeriesRef.current = visibleSeries.length > 0
-  }, [visibleSeries, resetKey])
+  }, [visibleSeries, resetKey, popupWindow])
 
-  return (
+  const indicatorPanel = (
     <div className="graphics-renko__indicator-panel">
       <div className="graphics-renko__indicator-header">
         <span>{title}</span>
-        <div className="graphics-renko__indicator-legend">
-          {series.map((item) => (
-            <small key={item.name}>
-              <i style={{ backgroundColor: item.color }} />
-              {item.name}
-            </small>
-          ))}
+        <div className="graphics-renko__indicator-actions">
+          <div className="graphics-renko__indicator-legend">
+            {series.map((item) => (
+              <small key={item.name}>
+                <i style={{ backgroundColor: item.color }} />
+                {item.name}
+              </small>
+            ))}
+          </div>
+          <button
+            className="graphics-renko__indicator-window-button"
+            type="button"
+            onClick={popupWindow ? restoreToPanel : openInWindow}
+          >
+            {popupWindow ? 'Voltar ao painel' : 'Abrir em janela'}
+          </button>
         </div>
       </div>
       <div className="graphics-renko__indicator-chart" ref={containerRef}>
@@ -860,6 +927,24 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
         )}
       </div>
     </div>
+  )
+
+  if (!popupWindow) return indicatorPanel
+
+  return (
+    <>
+      <div className="graphics-renko__indicator-placeholder">
+        <span>{title} está em outra janela</span>
+        <button
+          className="graphics-renko__indicator-window-button"
+          type="button"
+          onClick={restoreToPanel}
+        >
+          Trazer de volta
+        </button>
+      </div>
+      {createPortal(indicatorPanel, popupWindow.document.body)}
+    </>
   )
 }
 
@@ -910,6 +995,7 @@ const GraphicsRenko = () => {
   const analysisDragRef = React.useRef(null);
   const [dateErro, setDateErro] = React.useState(null);
   const [disabledButton, setDisabledButton] = React.useState(false);
+  const [isIndicatorPanelVisible, setIsIndicatorPanelVisible] = React.useState(true);
 
   let footer = `Please pick the first day.`;
 
@@ -1042,6 +1128,7 @@ const GraphicsRenko = () => {
   const { retestPointsStatePrimaryRef } = useOperatingDataPrimary(trendPrimary);
   const { vpprDataRef } = useVpprData(vppr);
   const { amrsiDataRef } = useAmrsiData(rsi);
+  const { schrodingerDataRef, indicatorsBySymbol: schrodingerIndicatorsBySymbol } = useSchrodingerData(schrodinger);
   const { signalsBySymbol, getLastTrendBySymbol, getLastTrendPrimaryBySymbol, getLastVpprBySymbol, getLastAmrsiBySymbol } = useOperatingInputs();
   //===================//===================//
 
@@ -1563,92 +1650,6 @@ const GraphicsRenko = () => {
   }, [incrementalEngine?.step])
 
 
-  //=====================|função para mapa de cores|=====================//
-  // ***Define um mapa de cores para os sinais de volume
-  const colorMapVolume = {
-    'Volume SELL Increasing': 'red',
-    'Volume BUY Increasing': 'green',
-    'Volume BUY Weakly Increasing': '#aeffb2',
-    'Volume SELL Weakly Increasing': '#ffaaaa',
-    'sell': 'red',
-    'buy': 'green',
-    'MajorBuy': 'green',
-    'MajorSell': 'red',
-  }
-
-  const colorMapTrend = {
-    "PIVOT_BUY_TREND": 'green',
-    "PIVOT_BUY_RALLY": 'green',
-    "PIVOT_BUY_RALLY_REVERSE": 'green',
-    "PIVOT_BUY_RALLY_SEC": 'green',
-    "PIVOT_BUY_RALLY_REACT_SEC": 'green',
-    "PIVOT_BUY_RALLY_SEC_LATE": 'green',
-    "PIVOT_BREAK_BUY": 'green',
-    "PIVOT_SELL_TREND": 'red',
-    "PIVOT_SELL_RALLY": 'red',
-    "PIVOT_SELL_RALLY_REVERSE": 'red',
-    "PIVOT_SELL_RALLY_SEC": 'red',
-    "PIVOT_SELL_RALLY_REACT_SEC": 'red',
-    "PIVOT_SELL_RALLY_SEC_LATE": 'red',
-    "PIVOT_BREAK_SELL": 'red',
-    "PIVOT_BREAK_RALLY_BUY": 'green',
-    "PIVOT_BREAK_RALLY_SELL": 'red'
-  }
-
-  const colorMapAmrsi = {
-    "POTENTIAL_SELL": 'red',
-    "POTENTIAL_BUY": 'green',
-    "OVERBOUGHT": '#ff8080',
-    "OVERSOLD": '#aaffaa',
-    "NEUTRAL": 'gray',
-  }
-  const colorMapVpprMacdClose = {
-    'Vppr Macd close to average': '#d9ff03',
-  }
-  const colorMapVpprMacd = {
-    'Vppr Macd SELL Increasing': 'red',
-    'Vppr Macd BUY Increasing': 'green',
-    'Vppr Macd BUY Weakly Increasing': '#aeffb2',
-    'Vppr Macd SELL Weakly Increasing': '#ffaaaa',
-  }
-
-  if (lastTrend) {
-    const signalColor = colorMapTrend[lastTrend?.type] || 'gray';
-    document.documentElement.style.setProperty('--signal-color-trend', signalColor)
-  }
-
-  if (lastTrendPrimary) {
-    const signalColorTrendPrimary = colorMapTrend[lastTrendPrimary?.type] || 'gray';
-    document.documentElement.style.setProperty('--signal-color-trend-primary', signalColorTrendPrimary)
-  }
-  if (lastVppr) {
-    const signalColorVpprTrend = colorMapVolume[lastVppr?.vpprTrend] || 'gray';
-    document.documentElement.style.setProperty('--signal-color-vppr-trend', signalColorVpprTrend)
-
-    const signalColorVpprMajor = colorMapVolume[lastVppr?.major] || 'gray';
-    document.documentElement.style.setProperty('--signal-color-vppr-major', signalColorVpprMajor)
-
-    const signalColorVpprEma = colorMapVolume[lastVppr?.volumeEmaSignal] || 'gray';
-    document.documentElement.style.setProperty('--signal-color-vppr-ema', signalColorVpprEma)
-
-
-    const signalColorVpprMacd = colorMapVpprMacd[lastVppr?.macdVppr] || 'gray';
-    document.documentElement.style.setProperty('--signal-color-vppr-macd', signalColorVpprMacd)
-
-    const signalColormacdClose = colorMapVpprMacdClose[lastVppr?.macdCloseToAverage] || 'gray';
-    document.documentElement.style.setProperty('--signal-color-vppr-macd-close', signalColormacdClose)
-  }
-
-  if (lastAmrsi) {
-    const signalColorAmrsi = colorMapAmrsi[lastAmrsi?.type] || 'gray';
-    document.documentElement.style.setProperty('--signal-color-amrsi', signalColorAmrsi)
-  }
-  if (lastAmrsi) {
-    const signalColorAmrsi = colorMapAmrsi[lastAmrsi?.type] || 'gray';
-    document.documentElement.style.setProperty('--signal-color-amrsi', signalColorAmrsi)
-  }
-
-
 
   // ====================|Função para compra e venda de operação|==================== //
   const handleClick = (operation) => {
@@ -1680,7 +1681,6 @@ const GraphicsRenko = () => {
           <MovementTables />
         }
       </div>
-
       <div className="graphics-renko__card">
         <div className="graphics-renko__header">
           <div className="graphics-renko__title">
@@ -1693,54 +1693,6 @@ const GraphicsRenko = () => {
               </button>
             </div>
 
-            {/**=======================|Painel de informações do ativo|=======================| */}
-            {lastTrendPrimary && lastTrend && lastVppr && (
-              <div className='lastTrend-container'>
-                <div className='lastTrend'>
-                  <h4>Trend:</h4>
-                  {lastTrendPrimary &&
-                    <span className='lastTrend-primary'>
-                      Trend Primary : {lastTrendPrimary?.type}
-                      <div className='signal-circle-trend-primary' ></div>
-                    </span>}
-                  {lastTrend &&
-                    <span className='lastTrend-type'>
-                      Trend : {lastTrend?.type}
-                      <div className='signal-circle-trend' ></div>
-                    </span>}
-                </div>
-
-                <div className='lastTrend' >
-                  <h4>Vppr:</h4>
-                  {lastVppr && <span className='lastTrend-primary'>
-                    {lastVppr?.major === 'MajorSell' ? 'Volume Major Sell' : 'Volume Major Buy'}
-
-                    <div className='signal-circle-vppr' ></div>
-                  </span>}
-
-                  {lastVppr &&
-                    <span className='lastTrend-primary'>
-                      {'Flow ' + lastVppr?.vpprTrend}
-                      <div className='signal-circle-vppr-trend' ></div>
-                    </span>}
-
-                  {lastVppr &&
-                    <span className='lastTrend-primary'>
-                      {'EMA ' + lastVppr?.volumeEmaSignal}
-                      <div className='signal-circle-vppr-ema' ></div>
-                    </span>
-                  }
-                </div>
-
-                <div className='lastTrend' >
-                  <h4>Amrsi:</h4>
-                  {lastAmrsi &&
-                    <span className='lastTrend-primary'>
-                      {lastAmrsi?.type}
-                      <div className='signal-circle-amrsi' ></div>
-                    </span>}
-                </div>
-              </div>)}
           </div>
 
           <div className="graphics-renko__status">
@@ -2017,6 +1969,32 @@ const GraphicsRenko = () => {
             </div>
 
           </div>
+          <aside
+            className={`graphics-renko__indicator-sidebar${isIndicatorPanelVisible ? '' : ' graphics-renko__indicator-sidebar--collapsed'}`}
+            aria-label={`Indicadores de ${activeSymbol}`}
+          >
+           { /*<button
+              className="graphics-renko__indicator-toggle"
+              type="button"
+              aria-expanded={isIndicatorPanelVisible}
+              aria-controls="graphics-renko-indicator-panel"
+              onClick={() => setIsIndicatorPanelVisible(visible => !visible)}
+            >
+              {isIndicatorPanelVisible ? 'Ocultar painel' : 'Mostrar painel'}
+            </button>*/}
+            {isIndicatorPanelVisible && (
+              <IndicatorPanel
+                key={activeSymbol}
+                id="graphics-renko-indicator-panel"
+                activeSymbol={activeSymbol}
+                lastTrend={lastTrend}
+                lastTrendPrimary={lastTrendPrimary}
+                lastVppr={lastVppr}
+                lastAmrsi={lastAmrsi}
+                schrodingerIndicators={schrodingerIndicatorsBySymbol[activeSymbol]}
+              />
+            )}
+          </aside>
         </div>
 
         {/**==========================|Painel dos indicadores|============================ */}

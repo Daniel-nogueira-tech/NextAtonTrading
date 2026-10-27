@@ -154,16 +154,16 @@ const NavBar = () => {
                     <div className="navbar__search">
 
                         {
-                            tabs.length < 4 ?
+                            tabs.length < 8 ?
                                 <span className="navbar__search-icon">🔍︎</span>
                                 : <span className="navbar__search-icon">🚫</span>
                         }
 
                         <input
-                            disabled={tabs.length >= 4}
+                            disabled={tabs.length >= 8}
                             ref={inputRef}
                             type="text"
-                            placeholder={tabs.length >= 4 ? "Maximum of 4 open assets!" : "Search symbol... (ex: BTC, ETH)"}
+                            placeholder={tabs.length >= 8 ? "Maximum of 8 open assets!" : "Search symbol... (ex: BTC, ETH)"}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value.toUpperCase())}
                             className="navbar__search-input"
@@ -295,10 +295,10 @@ const NavBar = () => {
                         ))}
 
                         {/* Indicador de mais abas */}
-                        {tabs.length > 4 && (
+                        {tabs.length > 8 && (
                             <div className="navbar__tabs-more">
                                 <span>📌</span>
-                                <span className="navbar__tabs-count">+{tabs.length - 4}</span>
+                                <span className="navbar__tabs-count">+{tabs.length - 8}</span>
                             </div>
                         )}
                     </div>}
