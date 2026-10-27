@@ -3,66 +3,67 @@ import './MovementTables.css'
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx'
 
 const MOVIMENTOS = [
-    'Rally secundario',
-    'Rally natural',
-    'Tendencia Alta',
-    'Tendencia Baixa',
-    'Reacao natural',
-    'Reacao secundaria',
+    'Secondary rally',
+    'Natural rally',
+    'Upward Trend',
+    'Downward Trend',
+    'Natural reaction',
+    'Secondary reaction',
 ]
 
+
 const TIPO_TO_COL = {
-    'Rally Natural (inicial)': 'Rally natural',
-    'Rally Natural (fundo)': 'Rally natural',
-    'Rally Natural (topo)': 'Rally natural',
-    'Rally Natural (Baixa)': 'Rally natural',
-    'Rally Natural (Alta)': 'Rally natural',
-    'Rally Natural (retorno)': 'Rally natural',
+    'Rally Natural (inicial)': 'Natural rally',
+    'Rally Natural (fundo)': 'Natural rally',
+    'Rally Natural (topo)': 'Natural rally',
+    'Rally Natural (Baixa)': 'Natural rally',
+    'Rally Natural (Alta)': 'Natural rally',
+    'Rally Natural (retorno)': 'Natural rally',
 
-    'Tendência Alta': 'Tendencia Alta',
-    'Tendência Alta (compra)': 'Tendencia Alta',
-    'Tendência Alta (topo)': 'Tendencia Alta',
-    'Tendencia Alta': 'Tendencia Alta',
-    'Tendencia Alta (compra)': 'Tendencia Alta',
-    'Tendencia Alta (topo)': 'Tendencia Alta',
+    'Tendência Alta': 'Upward Trend',
+    'Tendência Alta (compra)': 'Upward Trend',
+    'Tendência Alta (topo)': 'Upward Trend',
+    'Tendencia Alta': 'Upward Trend',
+    'Tendencia Alta (compra)': 'Upward Trend',
+    'Tendencia Alta (topo)': 'Upward Trend',
 
-    'Tendência Baixa': 'Tendencia Baixa',
-    'Tendência Baixa (venda)': 'Tendencia Baixa',
-    'Tendência Baixa (fundo)': 'Tendencia Baixa',
-    'Tendencia Baixa': 'Tendencia Baixa',
-    'Tendencia Baixa (venda)': 'Tendencia Baixa',
-    'Tendencia Baixa (fundo)': 'Tendencia Baixa',
+    'Tendência Baixa': 'Downward Trend',
+    'Tendência Baixa (venda)': 'Downward Trend',
+    'Tendência Baixa (fundo)': 'Downward Trend',
+    'Tendencia Baixa': 'Downward Trend',
+    'Tendencia Baixa (venda)': 'Downward Trend',
+    'Tendencia Baixa (fundo)': 'Downward Trend',
 
-    'Reação Natural (topo)': 'Reacao natural',
-    'Reação Natural (fundo)': 'Reacao natural',
-    'Reação Natural (de baixa)': 'Reacao natural',
-    'Reação Natural (Alta)': 'Reacao natural',
-    'Reação Natural (Baixa)': 'Reacao natural',
-    'Reacao Natural (topo)': 'Reacao natural',
-    'Reacao Natural (fundo)': 'Reacao natural',
-    'Reacao Natural (de baixa)': 'Reacao natural',
-    'Reacao Natural (Alta)': 'Reacao natural',
-    'Reacao Natural (Baixa)': 'Reacao natural',
+    'Reação Natural (topo)': 'Natural reaction',
+    'Reação Natural (fundo)': 'Natural reaction',
+    'Reação Natural (de baixa)': 'Natural reaction',
+    'Reação Natural (Alta)': 'Natural reaction',
+    'Reação Natural (Baixa)': 'Natural reaction',
+    'Reacao Natural (topo)': 'Natural reaction',
+    'Reacao Natural (fundo)': 'Natural reaction',
+    'Reacao Natural (de baixa)': 'Natural reaction',
+    'Reacao Natural (Alta)': 'Natural reaction',
+    'Reacao Natural (Baixa)': 'Natural reaction',
 
-    'Reação secundária': 'Reacao secundaria',
-    'Reação secundária (Fundo)': 'Reacao secundaria',
-    'Reação secundária (topo)': 'Reacao secundaria',
-    'Reação secundária (retomada)': 'Reacao secundaria',
-    'Reação secundária (Alta)': 'Reacao secundaria',
-    'Reacao secundaria': 'Reacao secundaria',
-    'Reacao secundaria (Fundo)': 'Reacao secundaria',
-    'Reacao secundaria (topo)': 'Reacao secundaria',
-    'Reacao secundaria (retomada)': 'Reacao secundaria',
-    'Reacao secundaria (Alta)': 'Reacao secundaria',
+    'Reação secundária': 'Secondary reaction',
+    'Reação secundária (Fundo)': 'Secondary reaction',
+    'Reação secundária (topo)': 'Secondary reaction',
+    'Reação secundária (retomada)': 'Secondary reaction',
+    'Reação secundária (Alta)': 'Secondary reaction',
+    'Reacao secundaria': 'Secondary reaction',
+    'Reacao secundaria (Fundo)': 'Secondary reaction',
+    'Reacao secundaria (topo)': 'Secondary reaction',
+    'Reacao secundaria (retomada)': 'Secondary reaction',
+    'Reacao secundaria (Alta)': 'Secondary reaction',
 
-    'Rally secundário (Topo)': 'Rally secundario',
-    'Rally secundário (Fundo)': 'Rally secundario',
-    'Rally secundário (Alta)': 'Rally secundario',
-    'Rally secundário (Baixa)': 'Rally secundario',
-    'Rally secundario (Topo)': 'Rally secundario',
-    'Rally secundario (Fundo)': 'Rally secundario',
-    'Rally secundario (Alta)': 'Rally secundario',
-    'Rally secundario (Baixa)': 'Rally secundario',
+    'Rally secundário (Topo)': 'Secondary rally',
+    'Rally secundário (Fundo)': 'Secondary rally',
+    'Rally secundário (Alta)': 'Secondary rally',
+    'Rally secundário (Baixa)': 'Secondary rally',
+    'Rally secundario (Topo)': 'Secondary rally',
+    'Rally secundario (Fundo)': 'Secondary rally',
+    'Rally secundario (Alta)': 'Secondary rally',
+    'Rally secundario (Baixa)': 'Secondary rally',
 }
 
 const formatDateTime = (value) => {
@@ -74,7 +75,7 @@ const formatDateTime = (value) => {
         return value
     }
 
-    return date.toLocaleString('pt-BR', {
+    return date.toLocaleString('en-US', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
@@ -98,7 +99,7 @@ const MovementTables = () => {
     const { trend, trendPrimary, activeSymbol, isTrend, setIsTrend } = React.useContext(ContextGraphics)
     const [currentPage, setCurrentPage] = useState(1)
 
-    const itemsPerPage = 15
+    const itemsPerPage = 25
 
     const selectedSymbol = normalizeSymbol(activeSymbol)
 
@@ -157,12 +158,11 @@ const MovementTables = () => {
                             <table className='table'>
                                 <thead>
                                     <tr>
-                                        <th>Data/Hora</th>
+                                        <th>Date/Time</th>
                                         {MOVIMENTOS.map(mov => (
                                             <th key={mov}>{mov}</th>
                                         ))}
-                                        <th>Limite</th>
-                                        <th>Tipo original</th>
+                                        <th>Limit</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -175,7 +175,6 @@ const MovementTables = () => {
                                                 </td>
                                             ))}
                                             <td>{Number(linha.limite).toFixed(4)}</td>
-                                            <td>{linha.tipo}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -187,14 +186,14 @@ const MovementTables = () => {
                                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                                 disabled={currentPage === 1}
                             >
-                                Anterior
+                                Previous
                             </button>
-                            <span>Pagina {currentPage} de {totalPages}</span>
+                            <span>Page {currentPage} of {totalPages}</span>
                             <button
                                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                                 disabled={currentPage >= totalPages}
                             >
-                                Proxima
+                                Next
                             </button>
                         </div>
                     </>

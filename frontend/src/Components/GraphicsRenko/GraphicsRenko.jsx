@@ -300,13 +300,13 @@ const AnalysisDrawingOverlay = ({
         return (
           <g key={`${time}-${surge?.ordem ?? index}`} pointerEvents="none">
             <title>
-              {`Energia: ${surge.energia} | Ordem: ${surge.ordem ?? '—'} | Preço: ${price}`}
+              {`Energy: ${surge.energia} | Order: ${surge.ordem ?? '—'} | Price: ${price}`}
             </title>
             <svg viewBox="0 0 200 200" width="100" height="100" x={x - 50} y={y - 50} pointerEvents="none">
               <g className="atom">
                 {/* Órbitas */}
                 <ellipse className="atom-orbit atom-orbit--1" cx="100" cy="100" rx="40" ry="20" />
-                <ellipse className="atom-orbit atom-orbit--2" cx="100" cy="100" rx="30" ry="30" />
+                <ellipse className="atom-orbit atom-orbit--2" cx="100" cy="100" rx="34" ry="34" />
                 <ellipse className="atom-orbit atom-orbit--3" cx="100" cy="100" rx="20" ry="40" />
 
 
