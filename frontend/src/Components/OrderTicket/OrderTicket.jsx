@@ -17,7 +17,6 @@ const formatCurrency = (value) => {
 }
 
 const OrderTicket = ({
-    symbol = 'BTCUSDT',
     price = 0,
     isOpen = false,
     initialSide = 'buy',
@@ -27,7 +26,7 @@ const OrderTicket = ({
     onClose,
     onConfirm, // (order) => void
 }) => {
-    const { setBalanceAndRisk, balanceAndRisk } = useContext(ContextGraphics)
+    const { setBalanceAndRisk, balanceAndRisk , activeSymbol } = useContext(ContextGraphics)
     const [side, setSide] = useState(initialSide)
     const [quantity, setQuantity] = useState('')
     const [calculation, setCalculation] = useState(null)
@@ -125,7 +124,7 @@ const OrderTicket = ({
             setSubmissionError('')
             try {
                 await onConfirm?.({
-                    symbol,
+                    symbol:activeSymbol,
                     side: 'exit',
                     price,
                 })
@@ -150,7 +149,7 @@ const OrderTicket = ({
         ) return
 
         const order = {
-            symbol,
+            symbol:activeSymbol,
             side,
             percent: balanceAndRisk.risk,
             capital: capitalNumber,
@@ -183,10 +182,10 @@ const OrderTicket = ({
             <header className="order-ticket__header">
                 <div className="order-ticket__asset">
                     <div className="order-ticket__asset-icon">
-                        {symbol.charAt(0)}
+                        {activeSymbol.charAt(0)}
                     </div>
                     <div className="order-ticket__asset-info">
-                        <h3 className="order-ticket__symbol" id="order-ticket-title">{symbol}</h3>
+                        <h3 className="order-ticket__symbol" id="order-ticket-title">{activeSymbol}</h3>
                         <span className="order-ticket__price">
                             Preço atual: <strong>{formatCurrency(entryPrice)}</strong>
                         </span>
@@ -336,7 +335,7 @@ const OrderTicket = ({
             </div>
             }
 
-            {isExit && <p className="order-ticket__exit-message">A posição aberta de {symbol} será encerrada pelo preço atual de {formatCurrency(price)}.</p>}
+            {isExit && <p className="order-ticket__exit-message">A posição aberta de {activeSymbol} será encerrada pelo preço atual de {formatCurrency(price)}.</p>}
             {!isExit && !capitalNumber && <p className="order-ticket__error" role="alert">Informe o capital disponível para calcular a ordem.</p>}
             {!isExit && orderStop && (!Number.isFinite(parseDecimal(orderStop)) || parseDecimal(orderStop) <= 0) && (
                 <p className="order-ticket__error" role="alert">Informe um preço de stop válido.</p>

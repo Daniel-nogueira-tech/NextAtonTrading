@@ -1,7 +1,6 @@
 // useOperatingInputs.js
 import { useMemo, useEffect, useContext, useRef, useState, useCallback } from 'react';
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx';
-import Swal from 'sweetalert2'
 import { calculatePositionSize as calculatePositionSizeFromSignals } from '../CalculateOperation/CalculateOperation.js'
 import { parseDecimal } from '../../utils/parseDecimal.js'
 
@@ -120,7 +119,7 @@ const normalizeItem = (item, keys) => {
 };
 
 export const useOperatingInputs = () => {
-    const { sendOperationData: sendOperationDataToContext, signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, retestPointsStatePrimaryRef, amrsiDataRef, vpprDataRef, fullPrice, buttonOperation, setButtonOperation, setResultOperations, activeSymbol, balanceAndRisk } = useContext(ContextGraphics);
+    const { sendOperationData: sendOperationDataToContext, signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, retestPointsStatePrimaryRef, amrsiDataRef, vpprDataRef, fullPrice, buttonOperation, setButtonOperation, setResultOperations, activeSymbol, balanceAndRisk, setOrderStop } = useContext(ContextGraphics);
 
     const calculatePositionSize = useCallback((signal, history, settings = balanceAndRisk) => {
         const balance = parseDecimal(settings?.balance);
@@ -418,6 +417,76 @@ export const useOperatingInputs = () => {
         setResultOperations,
         setSignalsBySymbolState,
         trend,
+    ]);
+
+    const updateActiveStop = useCallback(async (nextStopValue) => {
+        const symbol = activeSymbol;
+        const nextStop = Number(nextStopValue);
+        if (!symbol || !Number.isFinite(nextStop) || nextStop <= 0) {
+            throw new Error('Informe um nível de stop válido.');
+        }
+
+        const currentHistory = signalsHistoryRef.current || {};
+        const symbolSignals = [...(currentHistory[symbol] || [])];
+        const entryIndex = symbolSignals.reduce((latestIndex, item, index) => (
+            ['BUY', 'SELL'].includes(String(item?.action || '').toUpperCase())
+                ? index
+                : latestIndex
+        ), -1);
+        const exitIndex = symbolSignals.reduce((latestIndex, item, index) => (
+            ['EXIT_BUY', 'EXIT_SELL', 'STOP_BUY', 'STOP_SELL'].includes(String(item?.action || '').toUpperCase())
+                ? index
+                : latestIndex
+        ), -1);
+
+        if (entryIndex <= exitIndex) {
+            throw new Error('Não há uma operação aberta para atualizar o stop.');
+        }
+
+        const activeEntry = symbolSignals[entryIndex];
+        const side = String(activeEntry.action).toUpperCase();
+        const entryPrice = Number(activeEntry.avgEntryPrice ?? activeEntry.entryPrice);
+        if (
+            !Number.isFinite(entryPrice) ||
+            (side === 'BUY' && nextStop >= entryPrice) ||
+            (side === 'SELL' && nextStop <= entryPrice)
+        ) {
+            throw new Error('O stop precisa ficar abaixo da entrada na compra e acima na venda.');
+        }
+
+        const updatedEntry = {
+            ...activeEntry,
+            stop: nextStop.toFixed(8),
+            stopPrice: nextStop.toFixed(8),
+        };
+        symbolSignals[entryIndex] = updatedEntry;
+        const history = {
+            ...currentHistory,
+            [symbol]: symbolSignals,
+        };
+
+        signalsHistoryRef.current = history;
+        setSignalsBySymbolState(history);
+        setOrderStop(nextStop.toString());
+
+        const flags = flagsBySymbolRef.current[symbol];
+        if (flags) flags.lastSignal = updatedEntry;
+
+        const result = await calculatePositionSize(updatedEntry, history);
+        if (!result) {
+            throw new Error('O stop foi atualizado, mas não foi possível recalcular os resultados.');
+        }
+
+        setResultOperations(result);
+        await sendOperationData(Promise.resolve(result), history, updatedEntry);
+        return updatedEntry;
+    }, [
+        activeSymbol,
+        calculatePositionSize,
+        sendOperationData,
+        setOrderStop,
+        setResultOperations,
+        setSignalsBySymbolState,
     ]);
 
     //Usar useRef para armazenar o último trend de cada símbolo
@@ -1277,6 +1346,7 @@ export const useOperatingInputs = () => {
         getLastTrendPrimaryBySymbol,
         calculateOrder,
         executeOrder,
+        updateActiveStop,
         getSignalsBySymbol: (symbol) => signalsBySymbolState[symbol] || [],
         getAllSignals: () => signalsBySymbolState,
         getFlagsBySymbol: (symbol) => flagsBySymbolRef.current[symbol] || null

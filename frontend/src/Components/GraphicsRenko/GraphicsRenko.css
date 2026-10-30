@@ -284,6 +284,15 @@ body.graphics-renko-indicator-window .graphics-renko__indicator-chart {
   border-radius: 8px;
 }
 
+.graphics-renko__chart.is-stop-hover,
+.graphics-renko__chart.is-dragging-stop {
+  cursor: ns-resize;
+}
+
+.graphics-renko__active-operation-stop {
+  color: #fbbf24;
+}
+
 .graphics-renko__analysis-overlay {
   position: absolute;
   inset: 0;

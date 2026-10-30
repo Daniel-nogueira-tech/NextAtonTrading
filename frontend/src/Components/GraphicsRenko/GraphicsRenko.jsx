@@ -890,7 +890,6 @@ const GraphicsRenko = () => {
     setOrderStop,
     isTrend,
     setIsTrend,
-    resultOperations,
     dates, setDates
   } = React.useContext(ContextGraphics)
   const chartContainerRef = React.useRef(null);
@@ -1054,6 +1053,7 @@ const GraphicsRenko = () => {
     price: operatingPrices,
     calculateOrder,
     executeOrder,
+    updateActiveStop,
     getLastTrendBySymbol,
     getLastTrendPrimaryBySymbol,
     getLastVpprBySymbol,
@@ -1600,7 +1600,6 @@ const GraphicsRenko = () => {
               > {isTrend ? 'Secundary' : 'Primary'}
               </button>
             </div>
-
           </div>
 
           <div className="graphics-renko__status">
@@ -1641,9 +1640,11 @@ const GraphicsRenko = () => {
             <ActiveOperationOverlay
               chart={analysisChart}
               chartLifecycleRef={analysisChartLifecycleRef}
+              chartContainerRef={chartContainerRef}
               candles={renkoCandles}
               signals={signalsBySymbol?.[activeSymbol] || []}
               timeCacheRef={signalChartTimeCacheRef}
+              onStopChange={updateActiveStop}
             />
             <AnalysisDrawingOverlay
               chart={analysisChart}

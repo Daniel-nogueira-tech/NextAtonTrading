@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react'
-import { createSeriesMarkers, LineSeries } from 'lightweight-charts'
+import { useEffect, useRef, useState } from 'react'
+import { createSeriesMarkers, LineSeries, LineStyle } from 'lightweight-charts'
 import { getCandleTimeForSignal } from './tradeMarkers.js'
+import Swal from 'sweetalert2'
 
 const ENTRY_ACTIONS = new Set(['BUY', 'SELL'])
 const EXIT_ACTIONS = new Set(['EXIT_BUY', 'EXIT_SELL', 'STOP_BUY', 'STOP_SELL'])
+const LINE_EXTENSION_SECONDS = 7 * 24 * 60 * 60
 
 const normalizeAction = (signal) => String(signal?.action || signal?.type || '').trim().toUpperCase()
 
@@ -51,7 +53,13 @@ const getActiveTrade = (signals = []) => {
       : activeTrade.signal.expectedPriceSell,
   )
 
-  return entryPrice ? { ...activeTrade, entryPrice } : null
+  const stopPrice = normalizePrice(
+    activeTrade.signal.stop,
+    activeTrade.signal.stopPrice,
+    activeTrade.signal.expectedPriceStop,
+  )
+
+  return entryPrice ? { ...activeTrade, entryPrice, stopPrice } : null
 }
 
 const formatSigned = (value, decimals = 2) => {
@@ -59,10 +67,26 @@ const formatSigned = (value, decimals = 2) => {
   return `${sign}${value.toFixed(decimals)}`
 }
 
-const ActiveOperationOverlay = ({ chart, chartLifecycleRef, candles = [], signals = [], timeCacheRef }) => {
+const ActiveOperationOverlay = ({
+  chart,
+  chartLifecycleRef,
+  chartContainerRef,
+  candles = [],
+  signals = [],
+  timeCacheRef,
+  onStopChange,
+}) => {
   const lineSeriesRef = useRef(null)
+  const stopSeriesRef = useRef(null)
   const entryMarkerRef = useRef(null)
+  const activeTradeRef = useRef(null)
+  const stopPriceRef = useRef(null)
+  const draggingPointerRef = useRef(null)
+  const dragStopPriceRef = useRef(null)
+  const onStopChangeRef = useRef(onStopChange)
+  const [dragStopPrice, setDragStopPrice] = useState(null)
   const activeTrade = getActiveTrade(signals)
+  const displayedStopPrice = dragStopPrice ?? activeTrade?.stopPrice ?? null
   const currentCandle = candles.at(-1)
   const currentPrice = Number(currentCandle?.close)
   const quantity = Number(activeTrade?.signal?.quantity)
@@ -79,6 +103,12 @@ const ActiveOperationOverlay = ({ chart, chartLifecycleRef, candles = [], signal
   const lineColor = priceChange === 0 ? '#a1a1aa' : isProfitable ? '#22c55e' : '#ef4444'
 
   useEffect(() => {
+    activeTradeRef.current = activeTrade
+    stopPriceRef.current = displayedStopPrice
+    onStopChangeRef.current = onStopChange
+  }, [activeTrade, displayedStopPrice, onStopChange])
+
+  useEffect(() => {
     if (!chart) return undefined
 
     const chartLifecycle = chartLifecycleRef?.current
@@ -89,7 +119,17 @@ const ActiveOperationOverlay = ({ chart, chartLifecycleRef, candles = [], signal
       lastValueVisible: true,
       crosshairMarkerVisible: true,
     })
+    const stopSeries = chart.addSeries(LineSeries, {
+      color: '#f59e0b',
+      lineWidth: 2,
+      lineStyle: LineStyle.Dashed,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      crosshairMarkerVisible: false,
+      title: 'STOP',
+    })
     lineSeriesRef.current = lineSeries
+    stopSeriesRef.current = stopSeries
     entryMarkerRef.current = createSeriesMarkers(lineSeries, [])
 
     return () => {
@@ -99,14 +139,113 @@ const ActiveOperationOverlay = ({ chart, chartLifecycleRef, candles = [], signal
         !chartLifecycle.disposed
       ) {
         chart.removeSeries(lineSeries)
+        chart.removeSeries(stopSeries)
       }
       lineSeriesRef.current = null
+      stopSeriesRef.current = null
     }
   }, [chart, chartLifecycleRef])
 
   useEffect(() => {
+    const container = chartContainerRef?.current
+    if (!chart || !container) return undefined
+
+    const onPointerDown = (event) => {
+      const trade = activeTradeRef.current
+      const stopSeries = stopSeriesRef.current
+      const stopPrice = stopPriceRef.current
+      if (!trade || !stopSeries || !Number.isFinite(stopPrice)) return
+
+      const lineY = stopSeries.priceToCoordinate(stopPrice)
+      const bounds = container.getBoundingClientRect()
+      if (lineY == null || Math.abs(event.clientY - bounds.top - lineY) > 10) return
+
+      event.preventDefault()
+      event.stopPropagation()
+      draggingPointerRef.current = event.pointerId
+      dragStopPriceRef.current = stopPrice
+      container.setPointerCapture(event.pointerId)
+      container.classList.add('is-dragging-stop')
+    }
+
+    const onPointerMove = (event) => {
+      const stopSeries = stopSeriesRef.current
+      const trade = activeTradeRef.current
+      const bounds = container.getBoundingClientRect()
+      if (draggingPointerRef.current !== event.pointerId) {
+        const stopPrice = stopPriceRef.current
+        const lineY = Number.isFinite(stopPrice)
+          ? stopSeries?.priceToCoordinate(stopPrice)
+          : null
+        container.classList.toggle(
+          'is-stop-hover',
+          Boolean(trade && lineY != null && Math.abs(event.clientY - bounds.top - lineY) <= 10),
+        )
+        return
+      }
+
+      const nextStop = stopSeries?.coordinateToPrice(event.clientY - bounds.top)
+      if (!trade || !Number.isFinite(nextStop)) return
+
+      const isOnValidSide = trade.side === 'BUY'
+        ? nextStop < trade.entryPrice
+        : nextStop > trade.entryPrice
+      if (!isOnValidSide) return
+
+      event.preventDefault()
+      event.stopPropagation()
+      dragStopPriceRef.current = nextStop
+      setDragStopPrice(nextStop)
+    }
+
+    const finishDragging = async (event, shouldCommit) => {
+      if (draggingPointerRef.current !== event.pointerId) return
+
+      const nextStop = dragStopPriceRef.current
+      draggingPointerRef.current = null
+      dragStopPriceRef.current = null
+      setDragStopPrice(null)
+      container.classList.remove('is-dragging-stop')
+      if (container.hasPointerCapture(event.pointerId)) {
+        container.releasePointerCapture(event.pointerId)
+      }
+
+      if (!shouldCommit || !Number.isFinite(nextStop)) return
+
+      try {
+        await onStopChangeRef.current?.(nextStop)
+      } catch (error) {
+        console.error('Erro ao atualizar stop pelo gráfico:', error)
+        await Swal.fire({
+          icon: 'error',
+          title: 'Não foi possível atualizar o stop',
+          text: error instanceof Error ? error.message : 'Ocorreu um erro ao atualizar o nível de stop.',
+        })
+      }
+    }
+
+    const onPointerUp = (event) => finishDragging(event, true)
+    const onPointerCancel = (event) => finishDragging(event, false)
+
+    container.addEventListener('pointerdown', onPointerDown)
+    container.addEventListener('pointermove', onPointerMove)
+    container.addEventListener('pointerup', onPointerUp)
+    container.addEventListener('pointercancel', onPointerCancel)
+
+    return () => {
+      container.removeEventListener('pointerdown', onPointerDown)
+      container.removeEventListener('pointermove', onPointerMove)
+      container.removeEventListener('pointerup', onPointerUp)
+      container.removeEventListener('pointercancel', onPointerCancel)
+      container.classList.remove('is-dragging-stop')
+      container.classList.remove('is-stop-hover')
+    }
+  }, [chart, chartContainerRef])
+
+  useEffect(() => {
     const lineSeries = lineSeriesRef.current
-    if (!lineSeries) return
+    const stopSeries = stopSeriesRef.current
+    if (!lineSeries || !stopSeries) return
 
     if (
       !activeTrade ||
@@ -115,6 +254,7 @@ const ActiveOperationOverlay = ({ chart, chartLifecycleRef, candles = [], signal
       !Number.isFinite(currentCandle.time)
     ) {
       lineSeries.setData([])
+      stopSeries.setData([])
       entryMarkerRef.current?.setMarkers([])
       return
     }
@@ -127,19 +267,19 @@ const ActiveOperationOverlay = ({ chart, chartLifecycleRef, candles = [], signal
     const entryCandle = findEntryCandle(activeTrade.signal, candles, timeCacheRef?.current)
     if (!entryCandle) {
       lineSeries.setData([])
+      stopSeries.setData([])
       entryMarkerRef.current?.setMarkers([])
       return
     }
 
-    const lineEndTime = currentCandle.time > entryCandle.time
-      ? currentCandle.time
-      : entryCandle.time + 1
+    const lineEndTime = currentCandle.time + LINE_EXTENSION_SECONDS
     if (
       !Number.isFinite(entryCandle.time) ||
       !Number.isFinite(lineEndTime) ||
       !Number.isFinite(activeTrade.entryPrice)
     ) {
       lineSeries.setData([])
+      stopSeries.setData([])
       entryMarkerRef.current?.setMarkers([])
       return
     }
@@ -148,6 +288,17 @@ const ActiveOperationOverlay = ({ chart, chartLifecycleRef, candles = [], signal
       { time: entryCandle.time, value: activeTrade.entryPrice },
       { time: lineEndTime, value: activeTrade.entryPrice },
     ])
+    if (Number.isFinite(displayedStopPrice)) {
+      stopSeries.applyOptions({
+        title: `STOP ${displayedStopPrice.toFixed(2)} (arraste para ajustar)`,
+      })
+      stopSeries.setData([
+        { time: entryCandle.time, value: displayedStopPrice },
+        { time: lineEndTime, value: displayedStopPrice },
+      ])
+    } else {
+      stopSeries.setData([])
+    }
     entryMarkerRef.current?.setMarkers([{
       time: entryCandle.time,
       position: 'aboveBar',
@@ -156,7 +307,7 @@ const ActiveOperationOverlay = ({ chart, chartLifecycleRef, candles = [], signal
       text: activeTrade.side,
       size: 1,
     }])
-  }, [activeTrade, candles, currentCandle, currentPrice, lineColor, pnlPercent, timeCacheRef])
+  }, [activeTrade, candles, currentCandle, currentPrice, displayedStopPrice, lineColor, pnlPercent, timeCacheRef])
 
   if (!activeTrade || !Number.isFinite(currentPrice)) return null
 
@@ -168,6 +319,11 @@ const ActiveOperationOverlay = ({ chart, chartLifecycleRef, candles = [], signal
       <strong>{activeTrade.side === 'BUY' ? 'Compra aberta' : 'Venda aberta'}</strong>
       <span>Entrada {activeTrade.entryPrice.toFixed(2)}</span>
       <span>Atual {currentPrice.toFixed(2)}</span>
+      {Number.isFinite(displayedStopPrice) && (
+        <span className="graphics-renko__active-operation-stop">
+          Stop {displayedStopPrice.toFixed(2)} · arraste a linha para ajustar
+        </span>
+      )}
       <strong>
         {formatSigned(pnlPercent)}%
         {pnlAmount != null && ` (${formatSigned(pnlAmount)} USDT)`}
