@@ -119,7 +119,7 @@ const normalizeItem = (item, keys) => {
 };
 
 export const useOperatingInputs = () => {
-    const { sendOperationData: sendOperationDataToContext, signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, retestPointsStatePrimaryRef, amrsiDataRef, vpprDataRef, fullPrice, buttonOperation, setButtonOperation, setResultOperations, resultOperations, activeSymbol, balanceAndRisk, setOrderStop } = useContext(ContextGraphics);
+    const { sendOperationData: sendOperationDataToContext, signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, retestPointsStatePrimaryRef, amrsiDataRef, vpprDataRef, fullPrice, buttonOperation, setButtonOperation, setResultOperations, resultOperations, activeSymbol, balanceAndRisk, setOrderStop, setOrderTakeProfit } = useContext(ContextGraphics);
 
     const calculatePositionSize = useCallback((signal, history, settings = balanceAndRisk) => {
         const balance = parseDecimal(settings?.balance);
@@ -328,6 +328,25 @@ export const useOperatingInputs = () => {
             const averageEntry = previousTotalQuantity > 0 && Number.isFinite(previousAverage)
                 ? ((previousAverage * previousTotalQuantity) + (finalPrice * entryQuantity)) / totalQuantity
                 : finalPrice;
+            const requestedTakeProfit = order.takeProfit == null || order.takeProfit === ''
+                ? null
+                : parseDecimal(order.takeProfit);
+            if (
+                order.takeProfit != null &&
+                order.takeProfit !== '' &&
+                (!Number.isFinite(requestedTakeProfit) || requestedTakeProfit <= 0)
+            ) {
+                throw new Error('Informe um take profit válido ou deixe o campo vazio.');
+            }
+            const takeProfit = requestedTakeProfit ??
+                (isAddingToPosition ? Number(currentEntry.takeProfit) || undefined : undefined);
+            if (
+                Number.isFinite(takeProfit) &&
+                ((signalAction === 'BUY' && takeProfit <= averageEntry) ||
+                    (signalAction === 'SELL' && takeProfit >= averageEntry))
+            ) {
+                throw new Error('O take profit precisa ficar acima da entrada na compra e abaixo na venda.');
+            }
 
             signal = {
                 symbol,
@@ -337,6 +356,7 @@ export const useOperatingInputs = () => {
                 expectedPriceBuy: signalAction === 'BUY' ? finalPrice.toFixed(8) : undefined,
                 expectedPriceSell: signalAction === 'SELL' ? finalPrice.toFixed(8) : undefined,
                 stop: stop.toFixed(8),
+                takeProfit: Number.isFinite(takeProfit) ? takeProfit.toFixed(8) : undefined,
                 count,
                 time: currentEntry?.time ?? marketTime,
                 timestamp,
@@ -358,6 +378,7 @@ export const useOperatingInputs = () => {
             flags.numberEntries = count;
             flags.signalCount = (Number(flags.signalCount) || 0) + 1;
             flags.lastSignal = signal;
+            setOrderTakeProfit(Number.isFinite(takeProfit) ? String(takeProfit) : '');
             flags.upwardTrendCurrent = signalAction === 'BUY';
             flags.downwardTrendCurrent = signalAction === 'SELL';
             calculationSignal = signal;
@@ -407,6 +428,7 @@ export const useOperatingInputs = () => {
             flags.blockedTrendIdentity = null;
             flags.lastSignal = signal;
             calculationSignal = activeEntry;
+            setOrderTakeProfit('');
         } else {
             throw new Error('Ação de operação inválida.');
         }
@@ -435,6 +457,7 @@ export const useOperatingInputs = () => {
         setButtonOperation,
         setResultOperations,
         setSignalsBySymbolState,
+        setOrderTakeProfit,
         trend,
     ]);
 
@@ -537,6 +560,77 @@ export const useOperatingInputs = () => {
         resultOperations,
     ]);
 
+    const updateActiveTakeProfit = useCallback(async (nextTakeProfitValue) => {
+        const symbol = activeSymbol;
+        const nextTakeProfit = Number(nextTakeProfitValue);
+        if (!symbol || !Number.isFinite(nextTakeProfit) || nextTakeProfit <= 0) {
+            throw new Error('Informe um nível de take profit válido.');
+        }
+
+        const currentHistory = signalsHistoryRef.current || {};
+        const symbolSignals = [...(currentHistory[symbol] || [])];
+        const entryIndex = symbolSignals.reduce((latestIndex, item, index) => (
+            ['BUY', 'SELL'].includes(String(item?.action || '').toUpperCase())
+                ? index
+                : latestIndex
+        ), -1);
+        const exitIndex = symbolSignals.reduce((latestIndex, item, index) => (
+            ['EXIT_BUY', 'EXIT_SELL', 'STOP_BUY', 'STOP_SELL'].includes(String(item?.action || '').toUpperCase())
+                ? index
+                : latestIndex
+        ), -1);
+
+        if (entryIndex <= exitIndex) {
+            throw new Error('Não há uma operação aberta para atualizar o take profit.');
+        }
+
+        const activeEntry = symbolSignals[entryIndex];
+        const side = String(activeEntry.action).toUpperCase();
+        const entryPrice = Number(activeEntry.avgEntryPrice ?? activeEntry.entryPrice);
+        if (!Number.isFinite(entryPrice)) {
+            throw new Error('Não foi possível validar o take profit com o preço de entrada.');
+        }
+        if (
+            (side === 'BUY' && nextTakeProfit <= entryPrice) ||
+            (side === 'SELL' && nextTakeProfit >= entryPrice)
+        ) {
+            throw new Error('O take profit precisa ficar acima da entrada na compra e abaixo na venda.');
+        }
+
+        const updatedEntry = {
+            ...activeEntry,
+            takeProfit: nextTakeProfit.toFixed(8),
+        };
+        symbolSignals[entryIndex] = updatedEntry;
+        const history = {
+            ...currentHistory,
+            [symbol]: symbolSignals,
+        };
+
+        signalsHistoryRef.current = history;
+        setSignalsBySymbolState(history);
+        setOrderTakeProfit(nextTakeProfit.toString());
+
+        const flags = flagsBySymbolRef.current[symbol];
+        if (flags) flags.lastSignal = updatedEntry;
+
+        const result = await calculatePositionSize(updatedEntry, history);
+        if (!result) {
+            throw new Error('O take profit foi atualizado, mas não foi possível recalcular os resultados.');
+        }
+
+        setResultOperations(result);
+        await sendOperationData(Promise.resolve(result), history, updatedEntry);
+        return updatedEntry;
+    }, [
+        activeSymbol,
+        calculatePositionSize,
+        sendOperationData,
+        setOrderTakeProfit,
+        setResultOperations,
+        setSignalsBySymbolState,
+    ]);
+
     //Usar useRef para armazenar o último trend de cada símbolo
     const lastTrendRef = useRef({});
     const [lastTrendState, setLastTrendState] = useState({});
@@ -547,6 +641,7 @@ export const useOperatingInputs = () => {
     const lastAmrsiRef = useRef({});
     const [lastAmrsiState, setLastAmrsiState] = useState({});
     const operationCalculationIdRef = useRef(0);
+    const takeProfitExitKeysRef = useRef(new Set());
     const operationResults = {};
 
 
@@ -1358,6 +1453,46 @@ export const useOperatingInputs = () => {
         sendOperationData,
     ]);
 
+    useEffect(() => {
+        Object.entries(signalsBySymbolState || {}).forEach(([symbol, symbolSignals]) => {
+            if (!Array.isArray(symbolSignals)) return;
+            const lastEntryIndex = symbolSignals.reduce((latestIndex, item, index) => (
+                ['BUY', 'SELL'].includes(String(item?.action || '').toUpperCase())
+                    ? index
+                    : latestIndex
+            ), -1);
+            const lastExitIndex = symbolSignals.reduce((latestIndex, item, index) => (
+                ['EXIT_BUY', 'EXIT_SELL', 'STOP_BUY', 'STOP_SELL'].includes(String(item?.action || '').toUpperCase())
+                    ? index
+                    : latestIndex
+            ), -1);
+            if (lastEntryIndex <= lastExitIndex) return;
+
+            const activeEntry = symbolSignals[lastEntryIndex];
+            const side = String(activeEntry.action).toUpperCase();
+            const takeProfit = Number(activeEntry.takeProfit);
+            const currentPrice = Number(
+                (price.find(item => item.symbol === symbol) || price[0])
+                    ?.result?.at(-1)?.Fechamento
+            );
+            if (!Number.isFinite(takeProfit) || takeProfit <= 0 || !Number.isFinite(currentPrice)) return;
+
+            const isTargetReached = side === 'BUY'
+                ? currentPrice >= takeProfit
+                : currentPrice <= takeProfit;
+            if (!isTargetReached) return;
+
+            const exitKey = `${symbol}:${activeEntry.timestamp || activeEntry.time}:${takeProfit}`;
+            if (takeProfitExitKeysRef.current.has(exitKey)) return;
+            takeProfitExitKeysRef.current.add(exitKey);
+
+            executeOrder({ symbol, side: 'exit', price: currentPrice }).catch((error) => {
+                takeProfitExitKeysRef.current.delete(exitKey);
+                console.error(`Erro ao encerrar ${symbol} pelo take profit:`, error);
+            });
+        });
+    }, [executeOrder, price, signalsBySymbolState]);
+
     // Criar uma função para pegar o lastTrend de um símbolo específico
 
     const getLastTrendBySymbol = (symbol) => {
@@ -1395,6 +1530,7 @@ export const useOperatingInputs = () => {
         calculateOrder,
         executeOrder,
         updateActiveStop,
+        updateActiveTakeProfit,
         getSignalsBySymbol: (symbol) => signalsBySymbolState[symbol] || [],
         getAllSignals: () => signalsBySymbolState,
         getFlagsBySymbol: (symbol) => flagsBySymbolRef.current[symbol] || null

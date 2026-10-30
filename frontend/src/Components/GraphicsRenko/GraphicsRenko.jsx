@@ -888,6 +888,8 @@ const GraphicsRenko = () => {
     incrementalEngine,
     orderStop,
     setOrderStop,
+    orderTakeProfit,
+    setOrderTakeProfit,
     isTrend,
     setIsTrend,
     dates, 
@@ -1058,6 +1060,7 @@ const GraphicsRenko = () => {
     calculateOrder,
     executeOrder,
     updateActiveStop,
+    updateActiveTakeProfit,
     getLastTrendBySymbol,
     getLastTrendPrimaryBySymbol,
     getLastVpprBySymbol,
@@ -1065,10 +1068,25 @@ const GraphicsRenko = () => {
   } = useOperatingInputs();
 
   const handleOpenOrderTicket = React.useCallback((side) => {
+    const symbolSignals = signalsBySymbol?.[activeSymbol] || [];
+    const lastEntryIndex = symbolSignals.reduce((latestIndex, signal, index) => (
+      ['BUY', 'SELL'].includes(String(signal?.action || '').toUpperCase())
+        ? index
+        : latestIndex
+    ), -1);
+    const lastExitIndex = symbolSignals.reduce((latestIndex, signal, index) => (
+      ['EXIT_BUY', 'EXIT_SELL', 'STOP_BUY', 'STOP_SELL'].includes(String(signal?.action || '').toUpperCase())
+        ? index
+        : latestIndex
+    ), -1);
+    const activeTakeProfit = lastEntryIndex > lastExitIndex
+      ? symbolSignals[lastEntryIndex]?.takeProfit
+      : '';
     setOrderTicketSide(side);
     setOrderStop('');
+    setOrderTakeProfit(activeTakeProfit ? String(activeTakeProfit) : '');
     setIsOrderTicketOpen(true);
-  }, [setOrderStop]);
+  }, [activeSymbol, setOrderStop, setOrderTakeProfit, signalsBySymbol]);
 
   const handleCalculateOrder = React.useCallback(async (side, stop, settings) => {
     const result = await calculateOrder(side, stop, settings);
@@ -1584,6 +1602,8 @@ const GraphicsRenko = () => {
               initialSide={orderTicketSide}
               orderStop={orderStop}
               setOrderStop={setOrderStop}
+              orderTakeProfit={orderTakeProfit}
+              setOrderTakeProfit={setOrderTakeProfit}
               onCalculateOrder={handleCalculateOrder}
               onConfirm={handleConfirmOrder}
               onClose={closeOrderTicket}
@@ -1652,6 +1672,7 @@ const GraphicsRenko = () => {
               )}
               timeCacheRef={signalChartTimeCacheRef}
               onStopChange={updateActiveStop}
+              onTakeProfitChange={updateActiveTakeProfit}
             />
             <AnalysisDrawingOverlay
               chart={analysisChart}

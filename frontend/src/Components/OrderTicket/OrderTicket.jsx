@@ -22,6 +22,8 @@ const OrderTicket = ({
     initialSide = 'buy',
     orderStop,
     setOrderStop,
+    orderTakeProfit,
+    setOrderTakeProfit,
     onCalculateOrder,
     onClose,
     onConfirm, // (order) => void
@@ -117,6 +119,9 @@ const OrderTicket = ({
 
     const handleConfirm = async () => {
         const stopPrice = parseDecimal(orderStop)
+        const takeProfitPrice = orderTakeProfit == null || orderTakeProfit === ''
+            ? null
+            : parseDecimal(orderTakeProfit)
         const selectedQuantity = parseDecimal(quantity) || quantityComputed
         if (isSubmitting) return
         if (isExit) {
@@ -143,6 +148,7 @@ const OrderTicket = ({
             capitalNumber <= 0 ||
             !Number.isFinite(stopPrice) ||
             stopPrice <= 0 ||
+            (orderTakeProfit && (!Number.isFinite(takeProfitPrice) || takeProfitPrice <= 0)) ||
             !Number.isFinite(selectedQuantity) ||
             selectedQuantity <= 0 ||
             !calculatedOrder
@@ -155,6 +161,7 @@ const OrderTicket = ({
             capital: capitalNumber,
             price: entryPrice,
             stop: stopPrice,
+            takeProfit: takeProfitPrice,
             quantity: selectedQuantity,
             value: selectedQuantity * entryPrice,
         }
@@ -299,6 +306,24 @@ const OrderTicket = ({
             </div>
 
             <div className="order-ticket__field">
+                <label className="order-ticket__label" htmlFor="order-take-profit">
+                    Take profit (opcional)
+                </label>
+                <input
+                    id="order-take-profit"
+                    type="text"
+                    inputMode="decimal"
+                    className="order-ticket__input"
+                    placeholder="Sem alvo definido"
+                    value={orderTakeProfit ?? ''}
+                    onChange={(event) => {
+                        const value = event.target.value.replace(/[^0-9.,]/g, '')
+                        setOrderTakeProfit(value)
+                    }}
+                />
+            </div>
+
+            <div className="order-ticket__field">
                 <label className="order-ticket__label" htmlFor="quantity">
                     Quantidade
                 </label>
@@ -340,6 +365,12 @@ const OrderTicket = ({
             {!isExit && orderStop && (!Number.isFinite(parseDecimal(orderStop)) || parseDecimal(orderStop) <= 0) && (
                 <p className="order-ticket__error" role="alert">Informe um preço de stop válido.</p>
             )}
+            {!isExit && orderTakeProfit && (
+                !Number.isFinite(parseDecimal(orderTakeProfit)) ||
+                parseDecimal(orderTakeProfit) <= 0
+            ) && (
+                <p className="order-ticket__error" role="alert">Informe um take profit válido ou deixe o campo vazio.</p>
+            )}
             {!isExit && calculationMessage && <p className="order-ticket__error" role="alert">{calculationMessage}</p>}
             {submissionError && <p className="order-ticket__error" role="alert">{submissionError}</p>}
 
@@ -349,7 +380,8 @@ const OrderTicket = ({
                 className="order-ticket__submit"
                 disabled={isSubmitting || (isExit
                     ? !price
-                    : !capitalNumber || capitalNumber <= 0 || !quantityComputed || !calculatedOrder || !orderStop)}
+                    : !capitalNumber || capitalNumber <= 0 || !quantityComputed || !calculatedOrder || !orderStop ||
+                      (orderTakeProfit && (!Number.isFinite(parseDecimal(orderTakeProfit)) || parseDecimal(orderTakeProfit) <= 0)))}
                 onClick={handleConfirm}
             >
                 <span>{isSubmitting ? 'Executando...' : isExit ? 'Confirmar Saída' : isBuy ? 'Confirmar Compra' : 'Confirmar Venda'}</span>

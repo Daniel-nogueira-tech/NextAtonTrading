@@ -293,6 +293,10 @@ body.graphics-renko-indicator-window .graphics-renko__indicator-chart {
   color: #fbbf24;
 }
 
+.graphics-renko__active-operation-take-profit {
+  color: #4ade80;
+}
+
 .graphics-renko__analysis-overlay {
   position: absolute;
   inset: 0;

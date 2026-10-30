@@ -105,6 +105,7 @@ export const ContextGraphicsProvider = ({ children }) => {
         risk: 1
     });
     const [orderStop, setOrderStop] = React.useState('');
+    const [orderTakeProfit, setOrderTakeProfit] = React.useState('');
 
 
     // Retorna os sinais de entrada
@@ -687,7 +688,9 @@ export const ContextGraphicsProvider = ({ children }) => {
          setBalanceAndRisk,
          balanceAndRisk,
          orderStop,
-         setOrderStop
+         setOrderStop,
+         orderTakeProfit,
+         setOrderTakeProfit
 
     }
 

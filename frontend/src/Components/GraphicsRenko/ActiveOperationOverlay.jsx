@@ -66,6 +66,9 @@ const getActiveTrade = (signals = [], calculatedPosition = null) => {
     activeTrade.signal.stopPrice,
     activeTrade.signal.expectedPriceStop,
   )
+  const takeProfitPrice = normalizePrice(
+    activeTrade.signal.takeProfit,
+  )
 
   const quantity = normalizePrice(
     activeTrade.signal.totalQuantity,
@@ -75,7 +78,7 @@ const getActiveTrade = (signals = [], calculatedPosition = null) => {
   )
 
   return entryPrice
-    ? { ...activeTrade, entryPrice, stopPrice, quantity }
+    ? { ...activeTrade, entryPrice, stopPrice, takeProfitPrice, quantity }
     : null
 }
 
@@ -93,19 +96,28 @@ const ActiveOperationOverlay = ({
   calculatedPosition = null,
   timeCacheRef,
   onStopChange,
+  onTakeProfitChange,
 }) => {
   const lineSeriesRef = useRef(null)
   const stopSeriesRef = useRef(null)
+  const takeProfitSeriesRef = useRef(null)
   const entryMarkerRef = useRef(null)
   const activeTradeRef = useRef(null)
   const currentPriceRef = useRef(null)
   const stopPriceRef = useRef(null)
+  const takeProfitPriceRef = useRef(null)
   const draggingPointerRef = useRef(null)
-  const dragStopPriceRef = useRef(null)
+  const dragPriceRef = useRef(null)
+  const dragLineTypeRef = useRef(null)
   const onStopChangeRef = useRef(onStopChange)
-  const [dragStopPrice, setDragStopPrice] = useState(null)
+  const onTakeProfitChangeRef = useRef(onTakeProfitChange)
+  const [draggedPrice, setDraggedPrice] = useState(null)
+  const [draggedLineType, setDraggedLineType] = useState(null)
   const activeTrade = getActiveTrade(signals, calculatedPosition)
-  const displayedStopPrice = dragStopPrice ?? activeTrade?.stopPrice ?? null
+  const displayedStopPrice = draggedLineType === 'stop' ? draggedPrice : activeTrade?.stopPrice ?? null
+  const displayedTakeProfitPrice = draggedLineType === 'takeProfit'
+    ? draggedPrice
+    : activeTrade?.takeProfitPrice ?? null
   const currentCandle = candles.at(-1)
   const currentPrice = Number(currentCandle?.close)
   const priceChange = activeTrade
@@ -124,8 +136,10 @@ const ActiveOperationOverlay = ({
     activeTradeRef.current = activeTrade
     currentPriceRef.current = currentPrice
     stopPriceRef.current = displayedStopPrice
+    takeProfitPriceRef.current = displayedTakeProfitPrice
     onStopChangeRef.current = onStopChange
-  }, [activeTrade, currentPrice, displayedStopPrice, onStopChange])
+    onTakeProfitChangeRef.current = onTakeProfitChange
+  }, [activeTrade, currentPrice, displayedStopPrice, displayedTakeProfitPrice, onStopChange, onTakeProfitChange])
 
   useEffect(() => {
     if (!chart) return undefined
@@ -147,8 +161,18 @@ const ActiveOperationOverlay = ({
       crosshairMarkerVisible: false,
       title: 'STOP',
     })
+    const takeProfitSeries = chart.addSeries(LineSeries, {
+      color: '#22c55e',
+      lineWidth: 2,
+      lineStyle: LineStyle.Dashed,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      crosshairMarkerVisible: false,
+      title: 'TAKE PROFIT',
+    })
     lineSeriesRef.current = lineSeries
     stopSeriesRef.current = stopSeries
+    takeProfitSeriesRef.current = takeProfitSeries
     entryMarkerRef.current = createSeriesMarkers(lineSeries, [])
 
     return () => {
@@ -159,9 +183,11 @@ const ActiveOperationOverlay = ({
       ) {
         chart.removeSeries(lineSeries)
         chart.removeSeries(stopSeries)
+        chart.removeSeries(takeProfitSeries)
       }
       lineSeriesRef.current = null
       stopSeriesRef.current = null
+      takeProfitSeriesRef.current = null
     }
   }, [chart, chartLifecycleRef])
 
@@ -173,85 +199,121 @@ const ActiveOperationOverlay = ({
       const trade = activeTradeRef.current
       const stopSeries = stopSeriesRef.current
       const stopPrice = stopPriceRef.current
-      if (!trade || !stopSeries || !Number.isFinite(stopPrice)) return
+      const takeProfitSeries = takeProfitSeriesRef.current
+      const takeProfitPrice = takeProfitPriceRef.current
+      if (!trade) return
 
-      const lineY = stopSeries.priceToCoordinate(stopPrice)
+      const stopY = stopSeries && Number.isFinite(stopPrice)
+        ? stopSeries.priceToCoordinate(stopPrice)
+        : null
+      const takeProfitY = takeProfitSeries && Number.isFinite(takeProfitPrice)
+        ? takeProfitSeries.priceToCoordinate(takeProfitPrice)
+        : null
       const bounds = container.getBoundingClientRect()
-      if (lineY == null || Math.abs(event.clientY - bounds.top - lineY) > 10) return
+      const pointerY = event.clientY - bounds.top
+      const stopDistance = stopY == null ? Infinity : Math.abs(pointerY - stopY)
+      const takeProfitDistance = takeProfitY == null ? Infinity : Math.abs(pointerY - takeProfitY)
+      const lineType = Math.min(stopDistance, takeProfitDistance) <= 10
+        ? (stopDistance <= takeProfitDistance ? 'stop' : 'takeProfit')
+        : null
+      if (!lineType) return
 
       event.preventDefault()
       event.stopPropagation()
       draggingPointerRef.current = event.pointerId
-      dragStopPriceRef.current = stopPrice
+      dragLineTypeRef.current = lineType
+      dragPriceRef.current = lineType === 'stop' ? stopPrice : takeProfitPrice
+      setDraggedLineType(lineType)
+      setDraggedPrice(dragPriceRef.current)
       container.setPointerCapture(event.pointerId)
       container.classList.add('is-dragging-stop')
     }
 
     const onPointerMove = (event) => {
+      const lineType = dragLineTypeRef.current
       const stopSeries = stopSeriesRef.current
+      const takeProfitSeries = takeProfitSeriesRef.current
+      const activeSeries = lineType === 'stop'
+        ? stopSeriesRef.current
+        : takeProfitSeriesRef.current
       const trade = activeTradeRef.current
       const bounds = container.getBoundingClientRect()
       if (draggingPointerRef.current !== event.pointerId) {
         const stopPrice = stopPriceRef.current
-        const lineY = Number.isFinite(stopPrice)
+        const takeProfitPrice = takeProfitPriceRef.current
+        const stopY = Number.isFinite(stopPrice)
           ? stopSeries?.priceToCoordinate(stopPrice)
           : null
+        const takeProfitY = Number.isFinite(takeProfitPrice)
+          ? takeProfitSeries?.priceToCoordinate(takeProfitPrice)
+          : null
+        const pointerY = event.clientY - bounds.top
         container.classList.toggle(
           'is-stop-hover',
-          Boolean(trade && lineY != null && Math.abs(event.clientY - bounds.top - lineY) <= 10),
+          Boolean(trade && (
+            (stopY != null && Math.abs(pointerY - stopY) <= 10) ||
+            (takeProfitY != null && Math.abs(pointerY - takeProfitY) <= 10)
+          )),
         )
         return
       }
 
-      const nextStop = stopSeries?.coordinateToPrice(event.clientY - bounds.top)
-      if (!trade || !Number.isFinite(nextStop)) return
+      const nextPrice = activeSeries?.coordinateToPrice(event.clientY - bounds.top)
+      if (!trade || !Number.isFinite(nextPrice)) return
 
+      if (lineType === 'stop') {
+        const currentPrice = currentPriceRef.current
+        if (!Number.isFinite(currentPrice)) return
 
-      const currentPrice = currentPriceRef.current
-      if (!Number.isFinite(currentPrice)) return
-
-      const isInProfit = trade.side === 'BUY'
-        ? currentPrice > trade.entryPrice
-        : currentPrice < trade.entryPrice
-
-      const isOnValidSide = isInProfit
-        ? (trade.side === 'BUY'
-          ? nextStop < currentPrice
-          : nextStop > currentPrice)
-        : (trade.side === 'BUY'
-          ? nextStop < trade.entryPrice
-          : nextStop > trade.entryPrice)
-
-      if (!isOnValidSide) return
+        const isInProfit = trade.side === 'BUY'
+          ? currentPrice > trade.entryPrice
+          : currentPrice < trade.entryPrice
+        const isOnValidSide = isInProfit
+          ? (trade.side === 'BUY' ? nextPrice < currentPrice : nextPrice > currentPrice)
+          : (trade.side === 'BUY' ? nextPrice < trade.entryPrice : nextPrice > trade.entryPrice)
+        if (!isOnValidSide) return
+      } else if (
+        (trade.side === 'BUY' && nextPrice <= trade.entryPrice) ||
+        (trade.side === 'SELL' && nextPrice >= trade.entryPrice)
+      ) {
+        return
+      }
 
       event.preventDefault()
       event.stopPropagation()
-      dragStopPriceRef.current = nextStop
-      setDragStopPrice(nextStop)
+      dragPriceRef.current = nextPrice
+      setDraggedPrice(nextPrice)
     }
 
     const finishDragging = async (event, shouldCommit) => {
       if (draggingPointerRef.current !== event.pointerId) return
 
-      const nextStop = dragStopPriceRef.current
+      const nextPrice = dragPriceRef.current
+      const lineType = dragLineTypeRef.current
       draggingPointerRef.current = null
-      dragStopPriceRef.current = null
-      setDragStopPrice(null)
+      dragPriceRef.current = null
+      dragLineTypeRef.current = null
+      setDraggedPrice(null)
+      setDraggedLineType(null)
       container.classList.remove('is-dragging-stop')
       if (container.hasPointerCapture(event.pointerId)) {
         container.releasePointerCapture(event.pointerId)
       }
 
-      if (!shouldCommit || !Number.isFinite(nextStop)) return
+      if (!shouldCommit || !Number.isFinite(nextPrice)) return
 
       try {
-        await onStopChangeRef.current?.(nextStop)
+        const updatePrice = lineType === 'stop'
+          ? onStopChangeRef.current
+          : onTakeProfitChangeRef.current
+        await updatePrice?.(nextPrice)
       } catch (error) {
-        console.error('Erro ao atualizar stop pelo gráfico:', error)
+        const label = lineType === 'stop' ? 'stop' : 'take profit'
+        console.error(`Erro ao atualizar ${label} pelo gráfico:`, error)
         await Swal.fire({
           icon: 'error',
-          title: 'Não foi possível atualizar o stop',
-          text: error instanceof Error ? error.message : 'Ocorreu um erro ao atualizar o nível de stop.',
+          title: `Não foi possível atualizar ${label}`,
+          text: error instanceof Error ? error.message : `Ocorreu um erro ao atualizar o nível de ${label}.`,
         })
       }
     }
@@ -277,7 +339,8 @@ const ActiveOperationOverlay = ({
   useEffect(() => {
     const lineSeries = lineSeriesRef.current
     const stopSeries = stopSeriesRef.current
-    if (!lineSeries || !stopSeries) return
+    const takeProfitSeries = takeProfitSeriesRef.current
+    if (!lineSeries || !stopSeries || !takeProfitSeries) return
 
     if (
       !activeTrade ||
@@ -287,6 +350,7 @@ const ActiveOperationOverlay = ({
     ) {
       lineSeries.setData([])
       stopSeries.setData([])
+      takeProfitSeries.setData([])
       entryMarkerRef.current?.setMarkers([])
       return
     }
@@ -300,6 +364,7 @@ const ActiveOperationOverlay = ({
     if (!entryCandle) {
       lineSeries.setData([])
       stopSeries.setData([])
+      takeProfitSeries.setData([])
       entryMarkerRef.current?.setMarkers([])
       return
     }
@@ -312,6 +377,7 @@ const ActiveOperationOverlay = ({
     ) {
       lineSeries.setData([])
       stopSeries.setData([])
+      takeProfitSeries.setData([])
       entryMarkerRef.current?.setMarkers([])
       return
     }
@@ -322,7 +388,7 @@ const ActiveOperationOverlay = ({
     ])
     if (Number.isFinite(displayedStopPrice)) {
       stopSeries.applyOptions({
-        title: `STOP ${displayedStopPrice.toFixed(2)} (arraste para ajustar)`,
+        title: `STOP ${displayedStopPrice.toFixed(2)} `,
       })
       stopSeries.setData([
         { time: entryCandle.time, value: displayedStopPrice },
@@ -330,6 +396,17 @@ const ActiveOperationOverlay = ({
       ])
     } else {
       stopSeries.setData([])
+    }
+    if (Number.isFinite(displayedTakeProfitPrice)) {
+      takeProfitSeries.applyOptions({
+        title: `TAKE PROFIT ${displayedTakeProfitPrice.toFixed(2)}`,
+      })
+      takeProfitSeries.setData([
+        { time: entryCandle.time, value: displayedTakeProfitPrice },
+        { time: lineEndTime, value: displayedTakeProfitPrice },
+      ])
+    } else {
+      takeProfitSeries.setData([])
     }
     entryMarkerRef.current?.setMarkers([{
       time: entryCandle.time,
@@ -339,7 +416,7 @@ const ActiveOperationOverlay = ({
       text: activeTrade.side,
       size: 1,
     }])
-  }, [activeTrade, candles, currentCandle, currentPrice, displayedStopPrice, lineColor, pnlPercent, timeCacheRef])
+  }, [activeTrade, candles, currentCandle, currentPrice, displayedStopPrice, displayedTakeProfitPrice, lineColor, pnlPercent, timeCacheRef])
 
   if (!activeTrade || !Number.isFinite(currentPrice)) return null
 
@@ -357,6 +434,11 @@ const ActiveOperationOverlay = ({
       {Number.isFinite(displayedStopPrice) && (
         <span className="graphics-renko__active-operation-stop">
           Stop {displayedStopPrice.toFixed(2)} · arraste a linha para ajustar
+        </span>
+      )}
+      {Number.isFinite(displayedTakeProfitPrice) && (
+        <span className="graphics-renko__active-operation-take-profit">
+          Take profit {displayedTakeProfitPrice.toFixed(2)} · arraste a linha para ajustar
         </span>
       )}
       <strong>
