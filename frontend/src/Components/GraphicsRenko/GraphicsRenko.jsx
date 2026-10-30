@@ -890,7 +890,10 @@ const GraphicsRenko = () => {
     setOrderStop,
     isTrend,
     setIsTrend,
-    dates, setDates
+    dates, 
+    setDates,
+    fullPrice,
+    resultOperations
   } = React.useContext(ContextGraphics)
   const chartContainerRef = React.useRef(null);
   const chartRef = React.useRef(null);
@@ -920,6 +923,7 @@ const GraphicsRenko = () => {
   const [isOrderTicketOpen, setIsOrderTicketOpen] = React.useState(false);
   const [orderTicketSide, setOrderTicketSide] = React.useState('buy');
 
+  console.log(fullPrice)
   let footer = `Please pick the first day.`;
 
   React.useEffect(() => {
@@ -1643,6 +1647,9 @@ const GraphicsRenko = () => {
               chartContainerRef={chartContainerRef}
               candles={renkoCandles}
               signals={signalsBySymbol?.[activeSymbol] || []}
+              calculatedPosition={(resultOperations?.positions?.open || []).find(
+                position => position.symbol === activeSymbol,
+              )}
               timeCacheRef={signalChartTimeCacheRef}
               onStopChange={updateActiveStop}
             />

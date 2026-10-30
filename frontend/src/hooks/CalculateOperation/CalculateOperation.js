@@ -38,6 +38,11 @@ const calculateQuantityForSignal = (signal, symbolInfo, balanceAndRisk) => {
         signal?.stop ?? signal?.expectedPriceStop ?? signal?.stopPrice
     );
     const count = Math.max(1, Math.round(normalizeNumber(signal?.count, 1)));
+    const totalQuantity = normalizeNumber(signal?.totalQuantity);
+    if (totalQuantity > 0) {
+        return totalQuantity / count;
+    }
+
     const stepSize = Number(symbolInfo?.stepSize || 0);
     const minQty = Number(symbolInfo?.minQty || 0);
     const maxQty = Number(symbolInfo?.maxQty || 0);

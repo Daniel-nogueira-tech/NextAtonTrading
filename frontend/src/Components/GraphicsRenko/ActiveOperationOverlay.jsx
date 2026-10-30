@@ -26,7 +26,7 @@ const findEntryCandle = (signal, candles, timeCache) => {
   return candles.find(candle => candle.time === chartTime) ?? null
 }
 
-const getActiveTrade = (signals = []) => {
+const getActiveTrade = (signals = [], calculatedPosition = null) => {
   let activeTrade = null
 
   signals.forEach((signal) => {
@@ -45,7 +45,14 @@ const getActiveTrade = (signals = []) => {
 
   if (!activeTrade) return null
 
+  const signalCount = Math.max(1, Number(activeTrade.signal.count) || 1)
+  const positionMatchesSignal =
+    calculatedPosition &&
+    calculatedPosition.side === activeTrade.side &&
+    Number(calculatedPosition.count) === signalCount
+  const position = positionMatchesSignal ? calculatedPosition : null
   const entryPrice = normalizePrice(
+    position?.entryPrice,
     activeTrade.signal.avgEntryPrice,
     activeTrade.signal.entryPrice,
     activeTrade.side === 'BUY'
@@ -54,12 +61,22 @@ const getActiveTrade = (signals = []) => {
   )
 
   const stopPrice = normalizePrice(
+    position?.stopPrice,
     activeTrade.signal.stop,
     activeTrade.signal.stopPrice,
     activeTrade.signal.expectedPriceStop,
   )
 
-  return entryPrice ? { ...activeTrade, entryPrice, stopPrice } : null
+  const quantity = normalizePrice(
+    activeTrade.signal.totalQuantity,
+    position?.quantity,
+    Number(activeTrade.signal.quantity) * signalCount,
+    activeTrade.signal.quantity,
+  )
+
+  return entryPrice
+    ? { ...activeTrade, entryPrice, stopPrice, quantity }
+    : null
 }
 
 const formatSigned = (value, decimals = 2) => {
@@ -73,6 +90,7 @@ const ActiveOperationOverlay = ({
   chartContainerRef,
   candles = [],
   signals = [],
+  calculatedPosition = null,
   timeCacheRef,
   onStopChange,
 }) => {
@@ -80,33 +98,34 @@ const ActiveOperationOverlay = ({
   const stopSeriesRef = useRef(null)
   const entryMarkerRef = useRef(null)
   const activeTradeRef = useRef(null)
+  const currentPriceRef = useRef(null)
   const stopPriceRef = useRef(null)
   const draggingPointerRef = useRef(null)
   const dragStopPriceRef = useRef(null)
   const onStopChangeRef = useRef(onStopChange)
   const [dragStopPrice, setDragStopPrice] = useState(null)
-  const activeTrade = getActiveTrade(signals)
+  const activeTrade = getActiveTrade(signals, calculatedPosition)
   const displayedStopPrice = dragStopPrice ?? activeTrade?.stopPrice ?? null
   const currentCandle = candles.at(-1)
   const currentPrice = Number(currentCandle?.close)
-  const quantity = Number(activeTrade?.signal?.quantity)
   const priceChange = activeTrade
     ? (currentPrice - activeTrade.entryPrice) * (activeTrade.side === 'BUY' ? 1 : -1)
     : 0
   const pnlPercent = activeTrade
     ? (priceChange / activeTrade.entryPrice) * 100
     : 0
-  const pnlAmount = Number.isFinite(quantity) && quantity > 0
-    ? priceChange * quantity
+  const pnlAmount = Number.isFinite(activeTrade?.quantity) && activeTrade.quantity > 0
+    ? priceChange * activeTrade.quantity
     : null
   const isProfitable = priceChange > 0
   const lineColor = priceChange === 0 ? '#a1a1aa' : isProfitable ? '#22c55e' : '#ef4444'
 
   useEffect(() => {
     activeTradeRef.current = activeTrade
+    currentPriceRef.current = currentPrice
     stopPriceRef.current = displayedStopPrice
     onStopChangeRef.current = onStopChange
-  }, [activeTrade, displayedStopPrice, onStopChange])
+  }, [activeTrade, currentPrice, displayedStopPrice, onStopChange])
 
   useEffect(() => {
     if (!chart) return undefined
@@ -187,9 +206,22 @@ const ActiveOperationOverlay = ({
       const nextStop = stopSeries?.coordinateToPrice(event.clientY - bounds.top)
       if (!trade || !Number.isFinite(nextStop)) return
 
-      const isOnValidSide = trade.side === 'BUY'
-        ? nextStop < trade.entryPrice
-        : nextStop > trade.entryPrice
+
+      const currentPrice = currentPriceRef.current
+      if (!Number.isFinite(currentPrice)) return
+
+      const isInProfit = trade.side === 'BUY'
+        ? currentPrice > trade.entryPrice
+        : currentPrice < trade.entryPrice
+
+      const isOnValidSide = isInProfit
+        ? (trade.side === 'BUY'
+          ? nextStop < currentPrice
+          : nextStop > currentPrice)
+        : (trade.side === 'BUY'
+          ? nextStop < trade.entryPrice
+          : nextStop > trade.entryPrice)
+
       if (!isOnValidSide) return
 
       event.preventDefault()
@@ -319,14 +351,16 @@ const ActiveOperationOverlay = ({
       <strong>{activeTrade.side === 'BUY' ? 'Compra aberta' : 'Venda aberta'}</strong>
       <span>Entrada {activeTrade.entryPrice.toFixed(2)}</span>
       <span>Atual {currentPrice.toFixed(2)}</span>
+      <span>
+        Variação {formatSigned(priceChange)} pontos · {formatSigned(pnlPercent)}%
+      </span>
       {Number.isFinite(displayedStopPrice) && (
         <span className="graphics-renko__active-operation-stop">
           Stop {displayedStopPrice.toFixed(2)} · arraste a linha para ajustar
         </span>
       )}
       <strong>
-        {formatSigned(pnlPercent)}%
-        {pnlAmount != null && ` (${formatSigned(pnlAmount)} USDT)`}
+        Resultado {pnlAmount != null ? `${formatSigned(pnlAmount)} USDT` : 'calculando'}
       </strong>
     </div>
   )

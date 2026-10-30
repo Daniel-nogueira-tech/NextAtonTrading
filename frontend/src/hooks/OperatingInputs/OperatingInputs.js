@@ -119,7 +119,7 @@ const normalizeItem = (item, keys) => {
 };
 
 export const useOperatingInputs = () => {
-    const { sendOperationData: sendOperationDataToContext, signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, retestPointsStatePrimaryRef, amrsiDataRef, vpprDataRef, fullPrice, buttonOperation, setButtonOperation, setResultOperations, activeSymbol, balanceAndRisk, setOrderStop } = useContext(ContextGraphics);
+    const { sendOperationData: sendOperationDataToContext, signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, retestPointsStatePrimaryRef, amrsiDataRef, vpprDataRef, fullPrice, buttonOperation, setButtonOperation, setResultOperations, resultOperations, activeSymbol, balanceAndRisk, setOrderStop } = useContext(ContextGraphics);
 
     const calculatePositionSize = useCallback((signal, history, settings = balanceAndRisk) => {
         const balance = parseDecimal(settings?.balance);
@@ -243,10 +243,14 @@ export const useOperatingInputs = () => {
         const action = String(order?.side || '').toLowerCase();
         const executionPrice = Number(order?.price);
         const timestamp = new Date().toISOString();
+        const latestPrice = (
+            price.find(item => item.symbol === symbol) ||
+            price[0]
+        )?.result?.at(-1);
         const symbolPrice = Number(
-            price.find(item => item.symbol === symbol)?.result?.at(-1)?.Fechamento ??
-            price[0]?.result?.at(-1)?.Fechamento
+            latestPrice?.Fechamento
         );
+        const marketTime = latestPrice?.Tempo ?? latestPrice?.time ?? timestamp;
         const finalPrice = Number.isFinite(executionPrice) && executionPrice > 0
             ? executionPrice
             : symbolPrice;
@@ -303,12 +307,26 @@ export const useOperatingInputs = () => {
             const currentEntry = lastEntryIndex > lastExitIndex
                 ? symbolSignals[lastEntryIndex]
                 : null;
-            const count = String(currentEntry?.action || '').toUpperCase() === signalAction
-                ? Math.max(1, Number(currentEntry.count) || 1) + 1
+            const isAddingToPosition = String(currentEntry?.action || '').toUpperCase() === signalAction;
+            const previousCount = isAddingToPosition
+                ? Math.max(1, Number(currentEntry.count) || 1)
+                : 0;
+            const count = isAddingToPosition
+                ? previousCount + 1
                 : 1;
             const previousAverage = Number(currentEntry?.avgEntryPrice ?? currentEntry?.entryPrice);
-            const averageEntry = count > 1 && Number.isFinite(previousAverage)
-                ? ((previousAverage * (count - 1)) + finalPrice) / count
+            const entryQuantity = Number(order.quantity);
+            if (!Number.isFinite(entryQuantity) || entryQuantity <= 0) {
+                throw new Error('Informe uma quantidade válida para executar a operação.');
+            }
+            const previousTotalQuantity = isAddingToPosition
+                ? Number(currentEntry.totalQuantity) ||
+                    (Number(currentEntry.quantity) * previousCount) ||
+                    0
+                : 0;
+            const totalQuantity = previousTotalQuantity + entryQuantity;
+            const averageEntry = previousTotalQuantity > 0 && Number.isFinite(previousAverage)
+                ? ((previousAverage * previousTotalQuantity) + (finalPrice * entryQuantity)) / totalQuantity
                 : finalPrice;
 
             signal = {
@@ -320,10 +338,11 @@ export const useOperatingInputs = () => {
                 expectedPriceSell: signalAction === 'SELL' ? finalPrice.toFixed(8) : undefined,
                 stop: stop.toFixed(8),
                 count,
-                time: timestamp,
+                time: currentEntry?.time ?? marketTime,
                 timestamp,
                 trendSecondary: trendItem?.type,
-                quantity: Number(order.quantity) || undefined,
+                quantity: totalQuantity,
+                totalQuantity,
             };
 
             if (String(currentEntry?.action || '').toUpperCase() === signalAction) {
@@ -371,7 +390,7 @@ export const useOperatingInputs = () => {
                 action: entryAction === 'BUY' ? 'EXIT_BUY' : 'EXIT_SELL',
                 exitPrice: finalPrice.toFixed(8),
                 count,
-                time: timestamp,
+                time: marketTime,
                 timestamp,
                 closed: true,
                 closedAt: timestamp,
@@ -446,12 +465,24 @@ export const useOperatingInputs = () => {
         const activeEntry = symbolSignals[entryIndex];
         const side = String(activeEntry.action).toUpperCase();
         const entryPrice = Number(activeEntry.avgEntryPrice ?? activeEntry.entryPrice);
-        if (
-            !Number.isFinite(entryPrice) ||
-            (side === 'BUY' && nextStop >= entryPrice) ||
-            (side === 'SELL' && nextStop <= entryPrice)
-        ) {
-            throw new Error('O stop precisa ficar abaixo da entrada na compra e acima na venda.');
+        const latestMarketPrice = Number(
+            (price.find(item => item.symbol === symbol) || price[0])
+                ?.result?.at(-1)?.Fechamento
+        );
+        if (!Number.isFinite(entryPrice) || !Number.isFinite(latestMarketPrice)) {
+            throw new Error('Não foi possível validar o stop com os preços atuais.');
+        }
+
+        const isInProfit = side === 'BUY'
+            ? latestMarketPrice > entryPrice
+            : latestMarketPrice < entryPrice;
+        const isOnValidSide = isInProfit
+            ? (side === 'BUY' ? nextStop < latestMarketPrice : nextStop > latestMarketPrice)
+            : (side === 'BUY' ? nextStop < entryPrice : nextStop > entryPrice);
+        if (!isOnValidSide) {
+            throw new Error(isInProfit
+                ? 'O stop deve permanecer abaixo do preço atual na compra e acima na venda.'
+                : 'Antes do lucro, o stop deve permanecer abaixo da entrada na compra e acima na venda.');
         }
 
         const updatedEntry = {
@@ -459,6 +490,21 @@ export const useOperatingInputs = () => {
             stop: nextStop.toFixed(8),
             stopPrice: nextStop.toFixed(8),
         };
+        if (!(Number(updatedEntry.totalQuantity) > 0)) {
+            const previousCount = Math.max(1, Number(updatedEntry.count) || 1);
+            const calculatedPosition = resultOperations?.positions?.open?.find(position => (
+                position.symbol === symbol && position.side === side
+            ));
+            const existingQuantity = Number(updatedEntry.quantity);
+            const totalQuantity = Number(calculatedPosition?.quantity) ||
+                (Number.isFinite(existingQuantity) && existingQuantity > 0
+                    ? existingQuantity * previousCount
+                    : 0);
+            if (totalQuantity > 0) {
+                updatedEntry.quantity = totalQuantity;
+                updatedEntry.totalQuantity = totalQuantity;
+            }
+        }
         symbolSignals[entryIndex] = updatedEntry;
         const history = {
             ...currentHistory,
@@ -483,10 +529,12 @@ export const useOperatingInputs = () => {
     }, [
         activeSymbol,
         calculatePositionSize,
+        price,
         sendOperationData,
         setOrderStop,
         setResultOperations,
         setSignalsBySymbolState,
+        resultOperations,
     ]);
 
     //Usar useRef para armazenar o último trend de cada símbolo

@@ -12,7 +12,6 @@ def data_operation():
 
     if not isinstance(payloadOperation, dict) or not payloadOperation:
         return jsonify({"Error": "The parameters operation are required."}),400
-    
     try:
         # Salva a operação
         create_operations(payloadOperation)

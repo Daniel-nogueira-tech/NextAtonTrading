@@ -274,7 +274,6 @@ export const ContextGraphicsProvider = ({ children }) => {
 
     // Pega os dados de preço e indicadores
     const marketData = async ({ preserveEngine = false } = {}) => {
-
         const requestFeed = async (name, url) => {
             try {
                 const response = await axios.get(url)
