@@ -973,14 +973,10 @@ const GraphicsRenko = () => {
           )),
         }
       }))
-
-      // força re-render do overlay (senão o SVG pode não atualizar em alguns casos)
-      setAnalysisRenderVersion(v => v + 1)
     }
     const handlePointerUp = () => {
       if (analysisDragRef.current) {
         analysisDragRef.current = null
-        setAnalysisRenderVersion(v => v + 1) // força re-render
       }
     }
 
@@ -1347,57 +1343,24 @@ const GraphicsRenko = () => {
       if (!analysisDraftRef.current) return
       const point = drawingPointFromEvent(event)
       setAnalysisPreview(point)
-      setAnalysisRenderVersion(version => version + 1)
     }
 
-    const refreshDrawings = () => setAnalysisRenderVersion(version => version + 1)
+    let refreshFrameId = null
+    const refreshDrawings = () => {
+      if (refreshFrameId !== null) return
+
+      refreshFrameId = requestAnimationFrame(() => {
+        refreshFrameId = null
+        setAnalysisRenderVersion(version => version + 1)
+      })
+    }
     chartRef.current.subscribeClick(handleChartClick)
     chartRef.current.subscribeCrosshairMove(handleCrosshairMove)
     chartRef.current.timeScale().subscribeVisibleLogicalRangeChange(refreshDrawings)
-    // ---
     chartRef.current.timeScale().subscribeVisibleTimeRangeChange(refreshDrawings)
     chartRef.current.timeScale().subscribeSizeChange(refreshDrawings)
 
-
-
-    // --- Loop de rAF enquanto o usuário interage ---
-    let rafId = null
-    let isInteracting = false
-
-    const startRefreshLoop = (event) => {
-      if (event?.target instanceof Element && event.target.closest('.button-simulation')) return
-      if (isInteracting) return
-      isInteracting = true
-      const tick = () => {
-        refreshDrawings()
-        if (isInteracting) rafId = requestAnimationFrame(tick)
-      }
-      rafId = requestAnimationFrame(tick)
-    }
-
-    const stopRefreshLoop = () => {
-      isInteracting = false
-      if (rafId) {
-        cancelAnimationFrame(rafId)
-        rafId = null
-      }
-      refreshDrawings()
-    }
-    let wheelTimeout = null
-    const onWheel = (event) => {
-      startRefreshLoop(event)
-      clearTimeout(wheelTimeout)
-      wheelTimeout = setTimeout(stopRefreshLoop, 150)
-    }
-
     const containerEl = chartContainerRef.current
-    containerEl?.addEventListener('pointerdown', startRefreshLoop)
-    window.addEventListener('pointerup', stopRefreshLoop)
-    window.addEventListener('pointercancel', stopRefreshLoop)
-    containerEl?.addEventListener('wheel', onWheel, { passive: true })
-
-
-
     const resizeObserver = new ResizeObserver(() => {
       refreshDrawings()
     })
@@ -1429,14 +1392,10 @@ const GraphicsRenko = () => {
       futureProjectionSeriesRef.current = null
       candlestickSeriesMetaRef.current = null
 
-      stopRefreshLoop()
-      containerEl?.removeEventListener('pointerdown', startRefreshLoop)
-      containerEl?.removeEventListener('wheel', startRefreshLoop)
-      containerEl?.removeEventListener('wheel', onWheel)   // ← faltava remover o onWheel
-      window.removeEventListener('pointerup', stopRefreshLoop)
-      window.removeEventListener('pointercancel', stopRefreshLoop)
+      if (refreshFrameId !== null) {
+        cancelAnimationFrame(refreshFrameId)
+      }
       resizeObserver.disconnect()
-      clearTimeout(wheelTimeout)
     }
   }, [])
 
@@ -1524,9 +1483,6 @@ const GraphicsRenko = () => {
 
     if (renkoCandles.length > 0 && !hadRenkoCandlesRef.current) {
       chartRef.current.timeScale().fitContent()
-      requestAnimationFrame(() => {
-        setAnalysisRenderVersion(v => v + 1)
-      })
     }
     hadRenkoCandlesRef.current = renkoCandles.length > 0
   }, [renkoCandles, activeSymbol, signalsBySymbol, trend])
@@ -1536,9 +1492,6 @@ const GraphicsRenko = () => {
     futureProjectionSeriesRef.current.setData(
       buildFutureProjectionTimes(renkoCandles, analysisDrawings),
     )
-    requestAnimationFrame(() => {
-      setAnalysisRenderVersion(version => version + 1)
-    })
   }, [renkoCandles, analysisDrawings, analysisChart, schrodinger])
 
   //-------------------------/Calendário/-------------------------

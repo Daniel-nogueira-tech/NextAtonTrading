@@ -282,7 +282,6 @@ export const useIncrementalMarketEngine = ({
   // Refs para armazenar o estado interno do motor sem causar re-renderizações desnecessárias
   const sourcesRef = React.useRef(createEmptySources())
   const cursorRef = React.useRef(0)
-  const snapshotRef = React.useRef(buildSnapshot(createEmptySources(), 0, maxSnapshotPoints))
   const maxCursorRef = React.useRef(0)
   const timerRef = React.useRef(null)
   const speedRef = React.useRef(initialSpeed)
@@ -292,9 +291,12 @@ export const useIncrementalMarketEngine = ({
   // Estado React para expor o cursor, status, maxCursor e controle de velocidade
   const [status, setStatus] = React.useState('idle')
   const [maxCursor, setMaxCursor] = React.useState(0)
+  const [cursor, setCursor] = React.useState(0)
   const [speed, setSpeedState] = React.useState(initialSpeed)
   const [step, setStepState] = React.useState(1)
-  const [snapshotVersion, setSnapshotVersion] = React.useState(0)
+  const [snapshot, setSnapshot] = React.useState(() => (
+    buildSnapshot(createEmptySources(), 0, maxSnapshotPoints)
+  ))
 
   const setEngineStatus = React.useCallback((nextStatus) => {
     if (typeof nextStatus === 'function') {
@@ -321,13 +323,9 @@ export const useIncrementalMarketEngine = ({
 
   // Atualiza o cursor interno e reconstrói o snapshot.
   const publishCursor = React.useCallback((nextCursor) => {
-    const previousCursor = cursorRef.current
     cursorRef.current = nextCursor
-    snapshotRef.current = buildSnapshot(sourcesRef.current, nextCursor, maxSnapshotPoints)
-
-    if (nextCursor !== previousCursor) {
-      setSnapshotVersion(version => version + 1)
-    }
+    setCursor(nextCursor)
+    setSnapshot(buildSnapshot(sourcesRef.current, nextCursor, maxSnapshotPoints))
   }, [maxSnapshotPoints])
 
   // Pausa a reprodução automática, mantendo o estado atual para possível continuação.
@@ -374,10 +372,10 @@ export const useIncrementalMarketEngine = ({
 
     stopTimer()
     cursorRef.current = 0
+    setCursor(0)
     statusRef.current = 'idle'
-    snapshotRef.current = buildSnapshot(sourcesRef.current, 0, maxSnapshotPoints)
+    setSnapshot(buildSnapshot(sourcesRef.current, 0, maxSnapshotPoints))
 
-    setSnapshotVersion(version => version + 1)
     setMaxCursor(current => current === maxCursorRef.current ? current : maxCursorRef.current)
     setEngineStatus('idle')
   }, [maxSnapshotPoints, setEngineStatus, stopTimer])
@@ -478,9 +476,9 @@ export const useIncrementalMarketEngine = ({
   }, [stopTimer])
 
   return {
-    snapshot: snapshotRef.current,
+    snapshot,
     status,
-    cursor: cursorRef.current,
+    cursor,
     maxCursor,
     speed,
     step,
