@@ -1,8 +1,9 @@
 // useOperatingInputs.js
-import { useMemo, useEffect, useContext, useRef, useState } from 'react';
+import { useMemo, useEffect, useContext, useRef, useState, useCallback } from 'react';
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx';
 import Swal from 'sweetalert2'
-import { calculatePositionSize } from '../CalculateOperation/CalculateOperation.js'
+import { calculatePositionSize as calculatePositionSizeFromSignals } from '../CalculateOperation/CalculateOperation.js'
+import { parseDecimal } from '../../utils/parseDecimal.js'
 
 // Função genérica que aceita arrays diretos, arrays de arrays, objetos com result/operations/signals e preços.
 const normalizeCollection = (collection, symbolPrefix, keys = ["buy"], dataKey = "result") => {
@@ -119,7 +120,13 @@ const normalizeItem = (item, keys) => {
 };
 
 export const useOperatingInputs = () => {
-    const { sendOperationData: sendOperationDataToContext, signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, retestPointsStatePrimaryRef, amrsiDataRef, vpprDataRef, fullPrice, buttonOperation, setButtonOperation, setResultOperations } = useContext(ContextGraphics);
+    const { sendOperationData: sendOperationDataToContext, signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, retestPointsStatePrimaryRef, amrsiDataRef, vpprDataRef, fullPrice, buttonOperation, setButtonOperation, setResultOperations, activeSymbol, balanceAndRisk } = useContext(ContextGraphics);
+
+    const calculatePositionSize = useCallback((signal, history, settings = balanceAndRisk) => {
+        const balance = parseDecimal(settings?.balance);
+        const risk = Number(settings?.risk) / 100;
+        return calculatePositionSizeFromSignals(signal, history, { balance, risk });
+    }, [balanceAndRisk]);
 
     const getTrendBandBounds = (trendItem) => {
         if (!trendItem) return { low: NaN, high: NaN };
@@ -175,9 +182,243 @@ export const useOperatingInputs = () => {
         signalsHistoryRef.current = signalsBySymbolState || {};
     }, [signalsBySymbolState]);
 
-    const sendOperationData = (operation, _signals, lastSignal) => (
+    const sendOperationData = useCallback((operation, _signals, lastSignal) => (
         sendOperationDataToContext(operation, signalsHistoryRef.current, lastSignal)
-    );
+    ), [sendOperationDataToContext]);
+
+    const calculateOrder = useCallback(async (side, stopOverride, settings) => {
+        const action = side === 'sell' ? 'SELL' : 'BUY';
+        const indicatorSymbol = (collection) => (
+            collection.find(item => item.symbol === activeSymbol) || collection[0]
+        );
+        const latestTrend = indicatorSymbol(trend)?.result?.at(-1);
+        const latestPrice = indicatorSymbol(price)?.result?.at(-1);
+        const entryPrice = Number(latestPrice?.Fechamento ?? latestPrice?.close ?? latestPrice?.price);
+        const matchingSignals = (signalsBySymbolState?.[activeSymbol] || [])
+            .filter(signal => String(signal?.action || '').toUpperCase() === action);
+        const latestSignal = matchingSignals.at(-1);
+
+        const sourceSignal = latestSignal || {
+            symbol: activeSymbol,
+            action,
+            entryPrice,
+            avgEntryPrice: entryPrice,
+            stop: latestTrend?.stop,
+            time: latestPrice?.Tempo ?? latestPrice?.time,
+            trendSecondary: latestTrend?.type,
+        };
+        const stop = parseDecimal(stopOverride);
+        const signal = {
+            ...sourceSignal,
+            symbol: activeSymbol || sourceSignal.symbol,
+            action,
+            entryPrice: Number.isFinite(entryPrice) && entryPrice > 0
+                ? entryPrice
+                : Number(sourceSignal.entryPrice ?? sourceSignal.avgEntryPrice),
+            avgEntryPrice: Number.isFinite(entryPrice) && entryPrice > 0
+                ? entryPrice
+                : Number(sourceSignal.avgEntryPrice ?? sourceSignal.entryPrice),
+            stop: Number.isFinite(stop) && stop > 0
+                ? stop
+                : Number(sourceSignal.stop ?? sourceSignal.stopPrice),
+        };
+
+        const normalizedEntry = Number(signal.entryPrice);
+        const normalizedStop = Number(signal.stop);
+        if (
+            !Number.isFinite(normalizedEntry) ||
+            normalizedEntry <= 0 ||
+            !Number.isFinite(normalizedStop) ||
+            normalizedStop <= 0 ||
+            (action === 'BUY' && normalizedStop >= normalizedEntry) ||
+            (action === 'SELL' && normalizedStop <= normalizedEntry)
+        ) {
+            return null;
+        }
+
+        return calculatePositionSize(signal, signalsBySymbolState, settings);
+    }, [activeSymbol, calculatePositionSize, price, signalsBySymbolState, trend]);
+
+    const executeOrder = useCallback(async (order) => {
+        const symbol = order?.symbol || activeSymbol;
+        const action = String(order?.side || '').toLowerCase();
+        const executionPrice = Number(order?.price);
+        const timestamp = new Date().toISOString();
+        const symbolPrice = Number(
+            price.find(item => item.symbol === symbol)?.result?.at(-1)?.Fechamento ??
+            price[0]?.result?.at(-1)?.Fechamento
+        );
+        const finalPrice = Number.isFinite(executionPrice) && executionPrice > 0
+            ? executionPrice
+            : symbolPrice;
+
+        if (!symbol || !Number.isFinite(finalPrice) || finalPrice <= 0) {
+            throw new Error('Não há preço válido para executar a operação.');
+        }
+
+        const history = {
+            ...(signalsHistoryRef.current || {}),
+            [symbol]: [...(signalsHistoryRef.current?.[symbol] || [])],
+        };
+        const symbolSignals = history[symbol];
+        const flags = flagsBySymbolRef.current[symbol] || {
+            inputExecuted: false,
+            isOperation: false,
+            lastSignal: null,
+            numberEntries: 0,
+            signalCount: 0,
+            upwardTrendCurrent: false,
+            downwardTrendCurrent: false,
+            exceededBand: false,
+            blockedTrendIdentity: null,
+        };
+        flagsBySymbolRef.current[symbol] = flags;
+
+        let signal;
+        let calculationSignal;
+
+        if (action === 'buy' || action === 'sell') {
+            const signalAction = action.toUpperCase();
+            const stop = Number(order.stop);
+            if (!Number.isFinite(stop) || stop <= 0) {
+                throw new Error('Informe um stop válido para executar a operação.');
+            }
+            if (
+                (signalAction === 'BUY' && stop >= finalPrice) ||
+                (signalAction === 'SELL' && stop <= finalPrice)
+            ) {
+                throw new Error('O stop precisa ficar abaixo do preço na compra e acima na venda.');
+            }
+
+            const trendItem = trend.find(item => item.symbol === symbol)?.result?.at(-1);
+            const lastEntryIndex = symbolSignals.reduce((latestIndex, item, index) => (
+                ['BUY', 'SELL'].includes(String(item?.action || '').toUpperCase())
+                    ? index
+                    : latestIndex
+            ), -1);
+            const lastExitIndex = symbolSignals.reduce((latestIndex, item, index) => (
+                ['EXIT_BUY', 'EXIT_SELL', 'STOP_BUY', 'STOP_SELL'].includes(String(item?.action || '').toUpperCase())
+                    ? index
+                    : latestIndex
+            ), -1);
+            const currentEntry = lastEntryIndex > lastExitIndex
+                ? symbolSignals[lastEntryIndex]
+                : null;
+            const count = String(currentEntry?.action || '').toUpperCase() === signalAction
+                ? Math.max(1, Number(currentEntry.count) || 1) + 1
+                : 1;
+            const previousAverage = Number(currentEntry?.avgEntryPrice ?? currentEntry?.entryPrice);
+            const averageEntry = count > 1 && Number.isFinite(previousAverage)
+                ? ((previousAverage * (count - 1)) + finalPrice) / count
+                : finalPrice;
+
+            signal = {
+                symbol,
+                action: signalAction,
+                entryPrice: averageEntry.toFixed(8),
+                avgEntryPrice: averageEntry.toFixed(8),
+                expectedPriceBuy: signalAction === 'BUY' ? finalPrice.toFixed(8) : undefined,
+                expectedPriceSell: signalAction === 'SELL' ? finalPrice.toFixed(8) : undefined,
+                stop: stop.toFixed(8),
+                count,
+                time: timestamp,
+                timestamp,
+                trendSecondary: trendItem?.type,
+                quantity: Number(order.quantity) || undefined,
+            };
+
+            if (String(currentEntry?.action || '').toUpperCase() === signalAction) {
+                const index = symbolSignals.lastIndexOf(currentEntry);
+                symbolSignals[index] = signal;
+            } else {
+                symbolSignals.push(signal);
+            }
+
+            flags.inputExecuted = true;
+            flags.isOperation = true;
+            flags.isManualOperation = true;
+            flags.numberEntries = count;
+            flags.signalCount = (Number(flags.signalCount) || 0) + 1;
+            flags.lastSignal = signal;
+            flags.upwardTrendCurrent = signalAction === 'BUY';
+            flags.downwardTrendCurrent = signalAction === 'SELL';
+            calculationSignal = signal;
+        } else if (action === 'exit') {
+            const lastEntryIndex = symbolSignals.reduce((latestIndex, item, index) => (
+                ['BUY', 'SELL'].includes(String(item?.action || '').toUpperCase())
+                    ? index
+                    : latestIndex
+            ), -1);
+            const lastExitIndex = symbolSignals.reduce((latestIndex, item, index) => (
+                ['EXIT_BUY', 'EXIT_SELL', 'STOP_BUY', 'STOP_SELL'].includes(String(item?.action || '').toUpperCase())
+                    ? index
+                    : latestIndex
+            ), -1);
+            const activeEntry = lastEntryIndex > lastExitIndex
+                ? symbolSignals[lastEntryIndex]
+                : null;
+
+            if (!activeEntry) {
+                throw new Error(`Não há posição aberta para ${symbol}.`);
+            }
+
+            const entryAction = String(activeEntry.action).toUpperCase();
+            const count = Math.max(
+                1,
+                Math.round(Number(activeEntry.count) || Number(flags.numberEntries) || 1)
+            );
+            signal = {
+                symbol,
+                action: entryAction === 'BUY' ? 'EXIT_BUY' : 'EXIT_SELL',
+                exitPrice: finalPrice.toFixed(8),
+                count,
+                time: timestamp,
+                timestamp,
+                closed: true,
+                closedAt: timestamp,
+            };
+            symbolSignals.push(signal);
+
+            flags.inputExecuted = false;
+            flags.isOperation = false;
+            flags.isManualOperation = false;
+            flags.numberEntries = 0;
+            flags.upwardTrendCurrent = false;
+            flags.downwardTrendCurrent = false;
+            flags.exceededBand = false;
+            flags.blockedTrendIdentity = null;
+            flags.lastSignal = signal;
+            calculationSignal = activeEntry;
+        } else {
+            throw new Error('Ação de operação inválida.');
+        }
+
+        if (symbolSignals.length > 100) {
+            history[symbol] = symbolSignals.slice(-100);
+        }
+        signalsHistoryRef.current = history;
+        localStorage.setItem('flagsBySymbol', JSON.stringify(flagsBySymbolRef.current));
+        setSignalsBySymbolState(history);
+        setButtonOperation({ buy: false, sell: false, exit: false });
+
+        const result = await calculatePositionSize(calculationSignal, history);
+        if (!result) {
+            throw new Error('A operação foi registrada, mas não foi possível calcular os resultados.');
+        }
+        setResultOperations(result);
+        await sendOperationData(Promise.resolve(result), history, signal);
+
+        return { signal, result };
+    }, [
+        activeSymbol,
+        calculatePositionSize,
+        price,
+        sendOperationData,
+        setButtonOperation,
+        setResultOperations,
+        setSignalsBySymbolState,
+        trend,
+    ]);
 
     //Usar useRef para armazenar o último trend de cada símbolo
     const lastTrendRef = useRef({});
@@ -227,7 +468,7 @@ export const useOperatingInputs = () => {
         return () => {
             cancelled = true;
         };
-    }, [signalsBySymbolState, setResultOperations]);
+    }, [signalsBySymbolState, balanceAndRisk, calculatePositionSize, setResultOperations]);
 
     useEffect(() => {
         if (price.length === 0 || trend.length === 0 || trendPrimary.length === 0 || amrsi.length === 0 || vppr.length === 0) {
@@ -269,6 +510,7 @@ export const useOperatingInputs = () => {
                     exceededBand: false,
                     blockedTrendIdentity: null,
                     isOperation: false,
+                    isManualOperation: false,
                     lastSignal: null,
                     signalCount: 0,
                     confirmationPending: false,
@@ -348,7 +590,7 @@ export const useOperatingInputs = () => {
                 flags.exceededBand = false;
                 flags.blockedTrendIdentity = null;
             }
- 
+
             const isTrendBlocked = flags.blockedTrendIdentity === currentTrendIdentity;
             const { low: bandLow, high: bandHigh } = getTrendBandBounds(lastTrend);
             const isOutsideBand = lastTrend && Number.isFinite(bandLow) && Number.isFinite(bandHigh)
@@ -377,118 +619,86 @@ export const useOperatingInputs = () => {
                 return;
             };
 
+
+
             //==============================|✅ENTRADAS EM OPERAÇÕES RETESTES|==============================//
-            const conditionBuyMain = TYPE_BUY.includes(lastTrend?.type) &&
-                lastPrice.Fechamento <= lastTrend?.buy &&
-                lastPrice.Fechamento >= lastTrend?.buy - lastTrend?.limite &&  //banda
-                lastVppr?.vpprTrend === 'buy' &&
-                //lastVppr?.major === 'MajorBuy' &&
-                lastVppr?.volumeEmaSignal === 'Volume BUY Increasing' &&
-                flags.numberEntries === 0;
-
-
             //🟢 Entrada de compra
-            if (!flags.exceededBand && flags.blockedTrendIdentity !== currentTrendIdentity) {
+            const conditionBuy =
+                buttonOperation.buy
 
-                const conditionBuy =
-                    conditionBuyMain &&
-                    buttonOperation.buy
+            // ***Muda as  classe dos butão
+            //   const btnBuy = document.querySelector('.btn-buy');
+            //  conditionBuyMain ? btnBuy.classList.add('btn-pulse-buy') : btnBuy.classList.remove('btn-pulse-buy');
 
-                // ***Muda as  classe dos butão
-                const btnBuy = document.querySelector('.btn-buy');
-                conditionBuyMain ? btnBuy.classList.add('btn-pulse-buy') : btnBuy.classList.remove('btn-pulse-buy');
+            if (conditionBuy) {
+                const newSignal = {
+                    symbol,
+                    action: "BUY",
+                    expectedPriceBuy: lastTrend.buy.toFixed(2),
+                    avgEntryPrice: lastPrice?.Fechamento.toFixed(2),
+                    entryPrice: lastPrice?.Fechamento.toFixed(2),
+                    time: lastPrice?.Tempo || lastPrice?.time,
+                    stop: lastTrend.stop.toFixed(2),
+                    trendPrimary: lastTrendPrimary?.type,
+                    trendSecondary: lastTrend?.type
+                };
 
-                if (conditionBuy) {
+                // Atualiza flags e histórico imediatamente
+                flags.upwardTrendCurrent = true;
+                flags.inputExecuted = true;
+                flags.isOperation = true;
+                flags.isManualOperation = false;
+                flags.signalCount += 1;
+                flags.upwardAmrsiCurrent = false;
+                flags.numberEntries += 1;
 
-                    const newSignal = {
-                        symbol,
-                        action: "BUY",
-                        expectedPriceBuy: lastTrend.buy.toFixed(2),
-                        avgEntryPrice: lastPrice?.Fechamento.toFixed(2),
-                        entryPrice: lastPrice?.Fechamento.toFixed(2),
-                        time: lastPrice?.Tempo || lastPrice?.time,
-                        stop: lastTrend.stop.toFixed(2),
-                        trendPrimary: lastTrendPrimary?.type,
-                        trendSecondary: lastTrend?.type
+                // **Calcula preçomédio
+                const entryPrice = Number(lastPrice?.Fechamento ?? 0);
+                const ts = new Date().toISOString();
+                if (!signalsHistoryRef.current[symbol]) signalsHistoryRef.current[symbol] = [];
+                const history = signalsHistoryRef.current[symbol];
+                const last = history.at(-1) || null;
+                if (last && last.action === 'BUY' && !last.closed) {
+                    const prevCount = last.count || 1;
+                    const prevAvg = Number(last.avgEntryPrice ?? last.entryPrice ?? entryPrice);
+                    const newCount = prevCount + 1;
+                    const newAvg = (prevAvg * prevCount + entryPrice) / newCount;
+                    const updated = {
+                        ...last, count: newCount,
+                        avgEntryPrice: newAvg.toFixed(2),
+                        entryPrice: newAvg.toFixed(2),
+                        timestamp: ts
                     };
-
-                    // Atualiza flags e histórico imediatamente
-                    flags.upwardTrendCurrent = true;
-                    flags.inputExecuted = true;
-                    flags.isOperation = true;
-                    flags.signalCount += 1;
-                    flags.upwardAmrsiCurrent = false;
-                    flags.numberEntries += 1;
-
-                    // **Calcula preçomédio
-                    const entryPrice = Number(lastPrice?.Fechamento ?? 0);
-                    const ts = new Date().toISOString();
-                    if (!signalsHistoryRef.current[symbol]) signalsHistoryRef.current[symbol] = [];
-                    const history = signalsHistoryRef.current[symbol];
-                    const last = history.at(-1) || null;
-                    if (last && last.action === 'BUY' && !last.closed) {
-                        const prevCount = last.count || 1;
-                        const prevAvg = Number(last.avgEntryPrice ?? last.entryPrice ?? entryPrice);
-                        const newCount = prevCount + 1;
-                        const newAvg = (prevAvg * prevCount + entryPrice) / newCount;
-                        const updated = {
-                            ...last, count: newCount,
-                            avgEntryPrice: newAvg.toFixed(2),
-                            entryPrice: newAvg.toFixed(2),
-                            timestamp: ts
-                        };
-                        history[history.length - 1] = updated;
-                        signalsBySymbol[symbol] = updated;
-                        flags.lastSignal = updated;
-                    } else {
-                        const aggregated = { ...newSignal, count: 1, avgEntryPrice: entryPrice.toFixed(2), entryPrice: entryPrice.toFixed(2), timestamp: ts };
-                        history.push(aggregated);
-                        if (history.length > 100) {
-                            signalsHistoryRef.current[symbol] = history.slice(-100);
-                        }
-                        signalsBySymbol[symbol] = aggregated;
-                        flags.lastSignal = aggregated;
+                    history[history.length - 1] = updated;
+                    signalsBySymbol[symbol] = updated;
+                    flags.lastSignal = updated;
+                } else {
+                    const aggregated = { ...newSignal, count: 1, avgEntryPrice: entryPrice.toFixed(2), entryPrice: entryPrice.toFixed(2), timestamp: ts };
+                    history.push(aggregated);
+                    if (history.length > 100) {
+                        signalsHistoryRef.current[symbol] = history.slice(-100);
                     }
-
-                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
-
-                    // **Chama função e passa os parametros para enviar ao beckend
-                    sendOperationData(getSizeOperation, signalsBySymbolState);
-
-
-
-                    // **Atualiza botões e estado de simbolos
-                    setButtonOperation({ buy: false, sell: false, exit: false });
-                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
-
-                    console.log(`✅ [${symbol}] SINAL DE COMPRA GERADO! #${flags.signalCount}`);
-
-
-
-
+                    signalsBySymbol[symbol] = aggregated;
+                    flags.lastSignal = aggregated;
                 }
+
+                // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                // **Chama função e passa os parametros para enviar ao beckend
+                sendOperationData(getSizeOperation, signalsBySymbolState);
+
+                // **Atualiza botões e estado de simbolos
+                setButtonOperation({ buy: false, sell: false, exit: false });
+                setSignalsBySymbolState({ ...signalsHistoryRef.current });
+
+                console.log(`✅ [${symbol}] SINAL DE COMPRA GERADO! #${flags.signalCount}`);
             }
 
-            // Condição de venda principal
-            const conditionSellMain = TYPE_SELL.includes(lastTrend?.type) &&
-                lastPrice.Fechamento <= lastTrend?.sell + lastTrend?.limite && //Banda acima
-                lastPrice.Fechamento >= lastTrend?.sell &&
-                lastVppr?.vpprTrend === 'sell' &&
-                // lastVppr?.major === 'MajorSell' &&
-                lastVppr?.volumeEmaSignal === 'Volume SELL Increasing' &&
-                flags.numberEntries === 0;
-
             //🔴 Entrada de venda
-            if (!flags.exceededBand && flags.blockedTrendIdentity !== currentTrendIdentity) {
-                // ***Muda as  classe dos butão
-                const btnSell = document.querySelector('.btn-sell');
-                conditionSellMain ? btnSell.classList.add('btn-pulse-sell') : btnSell.classList.remove('btn-pulse-sell');
-
                 const conditionSell =
-                    conditionSellMain &&
-                    buttonOperation.sell
 
+                    buttonOperation.sell
 
                 if (conditionSell) {
                     const newSignal = {
@@ -506,6 +716,7 @@ export const useOperatingInputs = () => {
                     flags.downwardTrendCurrent = true;
                     flags.inputExecuted = true;
                     flags.isOperation = true;
+                    flags.isManualOperation = false;
                     flags.signalCount += 1;
                     flags.downwardAmrsiCurrent = false;
                     flags.numberEntries += 1;
@@ -557,36 +768,36 @@ export const useOperatingInputs = () => {
                     console.log(`✅ [${symbol}] SINAL DE VENDA GERADO! #${flags.signalCount}`);
 
                 }
-            };
+
 
 
 
             //==============================|🚫EXIT|==============================//
             //🟢 Condição de saída principal
-            const conditionExitBuyMain =
-                //lastPrice.Fechamento <= lastTrend?.stop &&
-                flags.isOperation &&
-                flags.inputExecuted &&
-                lastVppr?.vpprTrend === 'sell' &&
-                TYPE_BUY_EXIT.includes(lastTrend?.type);
+            /*   const conditionExitBuyMain =
+                   //lastPrice.Fechamento <= lastTrend?.stop &&
+                   flags.isOperation &&
+                   flags.inputExecuted &&
+                   lastVppr?.vpprTrend === 'sell' &&
+                   TYPE_BUY_EXIT.includes(lastTrend?.type);*/
 
-            const conditionExitSellMain =
-                // lastPrice.Fechamento >= lastTrend?.stop &&
-                flags.isOperation &&
-                flags.inputExecuted &&
-                lastVppr?.vpprTrend === 'buy' &&
-                TYPE_SELL_EXIT.includes(lastTrend?.type);
+            /* const conditionExitSellMain =
+                 // lastPrice.Fechamento >= lastTrend?.stop &&
+                 flags.isOperation &&
+                 flags.inputExecuted &&
+                 lastVppr?.vpprTrend === 'buy' &&
+                 TYPE_SELL_EXIT.includes(lastTrend?.type);*/
 
-            const btnExit = document.querySelector('.btn-exit');
-            const shouldPulseExit = conditionExitBuyMain || conditionExitSellMain;
+            // const btnExit = document.querySelector('.btn-exit');
+            // const shouldPulseExit = conditionExitBuyMain || conditionExitSellMain;
 
-            if (btnExit) {
-                shouldPulseExit ? btnExit.classList.add('btn-pulse-exit') : btnExit.classList.remove('btn-pulse-exit');
-            }
+            /* if (btnExit) {
+                 shouldPulseExit ? btnExit.classList.add('btn-pulse-exit') : btnExit.classList.remove('btn-pulse-exit');
+             }*/
 
-            if (TYPE_BUY_EXIT.includes(lastTrend?.type) && flags.inputExecuted && flags.isOperation && flags.numberEntries > 0) {
+            if (flags.inputExecuted && flags.isOperation && flags.numberEntries > 0) {
                 const conditionExitBuy =
-                    conditionExitBuyMain &&
+                    // conditionExitBuyMain &&
                     buttonOperation?.exit;
 
 
@@ -594,287 +805,298 @@ export const useOperatingInputs = () => {
                     if (!flags.confirmationPending) {
                         flags.confirmationPending = true;
 
-                        Swal.fire({
-                            title: `confirm purchase exit ${symbol}`,
-                            html: `Preço de entrada: <b>${lastPrice?.Fechamento}</b> </br> Remaining operations:<b>${flags.numberEntries}</b>`,
-                            icon: 'question',
-                            showCancelButton: true,
-                            confirmButtonText: 'Sell',
-                            cancelButtonText: 'Cancelar',
-                            allowOutsideClick: false,
-                            theme: 'dark',
-                            width: '200px',
-                            customClass: {
-                                popup: 'my-swal-popup',
-                                confirmButton: 'confirm-Button-sell'
-                            }
-                        }).then(result => {
-                            try {
-                                if (result.isConfirmed) {
-                                    const exitPrice = Number(lastPrice?.Fechamento ?? 0);
-                                    const ts = new Date().toISOString();
-                                    const execTime = lastPrice?.Tempo ?? lastPrice?.time ?? ts;
 
-                                    // Atualiza flags
-                                    flags.upwardTrendCurrent = false;
-                                    flags.exceededBand = false;
-                                    flags.blockedTrendIdentity = null;
-                                    flags.numberEntries -= 1;
+                        try {
+                            if (result.isConfirmed) {
+                                const exitPrice = Number(lastPrice?.Fechamento ?? 0);
+                                const ts = new Date().toISOString();
+                                const execTime = lastPrice?.Tempo ?? lastPrice?.time ?? ts;
 
-                                    const isLastExit = flags.numberEntries === 0;
+                                // Atualiza flags
+                                flags.upwardTrendCurrent = false;
+                                flags.exceededBand = false;
+                                flags.blockedTrendIdentity = null;
+                                flags.numberEntries -= 1;
+
+                                const isLastExit = flags.numberEntries === 0;
+                                if (isLastExit) {
+                                    flags.inputExecuted = false;
+                                    flags.isOperation = false;
+                                }
+
+                                if (!signalsHistoryRef.current[symbol]) signalsHistoryRef.current[symbol] = [];
+
+                                const history = signalsHistoryRef.current[symbol];
+
+                                // PROCURAR POR UM PARTIAL_BUY EXISTENTE
+                                let partialBuyIndex = -1;
+                                let partialBuyObj = null;
+
+                                for (let i = history.length - 1; i >= 0; i--) {
+                                    const h = history[i];
+                                    if (h && h.action === 'PARTIAL_BUY' && !h.closed) {
+                                        partialBuyIndex = i;
+                                        partialBuyObj = h;
+                                        break;
+                                    }
+                                }
+
+                                // Se existe PARTIAL_BUY, atualiza com a nova média
+                                if (partialBuyObj) {
+                                    const prevCount = partialBuyObj.count || 0;
+                                    const prevAvg = Number(partialBuyObj.avgExitPrice ?? partialBuyObj.exitPrice ?? 0);
+                                    const newCount = prevCount + 1;
+                                    const newAvg = (prevAvg * prevCount + exitPrice) / newCount;
+
+                                    // Se for a última saída, transforma em EXIT_BUY
                                     if (isLastExit) {
-                                        flags.inputExecuted = false;
-                                        flags.isOperation = false;
-                                    }
-
-                                    if (!signalsHistoryRef.current[symbol]) signalsHistoryRef.current[symbol] = [];
-
-                                    const history = signalsHistoryRef.current[symbol];
-
-                                    // PROCURAR POR UM PARTIAL_BUY EXISTENTE
-                                    let partialBuyIndex = -1;
-                                    let partialBuyObj = null;
-
-                                    for (let i = history.length - 1; i >= 0; i--) {
-                                        const h = history[i];
-                                        if (h && h.action === 'PARTIAL_BUY' && !h.closed) {
-                                            partialBuyIndex = i;
-                                            partialBuyObj = h;
-                                            break;
-                                        }
-                                    }
-
-                                    // Se existe PARTIAL_BUY, atualiza com a nova média
-                                    if (partialBuyObj) {
-                                        const prevCount = partialBuyObj.count || 0;
-                                        const prevAvg = Number(partialBuyObj.avgExitPrice ?? partialBuyObj.exitPrice ?? 0);
-                                        const newCount = prevCount + 1;
-                                        const newAvg = (prevAvg * prevCount + exitPrice) / newCount;
-
-                                        // Se for a última saída, transforma em EXIT_BUY
-                                        if (isLastExit) {
-                                            history[partialBuyIndex] = {
-                                                ...partialBuyObj,
-                                                action: 'EXIT_BUY',
-                                                count: newCount,
-                                                exitPrice: newAvg.toFixed(2),
-                                                avgExitPrice: newAvg.toFixed(2),
-                                                time: execTime,
-                                                timestamp: ts,
-                                                closed: true,
-                                                closedAt: ts
-                                            };
-                                            signalsBySymbol[symbol] = history[partialBuyIndex];
-                                            flags.lastSignal = history[partialBuyIndex];
-                                            console.log(`🚪 [${symbol}] ÚLTIMA SAÍDA DE COMPRA - EXIT_BUY criado`);
-                                        } else {
-                                            // Atualiza o PARTIAL_BUY existente com a nova média
-                                            history[partialBuyIndex] = {
-                                                ...partialBuyObj,
-                                                count: newCount,
-                                                exitPrice: newAvg.toFixed(2),
-                                                avgExitPrice: newAvg.toFixed(2),
-                                                time: execTime,
-                                                timestamp: ts
-                                            };
-                                            signalsBySymbol[symbol] = history[partialBuyIndex];
-                                            flags.lastSignal = history[partialBuyIndex];
-                                            console.log(`📊 [${symbol}] PARTIAL_BUY atualizado - Média: ${newAvg.toFixed(2)}`);
-                                        }
-                                    } else {
-                                        // Cria um novo PARTIAL_BUY (primeira saída)
-                                        const exitSignal = {
-                                            symbol,
-                                            action: isLastExit ? 'EXIT_BUY' : 'PARTIAL_BUY',
-                                            exitPrice: exitPrice.toFixed(2),
-                                            count: 1,
-                                            avgExitPrice: exitPrice.toFixed(2),
+                                        history[partialBuyIndex] = {
+                                            ...partialBuyObj,
+                                            action: 'EXIT_BUY',
+                                            count: newCount,
+                                            exitPrice: newAvg.toFixed(2),
+                                            avgExitPrice: newAvg.toFixed(2),
                                             time: execTime,
                                             timestamp: ts,
-                                            closed: isLastExit ? true : false,
-                                            closedAt: isLastExit ? ts : undefined
+                                            closed: true,
+                                            closedAt: ts
                                         };
-                                        history.push(exitSignal);
-                                        signalsBySymbol[symbol] = exitSignal;
-                                        flags.lastSignal = exitSignal;
-
-                                        if (isLastExit) {
-                                            console.log(`🚪 [${symbol}] SAÍDA ÚNICA DE COMPRA - EXIT_BUY`);
-                                        } else {
-                                            console.log(`📊 [${symbol}] PRIMEIRA SAÍDA PARCIAL DE COMPRA`);
-                                        }
+                                        signalsBySymbol[symbol] = history[partialBuyIndex];
+                                        flags.lastSignal = history[partialBuyIndex];
+                                        console.log(`🚪 [${symbol}] ÚLTIMA SAÍDA DE COMPRA - EXIT_BUY criado`);
+                                    } else {
+                                        // Atualiza o PARTIAL_BUY existente com a nova média
+                                        history[partialBuyIndex] = {
+                                            ...partialBuyObj,
+                                            count: newCount,
+                                            exitPrice: newAvg.toFixed(2),
+                                            avgExitPrice: newAvg.toFixed(2),
+                                            time: execTime,
+                                            timestamp: ts
+                                        };
+                                        signalsBySymbol[symbol] = history[partialBuyIndex];
+                                        flags.lastSignal = history[partialBuyIndex];
+                                        console.log(`📊 [${symbol}] PARTIAL_BUY atualizado - Média: ${newAvg.toFixed(2)}`);
                                     }
-
-                                    if (history.length > 100) signalsHistoryRef.current[symbol] = history.slice(-100);
-
-                                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
-
-                                    // **Chama função e passa os parametros para enviar ao beckend
-                                    sendOperationData(getSizeOperation, signalsBySymbolState);
-
-
-                                    // **Atualiza botões e estado de simbolos
-                                    setButtonOperation({ buy: false, sell: false, exit: false });
-                                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
-
-                                    console.log(`🚪 [${symbol}] SAÍDA DE COMPRA`);
                                 } else {
-                                    console.log(`❌ [${symbol}] Saída cancelada pelo usuário`);
+                                    // Cria um novo PARTIAL_BUY (primeira saída)
+                                    const exitSignal = {
+                                        symbol,
+                                        action: isLastExit ? 'EXIT_BUY' : 'PARTIAL_BUY',
+                                        exitPrice: exitPrice.toFixed(2),
+                                        count: 1,
+                                        avgExitPrice: exitPrice.toFixed(2),
+                                        time: execTime,
+                                        timestamp: ts,
+                                        closed: isLastExit ? true : false,
+                                        closedAt: isLastExit ? ts : undefined
+                                    };
+                                    history.push(exitSignal);
+                                    signalsBySymbol[symbol] = exitSignal;
+                                    flags.lastSignal = exitSignal;
+
+                                    if (isLastExit) {
+                                        console.log(`🚪 [${symbol}] SAÍDA ÚNICA DE COMPRA - EXIT_BUY`);
+                                    } else {
+                                        console.log(`📊 [${symbol}] PRIMEIRA SAÍDA PARCIAL DE COMPRA`);
+                                    }
                                 }
-                            } finally {
-                                flags.confirmationPending = false;
+
+                                if (history.length > 100) signalsHistoryRef.current[symbol] = history.slice(-100);
+
+                                // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                                const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                                // **Chama função e passa os parametros para enviar ao beckend
+                                sendOperationData(getSizeOperation, signalsBySymbolState);
+
+
+                                // **Atualiza botões e estado de simbolos
+                                setButtonOperation({ buy: false, sell: false, exit: false });
+                                setSignalsBySymbolState({ ...signalsHistoryRef.current });
+
+                                console.log(`🚪 [${symbol}] SAÍDA DE COMPRA`);
+                            } else {
+                                console.log(`❌ [${symbol}] Saída cancelada pelo usuário`);
                             }
-                        }).catch(err => {
-                            console.error('Erro na confirmação de operação de saída', err);
+                        } finally {
                             flags.confirmationPending = false;
-                        });
+                        }
+
                     }
                 }
             }
 
-            if (TYPE_SELL_EXIT.includes(lastTrend?.type) && flags.inputExecuted && flags.isOperation && flags.numberEntries > 0) {
+            if (flags.inputExecuted && flags.isOperation && flags.numberEntries > 0) {
                 const conditionExitSell =
-                    conditionExitSellMain &&
+                    // conditionExitSellMain &&
                     buttonOperation?.exit;
 
                 if (conditionExitSell) {
                     if (!flags.confirmationPending) {
                         flags.confirmationPending = true;
-                        Swal.fire({
-                            title: `confirm sale exit ${symbol}`,
-                            html: `Preço de saída: <b>${lastPrice?.Fechamento}</b> </br>Remaining operations: <b>${flags.numberEntries}</b>`,
-                            icon: 'question',
-                            showCancelButton: true,
-                            confirmButtonText: 'Buy',
-                            cancelButtonText: 'Cancel',
-                            allowOutsideClick: false,
-                            theme: 'dark',
-                            width: '200px',
-                            customClass: {
-                                popup: 'my-swal-popup',
-                                confirmButton: 'confirm-Button-buy'
-                            }
-                        }).then(result => {
-                            try {
-                                if (result.isConfirmed) {
-                                    const exitPriceS = Number(lastPrice?.Fechamento ?? 0);
-                                    const tsS = new Date().toISOString();
-                                    const execTimeS = lastPrice?.Tempo ?? lastPrice?.time ?? tsS;
 
-                                    flags.downwardTrendCurrent = false;
-                                    flags.exceededBand = false;
-                                    flags.blockedTrendIdentity = null;
-                                    flags.numberEntries -= 1;
+                        try {
+                            if (result.isConfirmed) {
+                                const exitPriceS = Number(lastPrice?.Fechamento ?? 0);
+                                const tsS = new Date().toISOString();
+                                const execTimeS = lastPrice?.Tempo ?? lastPrice?.time ?? tsS;
 
-                                    const isLastExit = flags.numberEntries === 0;
+                                flags.downwardTrendCurrent = false;
+                                flags.exceededBand = false;
+                                flags.blockedTrendIdentity = null;
+                                flags.numberEntries -= 1;
+
+                                const isLastExit = flags.numberEntries === 0;
+                                if (isLastExit) {
+                                    flags.inputExecuted = false;
+                                    flags.isOperation = false;
+                                }
+
+                                if (!signalsHistoryRef.current[symbol]) signalsHistoryRef.current[symbol] = [];
+
+                                const historyS = signalsHistoryRef.current[symbol];
+
+                                // PROCURAR POR UM PARTIAL_SELL EXISTENTE
+                                let partialSellIndex = -1;
+                                let partialSellObj = null;
+
+                                for (let i = historyS.length - 1; i >= 0; i--) {
+                                    const h = historyS[i];
+                                    if (h && h.action === 'PARTIAL_SELL' && !h.closed) {
+                                        partialSellIndex = i;
+                                        partialSellObj = h;
+                                        break;
+                                    }
+                                }
+
+                                // Se existe PARTIAL_SELL, atualiza com a nova média
+                                if (partialSellObj) {
+                                    const prevCount = partialSellObj.count || 0;
+                                    const prevAvg = Number(partialSellObj.avgExitPrice ?? partialSellObj.exitPrice ?? 0);
+                                    const newCount = prevCount + 1;
+                                    const newAvg = (prevAvg * prevCount + exitPriceS) / newCount;
+
+                                    // Se for a última saída, transforma em EXIT_SELL
                                     if (isLastExit) {
-                                        flags.inputExecuted = false;
-                                        flags.isOperation = false;
-                                    }
-
-                                    if (!signalsHistoryRef.current[symbol]) signalsHistoryRef.current[symbol] = [];
-
-                                    const historyS = signalsHistoryRef.current[symbol];
-
-                                    // PROCURAR POR UM PARTIAL_SELL EXISTENTE
-                                    let partialSellIndex = -1;
-                                    let partialSellObj = null;
-
-                                    for (let i = historyS.length - 1; i >= 0; i--) {
-                                        const h = historyS[i];
-                                        if (h && h.action === 'PARTIAL_SELL' && !h.closed) {
-                                            partialSellIndex = i;
-                                            partialSellObj = h;
-                                            break;
-                                        }
-                                    }
-
-                                    // Se existe PARTIAL_SELL, atualiza com a nova média
-                                    if (partialSellObj) {
-                                        const prevCount = partialSellObj.count || 0;
-                                        const prevAvg = Number(partialSellObj.avgExitPrice ?? partialSellObj.exitPrice ?? 0);
-                                        const newCount = prevCount + 1;
-                                        const newAvg = (prevAvg * prevCount + exitPriceS) / newCount;
-
-                                        // Se for a última saída, transforma em EXIT_SELL
-                                        if (isLastExit) {
-                                            historyS[partialSellIndex] = {
-                                                ...partialSellObj,
-                                                action: 'EXIT_SELL',
-                                                count: newCount,
-                                                exitPrice: newAvg.toFixed(2),
-                                                avgExitPrice: newAvg.toFixed(2),
-                                                time: execTimeS,
-                                                timestamp: tsS,
-                                                closed: true,
-                                                closedAt: tsS
-                                            };
-                                            signalsBySymbol[symbol] = historyS[partialSellIndex];
-                                            flags.lastSignal = historyS[partialSellIndex];
-                                            console.log(`🚪 [${symbol}] ÚLTIMA SAÍDA - EXIT_SELL criado`);
-                                        } else {
-                                            // Atualiza o PARTIAL_SELL existente com a nova média
-                                            historyS[partialSellIndex] = {
-                                                ...partialSellObj,
-                                                count: newCount,
-                                                exitPrice: newAvg.toFixed(2),
-                                                avgExitPrice: newAvg.toFixed(2),
-                                                time: execTimeS,
-                                                timestamp: tsS
-                                            };
-                                            signalsBySymbol[symbol] = historyS[partialSellIndex];
-                                            flags.lastSignal = historyS[partialSellIndex];
-                                            console.log(`📊 [${symbol}] PARTIAL_SELL atualizado - Média: ${newAvg.toFixed(2)}`);
-                                        }
-                                    } else {
-                                        // Cria um novo PARTIAL_SELL (primeira saída)
-                                        const exitSignalS = {
-                                            symbol,
-                                            action: isLastExit ? 'EXIT_SELL' : 'PARTIAL_SELL',
-                                            exitPrice: exitPriceS,
-                                            count: 1,
-                                            avgExitPrice: exitPriceS,
+                                        historyS[partialSellIndex] = {
+                                            ...partialSellObj,
+                                            action: 'EXIT_SELL',
+                                            count: newCount,
+                                            exitPrice: newAvg.toFixed(2),
+                                            avgExitPrice: newAvg.toFixed(2),
                                             time: execTimeS,
                                             timestamp: tsS,
-                                            closed: isLastExit ? true : false,
-                                            closedAt: isLastExit ? tsS : undefined
+                                            closed: true,
+                                            closedAt: tsS
                                         };
-                                        historyS.push(exitSignalS);
-                                        signalsBySymbol[symbol] = exitSignalS;
-                                        flags.lastSignal = exitSignalS;
-
-                                        if (isLastExit) {
-                                            console.log(`🚪 [${symbol}] SAÍDA ÚNICA - EXIT_SELL`);
-                                        } else {
-                                            console.log(`📊 [${symbol}] PRIMEIRA SAÍDA PARCIAL`);
-                                        }
+                                        signalsBySymbol[symbol] = historyS[partialSellIndex];
+                                        flags.lastSignal = historyS[partialSellIndex];
+                                        console.log(`🚪 [${symbol}] ÚLTIMA SAÍDA - EXIT_SELL criado`);
+                                    } else {
+                                        // Atualiza o PARTIAL_SELL existente com a nova média
+                                        historyS[partialSellIndex] = {
+                                            ...partialSellObj,
+                                            count: newCount,
+                                            exitPrice: newAvg.toFixed(2),
+                                            avgExitPrice: newAvg.toFixed(2),
+                                            time: execTimeS,
+                                            timestamp: tsS
+                                        };
+                                        signalsBySymbol[symbol] = historyS[partialSellIndex];
+                                        flags.lastSignal = historyS[partialSellIndex];
+                                        console.log(`📊 [${symbol}] PARTIAL_SELL atualizado - Média: ${newAvg.toFixed(2)}`);
                                     }
-
-                                    if (historyS.length > 100) signalsHistoryRef.current[symbol] = historyS.slice(-100);
-
-                                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
-
-                                    // **Chama função e passa os parametros para enviar ao beckend
-                                    sendOperationData(getSizeOperation, signalsBySymbolState);
-
-                                    // **Atualiza botões e estado de simbolos
-                                    setButtonOperation({ buy: false, sell: false, exit: false });
-                                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
-
                                 } else {
-                                    console.log(`❌ [${symbol}] Saída cancelada pelo usuário`);
+                                    // Cria um novo PARTIAL_SELL (primeira saída)
+                                    const exitSignalS = {
+                                        symbol,
+                                        action: isLastExit ? 'EXIT_SELL' : 'PARTIAL_SELL',
+                                        exitPrice: exitPriceS,
+                                        count: 1,
+                                        avgExitPrice: exitPriceS,
+                                        time: execTimeS,
+                                        timestamp: tsS,
+                                        closed: isLastExit ? true : false,
+                                        closedAt: isLastExit ? tsS : undefined
+                                    };
+                                    historyS.push(exitSignalS);
+                                    signalsBySymbol[symbol] = exitSignalS;
+                                    flags.lastSignal = exitSignalS;
+
+                                    if (isLastExit) {
+                                        console.log(`🚪 [${symbol}] SAÍDA ÚNICA - EXIT_SELL`);
+                                    } else {
+                                        console.log(`📊 [${symbol}] PRIMEIRA SAÍDA PARCIAL`);
+                                    }
                                 }
-                            } finally {
-                                flags.confirmationPending = false;
+
+                                if (historyS.length > 100) signalsHistoryRef.current[symbol] = historyS.slice(-100);
+
+                                // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
+                                const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
+
+                                // **Chama função e passa os parametros para enviar ao beckend
+                                sendOperationData(getSizeOperation, signalsBySymbolState);
+
+                                // **Atualiza botões e estado de simbolos
+                                setButtonOperation({ buy: false, sell: false, exit: false });
+                                setSignalsBySymbolState({ ...signalsHistoryRef.current });
+
+                            } else {
+                                console.log(`❌ [${symbol}] Saída cancelada pelo usuário`);
                             }
-                        }).catch(err => {
-                            console.error('Erro na confirmação de Saída', err);
+                        } finally {
                             flags.confirmationPending = false;
-                        });
+                        }
                     }
                 }
+            }
+
+            if (flags.isManualOperation && flags.inputExecuted && flags.isOperation && flags.numberEntries > 0) {
+                const symbolSignals = signalsHistoryRef.current[symbol] || [];
+                const lastEntryIndex = symbolSignals.reduce((latestIndex, item, index) => (
+                    ['BUY', 'SELL'].includes(String(item?.action || '').toUpperCase())
+                        ? index
+                        : latestIndex
+                ), -1);
+                const lastExitIndex = symbolSignals.reduce((latestIndex, item, index) => (
+                    ['EXIT_BUY', 'EXIT_SELL', 'STOP_BUY', 'STOP_SELL'].includes(String(item?.action || '').toUpperCase())
+                        ? index
+                        : latestIndex
+                ), -1);
+                const activeEntry = lastEntryIndex > lastExitIndex
+                    ? symbolSignals[lastEntryIndex]
+                    : null;
+                const entryAction = String(activeEntry?.action || '').toUpperCase();
+                const stopPrice = Number(activeEntry?.stop);
+                const currentPrice = Number(lastPrice?.Fechamento);
+                const stopTriggered = Number.isFinite(stopPrice) &&
+                    Number.isFinite(currentPrice) &&
+                    ((entryAction === 'BUY' && currentPrice <= stopPrice) ||
+                        (entryAction === 'SELL' && currentPrice >= stopPrice));
+
+                if (!stopTriggered) {
+                    return;
+                }
+
+                signal = {
+                    symbol,
+                    action: entryAction === 'BUY' ? 'STOP_BUY' : 'STOP_SELL',
+                    count: flags.numberEntries,
+                    expectedPriceExitBuy: entryAction === 'BUY' ? stopPrice.toFixed(2) : undefined,
+                    expectedPriceExitSell: entryAction === 'SELL' ? stopPrice.toFixed(2) : undefined,
+                    exitPrice: currentPrice.toFixed(2),
+                    time: lastPrice?.Tempo || lastPrice?.time,
+                };
+                flags.upwardTrendCurrent = false;
+                flags.downwardTrendCurrent = false;
+                flags.inputExecuted = false;
+                flags.isOperation = false;
+                flags.isManualOperation = false;
+                flags.exceededBand = false;
+                flags.blockedTrendIdentity = null;
+                flags.numberEntries = 0;
             }
 
             //==============================|❌STOPS|==============================//
@@ -952,336 +1174,6 @@ export const useOperatingInputs = () => {
                 }
             }
 
-            //==============================|🚫PONTOS DE SAÍDA EM ROMPIMENTO DE COM INVERSÃO DE TENDÊNCIA (SÓ POR SEGURANÇA)|==============================//
-            //🔺 Saída de operações de compra
-            if (TYPE_BUY_EXIT_REVERSE.includes(lastTrend?.type) && flags.upwardTrendCurrent && flags.inputExecuted && flags.isOperation && flags.numberEntries > 0) {
-                if (lastPrice.Fechamento <= lastTrend.sell) {
-
-                    console.log(`📉 [${symbol}] Condição EXIT BUY REVERSE:`, {
-                        upwardTrendCurrentOk: flags.upwardTrendCurrent,
-                        secondaryOk: TYPE_BUY_EXIT_REVERSE.includes(lastTrend?.type),
-                        priceOk: lastPrice.Fechamento <= lastTrend?.sell,
-                        result: TYPE_BUY_EXIT_REVERSE.includes(lastTrend?.type) && flags.upwardTrendCurrent
-                    });
-                    signal = {
-                        symbol,
-                        action: "EXIT_BUY",
-                        count: flags.numberEntries,
-                        expectedPriceExitBuy: lastTrend.sell,
-                        exitPrice: lastPrice?.Fechamento,
-                        time: lastPrice?.Tempo || lastPrice?.time
-                    };
-                    flags.upwardTrendCurrent = false;
-                    flags.downwardTrendCurrent = false;
-                    flags.inputExecuted = false;
-                    flags.isOperation = false;
-                    flags.exceededBand = false;
-                    flags.blockedTrendIdentity = null;
-                    flags.numberEntries = 0;
-
-                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
-
-                    // **Chama função e passa os parametros para enviar ao beckend
-                    sendOperationData(getSizeOperation, signalsBySymbolState);
-
-                    // **Atualiza botões e estado de simbolos
-                    setButtonOperation({ buy: false, sell: false, exit: false });
-                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
-
-                    console.log(`🚪 [${symbol}] SAÍDA DE COMPRA`);
-                }
-            }
-            //🔺 Saída de operações de venda
-            if (TYPE_SELL_EXIT_REVERSE.includes(lastTrend?.type) && flags.downwardTrendCurrent && flags.inputExecuted && flags.isOperation && flags.numberEntries > 0) {
-                if (lastPrice?.Fechamento >= lastTrend?.buy) {
-
-                    console.log(`📉 [${symbol}] Condição EXIT SELL REVERSE:`, {
-                        downwardTrendCurrentOk: flags.downwardTrendCurrent,
-                        secondaryOk: TYPE_SELL_EXIT_REVERSE.includes(lastTrend?.type),
-                        priceOk: lastPrice?.Fechamento >= lastTrend?.buy,
-                        result: TYPE_SELL_EXIT_REVERSE.includes(lastTrend?.type) && flags.downwardTrendCurrent
-                    });
-                    signal = {
-                        symbol,
-                        action: "EXIT_SELL",
-                        count: flags.numberEntries,
-                        expectedPriceExitSell: lastTrend?.buy,
-                        exitPrice: lastPrice?.Fechamento,
-                        time: lastPrice?.Tempo || lastPrice?.time
-                    };
-                    flags.downwardTrendCurrent = false;
-                    flags.upwardTrendCurrent = false;
-                    flags.inputExecuted = false;
-                    flags.isOperation = false;
-                    flags.exceededBand = false;
-                    flags.blockedTrendIdentity = null;
-                    flags.numberEntries = 0;
-
-                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
-
-                    // **Chama função e passa os parametros para enviar ao beckend
-                    sendOperationData(getSizeOperation, signalsBySymbolState);
-
-                    // **Atualiza botões e estado de simbolos
-                    setButtonOperation({ buy: false, sell: false, exit: false });
-                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
-
-                    console.log(`🚪 [${symbol}] SAÍDA DE VENDA`);
-                }
-            }
-            //=============================//PARCIAIS OU SAÍDAS rsi//=============================//
-            let trendUpPivotPlusLimit = lastTrend?.buy + (lastTrend?.limite * 4);
-            let trendDownPivotPlusLimit = lastTrend?.sell - (lastTrend?.limite * 4);
-            //🍰🟢 Parcial compra 
-            if (
-                TYPE_BUY_BREAK_UP.includes(lastTrend?.type) &&
-                lastPrice?.Fechamento >= trendUpPivotPlusLimit &&
-                flags.upwardTrendCurrent &&
-                !flags.upwardAmrsiCurrent &&
-                flags.numberEntries > 0 &&
-                String(lastAmrsi?.type).toUpperCase() === 'PARTIAL_BUY'
-            ) {
-
-                console.log(`📉 [${symbol}] Condição PARTIAL BUY:`, {
-                    upwardTrendCurrentOk: flags.upwardTrendCurrent,
-                    amrsiType: lastAmrsi?.type,
-                    amrsiOk: String(lastAmrsi?.type).toUpperCase() === 'PARTIAL_BUY',
-                    result: flags.upwardTrendCurrent && String(lastAmrsi?.type).toUpperCase() === 'PARTIAL_BUY',
-                });
-
-                signal = {
-                    symbol,
-                    action: "EXIT_BUY",
-                    partialPrice: lastPrice?.Fechamento,
-                    time: lastPrice?.Tempo || lastPrice?.time
-                };
-                flags.upwardAmrsiCurrent = true;
-                flags.upwardTrendCurrent = false;
-                flags.inputExecuted = false;
-                flags.isOperation = false;
-                flags.exceededBand = false;
-                flags.blockedTrendIdentity = null;
-                flags.numberEntries = 0;
-
-                // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
-
-                // **Chama função e passa os parametros para enviar ao beckend
-                sendOperationData(getSizeOperation, signalsBySymbolState);
-
-                // **Atualiza botões e estado de simbolos
-                setButtonOperation({ buy: false, sell: false, exit: false });
-                setSignalsBySymbolState({ ...signalsHistoryRef.current });
-
-                console.log(`🚪💲 [${symbol}] PARTIAL BUY`);
-            }
-            //🍰🔴 Parcial de venda
-            else if (
-                TYPE_SELL_BREAK_UP.includes(lastTrend?.type) &&
-                flags.downwardTrendCurrent &&
-                lastPrice?.Fechamento <= trendDownPivotPlusLimit &&
-                !flags.downwardAmrsiCurrent &&
-                flags.numberEntries > 0 &&
-                String(lastAmrsi?.type).toUpperCase() === 'PARTIAL_SELL'
-            ) {
-
-                console.log(`📉 [${symbol}] Condição PARTIAL SELL:`, {
-                    downwardTrendCurrentOk: flags.downwardTrendCurrent,
-                    amrsiType: lastAmrsi?.type,
-                    amrsiOk: String(lastAmrsi?.type).toUpperCase() === 'PARTIAL_SELL',
-                    result: flags.downwardTrendCurrent && String(lastAmrsi?.type).toUpperCase() === 'PARTIAL_SELL',
-                });
-
-                signal = {
-                    symbol,
-                    action: "EXIT_SELL",
-                    partialPrice: lastPrice?.Fechamento,
-                    time: lastPrice?.Tempo || lastPrice?.time
-                };
-                flags.downwardAmrsiCurrent = true;
-                flags.downwardTrendCurrent = false;
-                flags.inputExecuted = false;
-                flags.isOperation = false;
-                flags.exceededBand = false;
-                flags.blockedTrendIdentity = null;
-                flags.numberEntries = 0;
-
-                // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
-
-                // **Chama função e passa os parametros para enviar ao beckend
-                sendOperationData(getSizeOperation, signalsBySymbolState);
-
-                // **Atualiza botões e estado de simbolos
-                setButtonOperation({ buy: false, sell: false, exit: false });
-                setSignalsBySymbolState({ ...signalsHistoryRef.current });
-
-                console.log(`🚪💲 [${symbol}] PARTIAL SELL`);
-            };
-
-
-
-            //==============================|🚫SAÍDA EM UM ROMPIMENTO (BREAK)|==============================//
-            if (TYPE_BREAK.includes(lastTrend?.type) && flags.inputExecuted && flags.isOperation && flags.upwardTrendCurrent && flags.numberEntries > 0) {
-                const conditionExitBuy = lastPrice?.Fechamento <= lastTrend?.stop;
-
-                console.log(`📉 [${symbol}] Condição BREAK EXIT BUY:`, {
-                    upwardTrendCurrentOk: flags.upwardTrendCurrent,
-                    secondaryOk: TYPE_BREAK.includes(lastTrend?.type),
-                    priceOk: lastPrice.Fechamento <= lastTrend?.stop,
-                    result: TYPE_BREAK.includes(lastTrend?.type) && flags.upwardTrendCurrent
-                });
-                if (conditionExitBuy) {
-                    signal = {
-                        symbol,
-                        action: "EXIT_BUY",
-                        count: flags.numberEntries,
-                        expectedPriceExitBuy: lastTrend?.stop?.toFixed(2),
-                        exitPrice: lastPrice?.Fechamento?.toFixed(2),
-                        time: lastPrice?.Tempo || lastPrice?.time
-                    };
-                    flags.upwardTrendCurrent = false;
-                    flags.downwardTrendCurrent = false;
-                    flags.inputExecuted = false;
-                    flags.isOperation = false;
-                    flags.exceededBand = false;
-                    flags.blockedTrendIdentity = null;
-                    flags.numberEntries = 0;
-
-                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
-
-                    // **Chama função e passa os parametros para enviar ao beckend
-                    sendOperationData(getSizeOperation, signalsBySymbolState);
-
-                    // **Atualiza botões e estado de simbolos
-                    setButtonOperation({ buy: false, sell: false, exit: false });
-                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
-
-                    console.log(`🚪 [${symbol}] SAÍDA DE COMPRA EM BREAK`);
-                }
-            }
-            if (TYPE_BREAK.includes(lastTrend?.type) && flags.inputExecuted && flags.isOperation && flags.downwardTrendCurrent && flags.numberEntries > 0) {
-                const conditionExitSell = lastPrice?.Fechamento >= lastTrend?.stop;
-                console.log(`📉 [${symbol}] Condição BREAK EXIT SELL:`, {
-                    downwardTrendCurrentOk: flags.downwardTrendCurrent,
-                    secondaryOk: TYPE_BREAK.includes(lastTrend?.type),
-                    priceOk: lastPrice.Fechamento >= lastTrend?.stop,
-                    result: TYPE_BREAK.includes(lastTrend?.type) && flags.downwardTrendCurrent
-                });
-                if (conditionExitSell) {
-                    signal = {
-                        symbol,
-                        action: "EXIT_SELL",
-                        count: flags.numberEntries,
-                        expectedPriceExitSell: lastTrend?.stop?.toFixed(2),
-                        exitPrice: lastPrice?.Fechamento?.toFixed(2),
-                        time: lastPrice?.Tempo || lastPrice?.time
-                    };
-                    flags.downwardTrendCurrent = false;
-                    flags.upwardTrendCurrent = false;
-                    flags.inputExecuted = false;
-                    flags.isOperation = false;
-                    flags.exceededBand = false;
-                    flags.blockedTrendIdentity = null;
-                    flags.numberEntries = 0;
-
-                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
-
-                    // **Chama função e passa os parametros para enviar ao beckend
-                    sendOperationData(getSizeOperation, signalsBySymbolState);
-
-                    // **Atualiza botões e estado de simbolos
-                    setButtonOperation({ buy: false, sell: false, exit: false });
-                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
-
-                    console.log(`🚪 [${symbol}] SAÍDA DE VENDA EM BREAK`);
-                }
-            }
-
-            //==============================|🚫SAÍDA PELO VOLUME|==============================//
-            if (flags.inputExecuted && flags.isOperation && flags.upwardTrendCurrent && flags.numberEntries > 0) {
-                // SAÍDA PARA COMPRA PELO VOLUME
-                const conditionExitBuy =
-                    (
-                        lastVppr?.volumeEmaSignal === 'Volume SELL Weakly Increasing' ||
-                        lastVppr?.volumeEmaSignal === 'Volume SELL Increasing') &&
-                    lastVppr?.vpprTrend === 'sell' &&
-                    lastAmrsi?.type === 'OVERBOUGHT' || lastAmrsi?.type === 'POTENTIAL_SELL' &&
-                    lastPrice?.Fechamento >= lastTrend?.buy + lastTrend?.limite
-
-                if (conditionExitBuy) {
-                    signal = {
-                        symbol,
-                        action: "EXIT_BUY",
-                        count: flags.numberEntries,
-                        exitPrice: lastPrice?.Fechamento?.toFixed(2),
-                        time: lastPrice?.Tempo || lastPrice?.time
-                    };
-                    flags.upwardTrendCurrent = false;
-                    flags.downwardTrendCurrent = false;
-                    flags.inputExecuted = false;
-                    flags.isOperation = false;
-                    flags.exceededBand = false;
-                    flags.blockedTrendIdentity = null;
-                    flags.numberEntries = 0;
-
-                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
-
-                    // **Chama função e passa os parametros para enviar ao beckend
-                    sendOperationData(getSizeOperation, signalsBySymbolState);
-
-                    // **Atualiza botões e estado de simbolos
-                    setButtonOperation({ buy: false, sell: false, exit: false });
-                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
-
-                    console.log(`🚪 [${symbol}] SAÍDA DE COMPRA COM INVERSÃO DE VOLUME`);
-                }
-            }
-            //SAÍDA PARA VENDA PELO VOLUME
-            if (flags.inputExecuted && flags.isOperation && flags.downwardTrendCurrent && flags.numberEntries > 0) {
-                const conditionExitSell =
-                    (
-                        lastVppr?.volumeEmaSignal === 'Volume BUY Increasing' ||
-                        lastVppr?.volumeEmaSignal === 'Volume BUY Weakly Increasing') &&
-                    lastVppr?.volumeEmaSignal === 'Volume BUY Increasing' &&
-                    lastVppr?.vpprTrend === 'buy' &&
-                    lastAmrsi?.type === 'OVERSOLD' || lastAmrsi?.type === 'POTENTIAL_BUY' &&
-                    lastPrice?.Fechamento <= lastTrend?.sell - lastTrend?.limite
-                if (conditionExitSell) {
-                    signal = {
-                        symbol,
-                        action: "EXIT_SELL",
-                        count: flags.numberEntries,
-                        exitPrice: lastPrice?.Fechamento?.toFixed(2),
-                        time: lastPrice?.Tempo || lastPrice?.time
-                    };
-                    flags.downwardTrendCurrent = false;
-                    flags.upwardTrendCurrent = false;
-                    flags.inputExecuted = false;
-                    flags.isOperation = false;
-                    flags.exceededBand = false;
-                    flags.blockedTrendIdentity = null;
-                    flags.numberEntries = 0;
-
-                    // **Chama a Função para calcular o tamanho do lote e calcular ganhos e perdas
-                    const getSizeOperation = calculatePositionSize(flags.lastSignal, signalsHistoryRef.current);
-
-                    // **Chama função e passa os parametros para enviar ao beckend
-                    sendOperationData(getSizeOperation, signalsBySymbolState);
-
-                    // **Atualiza botões e estado de simbolos
-                    setButtonOperation({ buy: false, sell: false, exit: false });
-                    setSignalsBySymbolState({ ...signalsHistoryRef.current });
-
-                    console.log(`🚪 [${symbol}] SAÍDA DE VENDA COM INVERSÃO DE VOLUME`);
-                }
-            };
-
 
             //==============================|📗Armazena o sinal se existir|==============================//
             if (signal) {
@@ -1301,6 +1193,13 @@ export const useOperatingInputs = () => {
 
                 signalsBySymbol[symbol] = signal;
                 flags.lastSignal = signal;
+                if (signal.action === 'STOP_BUY' || signal.action === 'STOP_SELL') {
+                    sendOperationData(
+                        calculatePositionSize(signal, signalsHistoryRef.current),
+                        signalsHistoryRef.current,
+                        signal
+                    );
+                }
             }
         });
         console.log('📊 Histórico de sinais por símbolo:', signalsHistoryRef.current);
@@ -1329,7 +1228,18 @@ export const useOperatingInputs = () => {
         }
 
 
-    }, [trend, trendPrimary, amrsi, vppr, price, buttonOperation]);
+    }, [
+        trend,
+        trendPrimary,
+        amrsi,
+        vppr,
+        price,
+        buttonOperation,
+        calculatePositionSize,
+        setButtonOperation,
+        setSignalsBySymbolState,
+        sendOperationData,
+    ]);
 
     // Criar uma função para pegar o lastTrend de um símbolo específico
 
@@ -1365,11 +1275,10 @@ export const useOperatingInputs = () => {
         getLastVpprBySymbol,
         getLastTrendBySymbol,
         getLastTrendPrimaryBySymbol,
+        calculateOrder,
+        executeOrder,
         getSignalsBySymbol: (symbol) => signalsBySymbolState[symbol] || [],
         getAllSignals: () => signalsBySymbolState,
         getFlagsBySymbol: (symbol) => flagsBySymbolRef.current[symbol] || null
     };
 };
-
-
-

@@ -18,6 +18,10 @@ import { useAmrsiData } from '../../hooks/OperationDataAmrsi/OperationDataAmrsi.
 import { useOperatingInputs } from '../../hooks/OperatingInputs/OperatingInputs.js';
 import { useSchrodingerData } from '../../hooks/OperationDataSchrodinger/OperationDataSchrodinger.js';
 import IndicatorPanel from '../IndicatorPanel/IndicatorPanel.jsx'
+import OrderTicket from '../../Components/OrderTicket/OrderTicket.jsx'
+import TradingOverlayPanel from '../../Components/TradingOverlayPanel/TradingOverlayPanel.jsx'
+import ActiveOperationOverlay from './ActiveOperationOverlay.jsx'
+import { buildCompletedTradeMarkers } from './tradeMarkers.js'
 
 
 
@@ -520,90 +524,6 @@ const buildRetestLevelSegments = (movements, chartEndTime) => {
     }))
 }
 
-// ==================|Constrói marcadores de sinal para o gráfico|================== //
-const normalizeSignalTime = (value, fallbackIndex) => {
-  if (value == null) return fallbackIndex + 1
-  if (typeof value === 'number') {
-    return value > 9999999999 ? Math.floor(value / 1000) : value
-  }
-  if (typeof value !== 'string') return fallbackIndex + 1
-  const timestamp = Number(value)
-  if (!Number.isNaN(timestamp) && value.trim() !== '') {
-    return timestamp > 9999999999 ? Math.floor(timestamp / 1000) : timestamp
-  }
-  return parseChartTime(value, fallbackIndex)
-}
-
-const buildSignalMarkers = (signals = []) => {
-  return signals
-    .filter(signal => signal && (signal.time != null || signal.Time != null || signal.Tempo != null))
-    .map((signal) => ({
-      ...signal,
-      action: String(signal.action || signal.type || '').trim().toUpperCase(),
-      time: signal.time ?? signal.Time ?? signal.Tempo,
-    }))
-    .filter(signal => ['BUY', 'SELL', 'EXIT_BUY', 'EXIT_SELL', 'PARTIAL_BUY', 'PARTIAL_SELL', 'STOP_BUY', 'STOP_SELL'].includes(signal.action))
-    .map((signal, index) => {
-      const markerPrice = signal.entryPrice || signal.partialPrice || signal.exitPrice || signal.avgExitPrice || signal.price || signal.expectedPriceBuy || signal.expectedPriceSell || signal.expectedPriceExitBuy || signal.expectedPriceExitSell || '';
-      let position, color, shape, text;
-
-      if (signal.action === 'BUY') {
-        position = 'belowBar';
-        color = '#00ff40e0';
-        shape = 'arrowUp';
-        text = `Buy ${markerPrice}`.trim();
-      } else if (signal.action === 'SELL') {
-        position = 'aboveBar';
-        color = '#ff0000';
-        shape = 'arrowDown';
-        text = `Sell ${markerPrice}`.trim();
-      } else if (signal.action === 'EXIT_BUY') {
-        position = 'aboveBar';
-        color = '#ff4f4f';
-        shape = 'arrowDown';
-        text = `Exit buy ${markerPrice}`.trim();
-      } else if (signal.action === 'EXIT_SELL') {
-        position = 'belowBar';
-        color = '#00fcd2';
-        shape = 'arrowUp';
-        text = `Exit sell ${markerPrice}`.trim();
-      } else if (signal.action === 'PARTIAL_BUY') {
-        position = 'aboveBar';
-        color = '#68a59b';
-        shape = 'arrowDown';
-        text = `Partial buy ${markerPrice}`.trim();
-      } else if (signal.action === 'PARTIAL_SELL') {
-        position = 'belowBar';
-        color = '#d6bcbc';
-        shape = 'arrowUp';
-        text = `Partial sell ${markerPrice}`.trim();
-      } else if (signal.action === 'STOP_BUY') {
-        position = 'aboveBar';
-        color = '#ff0000';
-        shape = 'arrowDown';
-        text = `Stop buy ${markerPrice}`.trim();
-      } else if (signal.action === 'STOP_SELL') {
-        position = 'belowBar';
-        color = '#00ff0d';
-        shape = 'arrowUp';
-        text = `Stop sell ${markerPrice}`.trim();
-      }
-
-      const numericPrice = Number(markerPrice);
-
-      return {
-        time: normalizeSignalTime(signal.time, index),
-        position,
-        color,
-        shape,
-        text,
-        price: Number.isFinite(numericPrice) ? numericPrice : undefined,
-      }
-    })
-    .filter(marker => marker.position && marker.color && marker.shape && typeof marker.time === 'number');
-};
-
-
 const getChartTimeKey = (time) => {
   if (time == null) return null
 
@@ -966,7 +886,8 @@ const GraphicsRenko = () => {
     movementTables,
     setMovementTables,
     incrementalEngine,
-    setButtonOperation,
+    orderStop,
+    setOrderStop,
     isTrend,
     setIsTrend,
     resultOperations,
@@ -974,11 +895,13 @@ const GraphicsRenko = () => {
   } = React.useContext(ContextGraphics)
   const chartContainerRef = React.useRef(null);
   const chartRef = React.useRef(null);
+  const analysisChartLifecycleRef = React.useRef(null);
   const candlestickSeriesRef = React.useRef(null);
   const futureProjectionSeriesRef = React.useRef(null);
   const retestLevelSeriesRef = React.useRef(new Map());
   const retestLevelMarkersRef = React.useRef(new Map());
   const candlestickSeriesMetaRef = React.useRef(null);
+  const signalChartTimeCacheRef = React.useRef(new WeakMap());
   const hadRenkoCandlesRef = React.useRef(false);
   const lastChartSymbolRef = React.useRef(activeSymbol);
   const [activeAnalysisTool, setActiveAnalysisTool] = React.useState('cursor');
@@ -994,8 +917,9 @@ const GraphicsRenko = () => {
   const analysisDraftRef = React.useRef(null);
   const analysisDragRef = React.useRef(null);
   const [dateErro, setDateErro] = React.useState(null);
-  const [disabledButton, setDisabledButton] = React.useState(false);
   const [isIndicatorPanelVisible, setIsIndicatorPanelVisible] = React.useState(true);
+  const [isOrderTicketOpen, setIsOrderTicketOpen] = React.useState(false);
+  const [orderTicketSide, setOrderTicketSide] = React.useState('buy');
 
   let footer = `Please pick the first day.`;
 
@@ -1129,7 +1053,44 @@ const GraphicsRenko = () => {
   const { vpprDataRef } = useVpprData(vppr);
   const { amrsiDataRef } = useAmrsiData(rsi);
   const { schrodingerDataRef, indicatorsBySymbol: schrodingerIndicatorsBySymbol } = useSchrodingerData(schrodinger);
-  const { signalsBySymbol, getLastTrendBySymbol, getLastTrendPrimaryBySymbol, getLastVpprBySymbol, getLastAmrsiBySymbol } = useOperatingInputs();
+  const {
+    signalsBySymbol,
+    price: operatingPrices,
+    calculateOrder,
+    executeOrder,
+    getLastTrendBySymbol,
+    getLastTrendPrimaryBySymbol,
+    getLastVpprBySymbol,
+    getLastAmrsiBySymbol
+  } = useOperatingInputs();
+
+  const handleOpenOrderTicket = React.useCallback((side) => {
+    setOrderTicketSide(side);
+    setOrderStop('');
+    setIsOrderTicketOpen(true);
+  }, [setOrderStop]);
+
+  const handleCalculateOrder = React.useCallback(async (side, stop, settings) => {
+    const result = await calculateOrder(side, stop, settings);
+    if (result && (stop == null || stop === '')) {
+      setOrderStop(String(result.config.stop));
+    }
+    return result;
+  }, [calculateOrder, setOrderStop]);
+
+  const closeOrderTicket = React.useCallback(() => {
+    setIsOrderTicketOpen(false);
+  }, []);
+
+  const handleConfirmOrder = React.useCallback(async (order) => {
+    await executeOrder(order);
+  }, [executeOrder]);
+
+  const currentOrderPrice = Number(
+    operatingPrices.find(item => item.symbol === activeSymbol)?.result?.at(-1)?.Fechamento ??
+    operatingPrices[0]?.result?.at(-1)?.Fechamento ??
+    0
+  );
   //===================//===================//
 
 
@@ -1304,8 +1265,9 @@ const GraphicsRenko = () => {
       localization: {
         priceFormatter: (price) => Number(price).toFixed(2),
       },
-
     })
+    const chartLifecycle = { chart: chartRef.current, disposed: false }
+    analysisChartLifecycleRef.current = chartLifecycle
 
     candlestickSeriesRef.current = chartRef.current.addSeries(CandlestickSeries, {
       upColor: UP_COLOR,
@@ -1444,6 +1406,9 @@ const GraphicsRenko = () => {
     return () => {
       const chart = chartRef.current
       if (chart) {
+        if (analysisChartLifecycleRef.current?.chart === chart) {
+          analysisChartLifecycleRef.current.disposed = true
+        }
         chart.unsubscribeClick(handleChartClick)
         chart.unsubscribeCrosshairMove(handleCrosshairMove)
         chart.timeScale().unsubscribeVisibleLogicalRangeChange(refreshDrawings)
@@ -1483,6 +1448,7 @@ const GraphicsRenko = () => {
       candlestickSeriesMetaRef.current = null
       hadRenkoCandlesRef.current = false
       lastChartSymbolRef.current = activeSymbol
+      signalChartTimeCacheRef.current = new WeakMap()
       analysisDraftRef.current = null
       analysisDragRef.current = null
       setAnalysisDraft(null)
@@ -1553,7 +1519,7 @@ const GraphicsRenko = () => {
     })
 
     const activeSignals = signalsBySymbol?.[activeSymbol] || []
-    const markers = buildSignalMarkers(activeSignals)
+    const markers = buildCompletedTradeMarkers(activeSignals, renkoCandles, signalChartTimeCacheRef.current)
     candlestickSeriesRef.current.chartMarkers?.setMarkers(markers)
 
     if (renkoCandles.length > 0 && !hadRenkoCandlesRef.current) {
@@ -1651,31 +1617,20 @@ const GraphicsRenko = () => {
 
 
 
-  // ====================|Função para compra e venda de operação|==================== //
-  const handleClick = (operation) => {
-    setDisabledButton(true);
-    // Define o botão clicado como true
-    setButtonOperation({
-      buy: operation === "buy",
-      sell: operation === "sell",
-      exit: operation === "exit",
-    });
-
-    // Reseta automaticamente após 1 segundo
-    setTimeout(() => {
-      setButtonOperation({
-        buy: false,
-        sell: false,
-        exit: false,
-      });
-      setDisabledButton(false);
-    }, 200);
-  };
-
   //=======================|Retorna resultaddo da operação|==========================//
   return (
     <section className="graphics-renko">
-
+            {isOrderTicketOpen && <OrderTicket
+              symbol={activeSymbol}
+              price={currentOrderPrice}
+              isOpen
+              initialSide={orderTicketSide}
+              orderStop={orderStop}
+              setOrderStop={setOrderStop}
+              onCalculateOrder={handleCalculateOrder}
+              onConfirm={handleConfirmOrder}
+              onClose={closeOrderTicket}
+            />}
       <div style={{ display: "flex", justifyContent: "center" }}>
         {movementTables &&
           <MovementTables />
@@ -1730,6 +1685,13 @@ const GraphicsRenko = () => {
             }}
           />
           <div className="graphics-renko__chart" ref={chartContainerRef}>
+            <ActiveOperationOverlay
+              chart={analysisChart}
+              chartLifecycleRef={analysisChartLifecycleRef}
+              candles={renkoCandles}
+              signals={signalsBySymbol?.[activeSymbol] || []}
+              timeCacheRef={signalChartTimeCacheRef}
+            />
             <AnalysisDrawingOverlay
               chart={analysisChart}
               series={analysisSeries}
@@ -1930,50 +1892,13 @@ const GraphicsRenko = () => {
             )}
 
             {/**==========================|Botão para compra e venda|============================ */}
-            <div className='button-buy-sell'>
-              <button
-                className="btn btn-buy"
-                onClick={() => handleClick("buy")}
-                disabled={disabledButton}
-              >Buy</button>
-              <button
-                className="btn btn-sell"
-                onClick={() => handleClick("sell")}
-                disabled={disabledButton}
-              >Sell</button>
-              <button
-                className="btn btn-exit"
-                onClick={() => handleClick("exit")}
-                disabled={disabledButton}
-              >Exit
-              </button>
-
-              <div className="result">
-                <div className="result-panel">
-                  <span>Result:</span>
-                  <span className="result-value">{Number(resultOperations?.results?.netPnl ?? 0).toFixed(2)} </span>
-                </div>
-                <div className="result-panel">
-                  <span>Balance:</span>
-                  <span className="result-value">{Number(resultOperations?.capital?.balance ?? 0).toFixed(2)}</span>
-                </div>
-                <div className="result-panel">
-                  <span>Risk:</span>
-                  <span className="result-value">{Number(resultOperations?.capital?.risk?.percentage ?? 0)}</span>
-                </div>
-                <div className="result-panel">
-                  <span>Size:</span>
-                  <span className="result-value">{Number(resultOperations?.capital?.positionSize ?? 0)}</span>
-                </div>
-              </div>
-            </div>
-
+            <TradingOverlayPanel onOpenTicket={handleOpenOrderTicket} />
           </div>
           <aside
             className={`graphics-renko__indicator-sidebar${isIndicatorPanelVisible ? '' : ' graphics-renko__indicator-sidebar--collapsed'}`}
             aria-label={`Indicadores de ${activeSymbol}`}
           >
-           { /*<button
+            { /*<button
               className="graphics-renko__indicator-toggle"
               type="button"
               aria-expanded={isIndicatorPanelVisible}

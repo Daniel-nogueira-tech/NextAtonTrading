@@ -1,0 +1,474 @@
+/* OrderTicket.css */
+:root {
+  --ot-buy: #22c55e;
+  --ot-buy-soft: rgba(34, 197, 94, 0.15);
+  --ot-buy-glow: rgba(34, 197, 94, 0.35);
+
+  --ot-sell: #ef4444;
+  --ot-sell-soft: rgba(239, 68, 68, 0.15);
+  --ot-sell-glow: rgba(239, 68, 68, 0.35);
+
+  --ot-purple: #7c3aed;
+  --ot-purple-light: #8b5cf6;
+
+  --ot-bg-1: rgba(26, 26, 30, 0.95);
+  --ot-bg-2: rgba(15, 15, 18, 0.98);
+  --ot-border: rgba(124, 58, 237, 0.15);
+  --ot-gray-700: #2a2a30;
+  --ot-gray-600: #3a3a45;
+  --ot-gray-500: #52525b;
+  --ot-gray-400: #71717a;
+  --ot-gray-300: #a1a1aa;
+  --ot-gray-200: #d4d4d8;
+  --ot-gray-100: #f4f4f5;
+}
+
+/* Container com cor dinâmica */
+.order-ticket__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(4px);
+}
+
+.order-ticket {
+  position: absolute;
+  top: 2%;
+  width: 100%;
+  max-width: 580px;
+  max-height: calc(100vh - 2rem);
+  padding: 1.25rem;
+  background: linear-gradient(135deg, var(--ot-bg-1), var(--ot-bg-2));
+  border: 1px solid var(--ot-border);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
+  backdrop-filter: blur(12px);
+  z-index: 1;
+}
+
+.order-ticket__close {
+  margin-left: auto;
+  align-self: flex-start;
+  padding: 0 0.35rem;
+  color: var(--ot-gray-300);
+  background: transparent;
+  border: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.order-ticket__close:hover {
+  color: var(--ot-gray-100);
+}
+
+.order-ticket__error {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 0.8rem;
+}
+
+/* Acentos de cor por lado (detalhes) */
+.order-ticket--buy {
+  border-color: rgba(34, 197, 94, 0.25);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(34, 197, 94, 0.06);
+}
+
+.order-ticket--sell {
+  border-color: rgba(239, 68, 68, 0.25);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(239, 68, 68, 0.06);
+}
+
+/* Glow decorativo no canto */
+.order-ticket__glow {
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  top: -110px;
+  right: -110px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.5;
+  transition: background 0.35s ease;
+}
+
+.order-ticket--buy .order-ticket__glow {
+  background: radial-gradient(circle, rgba(34, 197, 94, 0.25), transparent 70%);
+}
+
+.order-ticket--sell .order-ticket__glow {
+  background: radial-gradient(circle, rgba(239, 68, 68, 0.25), transparent 70%);
+}
+
+/* ============ Header ============ */
+.order-ticket__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  position: relative;
+  z-index: 1;
+}
+
+.order-ticket__asset {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.order-ticket__asset-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+  border-radius: 10px;
+  background: rgba(124, 58, 237, 0.15);
+  color: var(--ot-purple-light);
+  border: 1px solid rgba(124, 58, 237, 0.25);
+  transition: all 0.3s ease;
+}
+
+.order-ticket--buy .order-ticket__asset-icon {
+  background: var(--ot-buy-soft);
+  color: var(--ot-buy);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.order-ticket--sell .order-ticket__asset-icon {
+  background: var(--ot-sell-soft);
+  color: var(--ot-sell);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.order-ticket__symbol {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--ot-gray-100);
+  letter-spacing: 0.3px;
+}
+
+.order-ticket__price {
+  font-size: 0.75rem;
+  color: var(--ot-gray-400);
+}
+
+.order-ticket__price strong {
+  color: var(--ot-gray-200);
+  font-weight: 600;
+}
+
+/* ============ Toggle ============ */
+.order-ticket__toggle {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.375rem;
+  padding: 0.3rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  border: 1px solid rgba(124, 58, 237, 0.1);
+}
+
+.order-ticket__toggle-btn {
+  padding: 0.25rem;
+  background: transparent;
+  border: none;
+  border-radius: 9px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ot-gray-400);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.order-ticket__toggle-btn:hover {
+  color: var(--ot-gray-200);
+}
+
+.order-ticket__toggle-btn--buy.is-active {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.35);
+}
+
+.order-ticket__toggle-btn--sell.is-active {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.35);
+}
+
+.order-ticket__toggle-btn--exit.is-active {
+  background: linear-gradient(135deg, #71717a, #52525b);
+  color: #fff;
+}
+
+.order-ticket__exit-message {
+  margin: 0;
+  color: var(--ot-gray-200);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* ============ Fields ============ */
+.order-ticket__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  position: relative;
+  z-index: 1;
+}
+
+.order-ticket__label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ot-gray-400);
+}
+
+.order-ticket__input-wrapper {
+  display: flex;
+  align-items: center;
+  background: rgba(42, 42, 48, 0.6);
+  border: 1px solid var(--ot-gray-600);
+  border-radius: 10px;
+  padding: 0 0.75rem;
+  transition: all 0.25s ease;
+}
+
+.order-ticket__input-wrapper:focus-within {
+  border-color: var(--ot-purple);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+}
+
+.order-ticket__input-prefix {
+  color: var(--ot-gray-400);
+  font-size: 0.9rem;
+  padding-right: 0.4rem;
+}
+
+.order-ticket__input {
+  width: 100%;
+  padding: 0.5rem 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--ot-gray-100);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.order-ticket__input::placeholder {
+  color: var(--ot-gray-500);
+  font-weight: 400;
+}
+
+/* Input padrão (sem prefixo) */
+.order-ticket__field>.order-ticket__input {
+  padding: 0.5rem 0.75rem;
+  background: rgba(42, 42, 48, 0.6);
+  border: 1px solid var(--ot-gray-600);
+  border-radius: 10px;
+  transition: all 0.25s ease;
+}
+
+.order-ticket__field>.order-ticket__input:focus {
+  border-color: var(--ot-purple);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+}
+
+/* ============ Percent grid ============ */
+.order-ticket__percent-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.375rem;
+}
+
+.order-ticket__percent-btn {
+  padding: 0.3rem 0;
+  background: rgba(42, 42, 48, 0.6);
+  border: 1px solid var(--ot-gray-600);
+  border-radius: 8px;
+  color: var(--ot-gray-300);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.order-ticket__percent-btn:hover {
+  border-color: var(--ot-purple);
+  color: var(--ot-gray-100);
+}
+
+/* Cor dinâmica do botão selecionado */
+.order-ticket--buy .order-ticket__percent-btn.is-active {
+  background: var(--ot-buy-soft);
+  border-color: var(--ot-buy);
+  color: var(--ot-buy);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.25);
+}
+
+.order-ticket--sell .order-ticket__percent-btn.is-active {
+  background: var(--ot-sell-soft);
+  border-color: var(--ot-sell);
+  color: var(--ot-sell);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.25);
+}
+
+/* ============ Summary ============ */
+.order-ticket__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.875rem;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(124, 58, 237, 0.08);
+  border-radius: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.order-ticket__summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--ot-gray-400);
+}
+
+.order-ticket__summary-row strong {
+  color: var(--ot-gray-200);
+  font-weight: 600;
+}
+
+/* Linha de total com cor dinâmica */
+.order-ticket__summary-row--total {
+  padding-top: 0.5rem;
+  margin-top: 0.25rem;
+  border-top: 1px solid rgba(124, 58, 237, 0.1);
+  font-size: 0.85rem;
+}
+
+.order-ticket--buy .order-ticket__summary-row--total strong {
+  color: var(--ot-buy);
+}
+
+.order-ticket--sell .order-ticket__summary-row--total strong {
+  color: var(--ot-sell);
+}
+
+/* ============ Submit ============ */
+.order-ticket__submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.8rem;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  background: var(--ot-gray-600);
+  z-index: 1;
+}
+
+.order-ticket--buy .order-ticket__submit {
+  background: linear-gradient(135deg, #22c55e, #15803d);
+  box-shadow: 0 8px 24px rgba(34, 197, 94, 0.25);
+}
+
+.order-ticket--sell .order-ticket__submit {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.25);
+}
+
+.order-ticket__submit::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  transition: left 0.5s ease;
+}
+
+.order-ticket__submit:hover::before {
+  left: 100%;
+}
+
+.order-ticket__submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.order-ticket--buy .order-ticket__submit:hover:not(:disabled) {
+  box-shadow: 0 12px 28px rgba(34, 197, 94, 0.4);
+}
+
+.order-ticket--sell .order-ticket__submit:hover:not(:disabled) {
+  box-shadow: 0 12px 28px rgba(239, 68, 68, 0.4);
+}
+
+.order-ticket__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.order-ticket__submit-icon {
+  font-size: 1rem;
+  transition: transform 0.3s ease;
+}
+
+.order-ticket__submit:hover:not(:disabled) .order-ticket__submit-icon {
+  transform: translateY(-2px);
+}
+
+/* ============ Responsivo ============ */
+@media (max-width: 480px) {
+  .order-ticket {
+    max-width: 100%;
+    padding: 1rem;
+    border-radius: 14px;
+  }
+
+  .order-ticket__percent-btn {
+    font-size: 0.72rem;
+    padding: 0.45rem 0;
+  }
+
+  .order-ticket__symbol {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 1480px) {
+  .order-ticket {
+
+    max-height: calc(84vh - 2rem);
+  }
+}

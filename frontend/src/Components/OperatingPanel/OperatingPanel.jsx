@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo, useState } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { createChart, AreaSeries } from 'lightweight-charts';
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx';
@@ -11,35 +11,53 @@ const OperatingPanel = () => {
   const { resultOperations, logoutUser, showPopUp, actionType, setActionType, setShowPopUp, openLogoutConfirm } = React.useContext(ContextGraphics);
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
+  const areaSeriesRef = useRef(null);
 
+  const formatNumber = (value) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? number.toFixed(2) : '0.00';
+  };
 
   // ====================== GRÁFICO ======================
   const buildCapitalEvolution = (operationsEvolution, initialCapital = 10000) => {
-  // se não for array ou estiver vazio, retorna array vazio
-  if (!Array.isArray(operationsEvolution) || operationsEvolution.length === 0) {
-    return [];
-  }
+    if (!Array.isArray(operationsEvolution) || operationsEvolution.length === 0) {
+      return [];
+    }
 
-    // Ordenar por tempo de saída
-    const sortedOps = [...operationsEvolution].sort(
-      (a, b) => new Date(a.exitTime) - new Date(b.exitTime)
-    );
+    const sortedOps = operationsEvolution
+      .map(operation => {
+        const exitDate = new Date(operation?.exitTime);
+        const pnl = Number(operation?.pnl);
+        if (Number.isNaN(exitDate.getTime()) || !Number.isFinite(pnl)) return null;
+
+        return {
+          date: exitDate.toISOString().slice(0, 10),
+          timestamp: exitDate.getTime(),
+          pnl,
+        };
+      })
+      .filter(Boolean)
+      .sort((first, second) => first.timestamp - second.timestamp);
 
     let capital = initialCapital;
+    const dailyEvolution = new Map();
 
-    return sortedOps.map(op => {
-      capital += op.pnl;
-      return {
-        time: op.exitTime.split(" ")[0],
-        value: Number(capital.toFixed(2))
-      };
+    sortedOps.forEach(operation => {
+      capital += operation.pnl;
+      dailyEvolution.set(operation.date, Number(capital.toFixed(2)));
     });
-  }
+
+    return Array.from(dailyEvolution, ([time, value]) => ({ time, value }));
+  };
+
   const operationsEvolution = resultOperations?.history?.operations;
-  const capitalEvolution = buildCapitalEvolution(operationsEvolution, 10000)
+  const capitalEvolution = useMemo(
+    () => buildCapitalEvolution(operationsEvolution, 10000),
+    [operationsEvolution]
+  );
 
   useEffect(() => {
-    if (!chartContainerRef.current && !capitalEvolution ) return;
+    if (!chartContainerRef.current) return undefined;
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -58,9 +76,8 @@ const OperatingPanel = () => {
       lineWidth: 2,
     });
 
-    areaSeries.setData(capitalEvolution);
-    chart.timeScale().fitContent();
     chartRef.current = chart;
+    areaSeriesRef.current = areaSeries;
 
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
@@ -74,9 +91,20 @@ const OperatingPanel = () => {
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      areaSeriesRef.current = null;
+      chartRef.current = null;
       chart.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (!areaSeriesRef.current) return;
+
+    areaSeriesRef.current.setData(capitalEvolution);
+    if (capitalEvolution.length > 0) {
+      chartRef.current?.timeScale().fitContent();
+    }
+  }, [capitalEvolution]);
 
 
 
@@ -179,15 +207,15 @@ const OperatingPanel = () => {
         </div>
         <div className="op-card">
           <span className="op-card-title">Capital</span>
-          <div className="op-card-value">$ {(sumCapital).toFixed(2) ?? 0}</div>
+          <div className="op-card-value">$ {formatNumber(sumCapital)}</div>
         </div>
         <div className="op-card">
           <span className="op-card-title">Total Profit</span>
-          <div className="op-card-value">{resultOperations?.results?.totalProfit.toFixed(2) ?? 0}</div>
+          <div className="op-card-value">{formatNumber(resultOperations?.results?.totalProfit)}</div>
         </div>
         <div className="op-card">
           <span className="op-card-title">Position Size</span>
-          <div className="op-card-value">{resultOperations?.capital?.positionSize.toFixed(2) ?? 0}</div>
+          <div className="op-card-value">{formatNumber(resultOperations?.capital?.positionSize)}</div>
         </div>
 
         <div className="op-card">
@@ -208,11 +236,11 @@ const OperatingPanel = () => {
         {/**Results */}
         <div className="op-card">
           <span className="op-card-title">Average Risk</span>
-          <div className="op-card-value">{resultOperations?.results?.avgRisk.toFixed(2) ?? 0}</div>
+          <div className="op-card-value">{formatNumber(resultOperations?.results?.avgRisk)}</div>
         </div>
         <div className="op-card">
           <span className="op-card-title">Amount Risk</span>
-          <div className="op-card-value">{resultOperations?.capital?.risk?.amount?.toFixed(2) ?? 0}</div>
+          <div className="op-card-value">{formatNumber(resultOperations?.capital?.risk?.amount)}</div>
         </div>
         <div className="op-card">
           <span className="op-card-title">Risk Percentage Per Trade</span>
@@ -220,11 +248,11 @@ const OperatingPanel = () => {
         </div>
         <div className="op-card">
           <span className="op-card-title">Average Risk-Return</span>
-          <div className="op-card-value">{resultOperations?.results?.avgRr.toFixed(2) ?? 0}</div>
+          <div className="op-card-value">{formatNumber(resultOperations?.results?.avgRr)}</div>
         </div>
         <div className="op-card">
           <span className="op-card-title">Total Risk</span>
-          <div className="op-card-value">{resultOperations?.results?.totalRisk.toFixed(2) ?? 0}</div>
+          <div className="op-card-value">{formatNumber(resultOperations?.results?.totalRisk)}</div>
         </div>
       </div>
 
@@ -244,7 +272,7 @@ const OperatingPanel = () => {
             <p className="op-chart-subtitle">Frequency by return ranges</p>
           </div>
           <div className="op-distribution-list">
-            {resultOperations?.probabilityDistribution?.distribution.map((item, index) => (
+            {(resultOperations?.probabilityDistribution?.distribution || []).map((item, index) => (
               <div key={index} className="op-dist-item">
                 <div className="op-dist-info">
                   <span className="op-dist-range">{item.range}</span>
@@ -313,8 +341,8 @@ const OperatingPanel = () => {
               </tr>
             </thead>
             <tbody>
-              {resultOperations?.history?.operations.map((op, index) => {
-                const { symbol, action, entryTime, exitTime, entryPrice, exitPrice, stopPrice, side, rr, pnl } = op;
+              {(operationsEvolution || []).map((op, index) => {
+                const { symbol, entryTime, exitTime, entryPrice, exitPrice, stopPrice, side, rr, pnl } = op;
 
                 // Definir classes de estilo
                 const entryClass = side === "BUY" ? "text-win" : "text-loss";
@@ -328,19 +356,19 @@ const OperatingPanel = () => {
                       <span className="op-badge font-mono">{side}</span>
                     </td>
                     <td className="font-mono text-muted">
-                      {Number(entryPrice).toFixed(2)}
+                      {formatNumber(entryPrice)}
                     </td>
                     <td className={`font-mono ${entryClass}`}>
-                      {Number(exitPrice).toFixed(2)}
+                      {formatNumber(exitPrice)}
                     </td>
                     <td className="font-mono text-loss">
-                      {Number(stopPrice).toFixed(2)}
+                      {formatNumber(stopPrice)}
                     </td>
                     <td className="font-mono">
-                      {Number(rr).toFixed(2)}
+                      {formatNumber(rr)}
                     </td>
                     <td className="font-mono">
-                      {Number(pnl).toFixed(2)}
+                      {formatNumber(pnl)}
                     </td>
                   </tr>
                 );

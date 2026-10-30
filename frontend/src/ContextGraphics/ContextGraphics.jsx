@@ -20,7 +20,7 @@ const hasStoredData = (value) => {
     if (Array.isArray(value)) return value.length > 0;
     return value != null && typeof value === 'object' && Object.keys(value).length > 0;
 };
- 
+
 const normalizeSchrodingerFeed = (payload, fallbackSymbol) => {
     const collection = payload?.data ?? payload;
 
@@ -100,6 +100,12 @@ export const ContextGraphicsProvider = ({ children }) => {
         sell: false,
         exit: false,
     });
+    const[balanceAndRisk, setBalanceAndRisk] = React.useState({
+        balance: '',
+        risk: 1
+    });
+    const [orderStop, setOrderStop] = React.useState('');
+
 
     // Retorna os sinais de entrada
     const [signalsBySymbolStateRealTime, setSignalsBySymbolStateRealTime] = React.useState({});
@@ -295,7 +301,7 @@ export const ContextGraphicsProvider = ({ children }) => {
                     requestFeed('trend', `${urlBackend}/api/trend?mode=${mode}`),
                     requestFeed('vppr', `${urlBackend}/api/vppr?mode=${mode}`),
                     requestFeed('rsi', `${urlBackend}/api/rsi?mode=${mode}`),
-                    requestFeed('schrodinger',`${urlBackend}/api/schrodinger?mode=${mode}`)
+                    requestFeed('schrodinger', `${urlBackend}/api/schrodinger?mode=${mode}`)
                 ]);
 
                 nextSources = {
@@ -579,7 +585,7 @@ export const ContextGraphicsProvider = ({ children }) => {
     }, [mode]);
 
 
-    console.log("schrodinger:",schrodinger)
+    console.log("schrodinger:", schrodinger)
     //Define o valor do contexto a ser fornecido aos componentes filhos
     const contextValue = {
         // usuário
@@ -655,7 +661,7 @@ export const ContextGraphicsProvider = ({ children }) => {
         // classificação secundaria
         retestPointsStateRef,
         // Amrsi
-        amrsiDataRef, 
+        amrsiDataRef,
         // schrodinger
         schrodingerDataRef,
 
@@ -676,7 +682,13 @@ export const ContextGraphicsProvider = ({ children }) => {
         setResultOperations,
         signal,
         setSignal,
-        sendOperationData
+        sendOperationData,
+
+        // dados de tamanho da negociação
+         setBalanceAndRisk,
+         balanceAndRisk,
+         orderStop,
+         setOrderStop
 
     }
 

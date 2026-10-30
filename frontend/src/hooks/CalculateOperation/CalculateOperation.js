@@ -2,6 +2,7 @@ import { useContext, useEffect } from 'react';
 import { getSymbolInfo } from '../../BinanceInforApi/BinanceInforApi.js'
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics';
 import { calculateProbabilityDistribution } from '../ProbabilityDistribution/ProbabilityDistribution.js'
+import { parseDecimal } from '../../utils/parseDecimal.js'
 
 
 // Função auxiliar para ajustar o valor ao stepSize exato
@@ -56,21 +57,17 @@ const calculateQuantityForSignal = (signal, symbolInfo, balanceAndRisk) => {
     return quantity;
 };
 // ==============================|Função principal para calcular o tamanho do lote|============================== //
-export const calculatePositionSize = async (lastSignal, signalsBySymbolState) => {
+export const calculatePositionSize = async (lastSignal, signalsBySymbolState, balanceAndRisk) => {
     if (!lastSignal) return null;
-    const symbolInfor = await getSymbolInfo(lastSignal);
-
-    const balanceAndRisk = {
-        balance: 10000,
-        risk: 0.02
-    };
-
-    console.log('Dados:', {
-        lastSignal: lastSignal,
-        signalsBySymbolState: signalsBySymbolState
-    })
 
     try {
+        const balance = Number(balanceAndRisk?.balance);
+        const risk = Number(balanceAndRisk?.risk);
+        if (!Number.isFinite(balance) || balance <= 0 || !Number.isFinite(risk) || risk <= 0) {
+            return null;
+        }
+
+        const symbolInfor = await getSymbolInfo(lastSignal);
         const symbol = lastSignal.symbol || symbolInfor?.symbol || 'UNKNOWN';
         const entryPrice = normalizeNumber(lastSignal?.avgEntryPrice ?? lastSignal?.entryPrice);
         const stopPoint = normalizeNumber(lastSignal?.stop);
@@ -88,7 +85,7 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
         const stopDistancePercent = stopDistancePoints / entryPrice;
 
         // 🔥 Risco total da operação (2% do saldo)
-        const riskBudget = Number(balanceAndRisk.balance) * Number(balanceAndRisk.risk); // 200 USDT
+        const riskBudget = balance * risk;
 
         // 🔥 Divide pelo número de entradas parciais
         const riskBudgetPerPartial = riskBudget / count;
@@ -124,7 +121,7 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
 
         // 🔥Calcular risco real
         const actualRisk = roundDecimal(quantityPerEntry * stopDistancePoints);
-        const riskPercentage = (actualRisk / balanceAndRisk.balance) * 100;
+        const riskPercentage = (actualRisk / balance) * 100;
 
         console.log('✅ Resultado final:', {
             symbol,
@@ -138,7 +135,7 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
             totalValue: (adjustedQty * entryPrice).toFixed(2),
             riskAmount: actualRisk.toFixed(2),
             riskPercentage: riskPercentage.toFixed(2) + '%',
-            balance: balanceAndRisk.balance,
+            balance,
         });
 
 
@@ -240,7 +237,10 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
                     if (openPosition.side === 'BUY') {
                         const realizedUnits = action === 'STOP_BUY'
                             ? openPosition.count
-                            : 1;
+                            : Math.min(
+                                openPosition.count,
+                                Math.max(1, Math.round(toNumber(signal?.count, 1)))
+                            );
                         const realizedQty = openPosition.quantityPerEntry * realizedUnits;
 
                         // 🔥Calcular a distância do stop corretamente
@@ -275,7 +275,10 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
                     if (openPosition.side === 'SELL') {
                         const realizedUnits = action === 'STOP_SELL'
                             ? openPosition.count
-                            : 1;
+                            : Math.min(
+                                openPosition.count,
+                                Math.max(1, Math.round(toNumber(signal?.count, 1)))
+                            );
                         const realizedQty = openPosition.quantityPerEntry * realizedUnits;
 
                         // 🔥 Calcular a distância do stop corretamente
@@ -399,7 +402,7 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
 
             // === GESTÃO DE CAPITAL ===
             capital: {
-                balance: balanceAndRisk.balance,
+                balance,
                 riskPerTrade: balanceAndRisk.risk * 100,
                 positionSize: roundDecimal(adjustedQty),
                 positionValue: totalPositionValue,
@@ -489,7 +492,7 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
             },
             // === GESTÃO DE CAPITAL ===
             capital: {
-                balance: balanceAndRisk.balance,
+                balance,
                 riskPerTrade: balanceAndRisk.risk * 100,
                 positionSize: roundDecimal(adjustedQty),
                 positionValue: totalPositionValue,
@@ -561,7 +564,7 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState) =>
 };
 
 export const useCalculatePositionSize = (lastSignal, signalsBySymbolState) => {
-    const { setResultOperations } = useContext(ContextGraphics);
+    const { setResultOperations, balanceAndRisk } = useContext(ContextGraphics);
 
     useEffect(() => {
         let cancelled = false;
@@ -569,7 +572,9 @@ export const useCalculatePositionSize = (lastSignal, signalsBySymbolState) => {
         if (!lastSignal) {
             return undefined;
         }
-        calculatePositionSize(lastSignal, signalsBySymbolState)
+        const balance = parseDecimal(balanceAndRisk.balance);
+        const risk = Number(balanceAndRisk.risk) / 100;
+        calculatePositionSize(lastSignal, signalsBySymbolState, { balance, risk })
             .then(result => {
                 if (!cancelled && result) {
                     setResultOperations(result);
@@ -586,7 +591,7 @@ export const useCalculatePositionSize = (lastSignal, signalsBySymbolState) => {
         };
 
 
-    }, [lastSignal, signalsBySymbolState, setResultOperations]);
+    }, [lastSignal, signalsBySymbolState, balanceAndRisk, setResultOperations]);
 
     return null;
 };
