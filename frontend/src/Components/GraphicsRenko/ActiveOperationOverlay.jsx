@@ -87,6 +87,10 @@ const formatSigned = (value, decimals = 2) => {
   return `${sign}${value.toFixed(decimals)}`
 }
 
+const getTradePoints = (price, trade) => (
+  (price - trade.entryPrice) * (trade.side === 'BUY' ? 1 : -1)
+)
+
 const ActiveOperationOverlay = ({
   chart,
   chartLifecycleRef,
@@ -115,9 +119,10 @@ const ActiveOperationOverlay = ({
   const [draggedLineType, setDraggedLineType] = useState(null)
   const activeTrade = getActiveTrade(signals, calculatedPosition)
   const displayedStopPrice = draggedLineType === 'stop' ? draggedPrice : activeTrade?.stopPrice ?? null
-  const displayedTakeProfitPrice = draggedLineType === 'takeProfit'
+  const displayedTakeProfitPrice = ['takeProfit', 'newTakeProfit'].includes(draggedLineType)
     ? draggedPrice
     : activeTrade?.takeProfitPrice ?? null
+  const isTakeProfitPreview = draggedLineType === 'newTakeProfit'
   const currentCandle = candles.at(-1)
   const currentPrice = Number(currentCandle?.close)
   const priceChange = activeTrade
@@ -201,6 +206,7 @@ const ActiveOperationOverlay = ({
       const stopPrice = stopPriceRef.current
       const takeProfitSeries = takeProfitSeriesRef.current
       const takeProfitPrice = takeProfitPriceRef.current
+      const entrySeries = lineSeriesRef.current
       if (!trade) return
 
       const stopY = stopSeries && Number.isFinite(stopPrice)
@@ -209,20 +215,29 @@ const ActiveOperationOverlay = ({
       const takeProfitY = takeProfitSeries && Number.isFinite(takeProfitPrice)
         ? takeProfitSeries.priceToCoordinate(takeProfitPrice)
         : null
+      const entryY = entrySeries?.priceToCoordinate(trade.entryPrice)
       const bounds = container.getBoundingClientRect()
       const pointerY = event.clientY - bounds.top
       const stopDistance = stopY == null ? Infinity : Math.abs(pointerY - stopY)
       const takeProfitDistance = takeProfitY == null ? Infinity : Math.abs(pointerY - takeProfitY)
-      const lineType = Math.min(stopDistance, takeProfitDistance) <= 10
+      const entryDistance = entryY == null ? Infinity : Math.abs(pointerY - entryY)
+      const isExistingLine = Math.min(stopDistance, takeProfitDistance) <= 10
+      const lineType = isExistingLine
         ? (stopDistance <= takeProfitDistance ? 'stop' : 'takeProfit')
-        : null
+        : !Number.isFinite(takeProfitPrice) && entryDistance <= 10
+          ? 'newTakeProfit'
+          : null
       if (!lineType) return
 
       event.preventDefault()
       event.stopPropagation()
       draggingPointerRef.current = event.pointerId
       dragLineTypeRef.current = lineType
-      dragPriceRef.current = lineType === 'stop' ? stopPrice : takeProfitPrice
+      dragPriceRef.current = lineType === 'stop'
+        ? stopPrice
+        : lineType === 'takeProfit'
+          ? takeProfitPrice
+          : null
       setDraggedLineType(lineType)
       setDraggedPrice(dragPriceRef.current)
       container.setPointerCapture(event.pointerId)
@@ -235,7 +250,9 @@ const ActiveOperationOverlay = ({
       const takeProfitSeries = takeProfitSeriesRef.current
       const activeSeries = lineType === 'stop'
         ? stopSeriesRef.current
-        : takeProfitSeriesRef.current
+        : lineType === 'takeProfit'
+          ? takeProfitSeriesRef.current
+          : lineSeriesRef.current
       const trade = activeTradeRef.current
       const bounds = container.getBoundingClientRect()
       if (draggingPointerRef.current !== event.pointerId) {
@@ -247,23 +264,34 @@ const ActiveOperationOverlay = ({
         const takeProfitY = Number.isFinite(takeProfitPrice)
           ? takeProfitSeries?.priceToCoordinate(takeProfitPrice)
           : null
+        const entryY = trade && lineSeriesRef.current?.priceToCoordinate(trade.entryPrice)
         const pointerY = event.clientY - bounds.top
+        const entryDistance = entryY == null ? Infinity : Math.abs(pointerY - entryY)
         container.classList.toggle(
           'is-stop-hover',
           Boolean(trade && (
             (stopY != null && Math.abs(pointerY - stopY) <= 10) ||
-            (takeProfitY != null && Math.abs(pointerY - takeProfitY) <= 10)
+            (takeProfitY != null && Math.abs(pointerY - takeProfitY) <= 10) ||
+            (!Number.isFinite(takeProfitPrice) && entryDistance <= 10)
           )),
         )
         return
       }
 
       const nextPrice = activeSeries?.coordinateToPrice(event.clientY - bounds.top)
-      if (!trade || !Number.isFinite(nextPrice)) return
+      if (!trade || !Number.isFinite(nextPrice)) {
+        dragPriceRef.current = null
+        setDraggedPrice(null)
+        return
+      }
 
       if (lineType === 'stop') {
         const currentPrice = currentPriceRef.current
-        if (!Number.isFinite(currentPrice)) return
+        if (!Number.isFinite(currentPrice)) {
+          dragPriceRef.current = null
+          setDraggedPrice(null)
+          return
+        }
 
         const isInProfit = trade.side === 'BUY'
           ? currentPrice > trade.entryPrice
@@ -271,11 +299,17 @@ const ActiveOperationOverlay = ({
         const isOnValidSide = isInProfit
           ? (trade.side === 'BUY' ? nextPrice < currentPrice : nextPrice > currentPrice)
           : (trade.side === 'BUY' ? nextPrice < trade.entryPrice : nextPrice > trade.entryPrice)
-        if (!isOnValidSide) return
+        if (!isOnValidSide) {
+          dragPriceRef.current = null
+          setDraggedPrice(null)
+          return
+        }
       } else if (
         (trade.side === 'BUY' && nextPrice <= trade.entryPrice) ||
         (trade.side === 'SELL' && nextPrice >= trade.entryPrice)
       ) {
+        dragPriceRef.current = null
+        setDraggedPrice(null)
         return
       }
 
@@ -306,7 +340,10 @@ const ActiveOperationOverlay = ({
         const updatePrice = lineType === 'stop'
           ? onStopChangeRef.current
           : onTakeProfitChangeRef.current
-        await updatePrice?.(nextPrice)
+        if (typeof updatePrice !== 'function') {
+          throw new Error(`A atualização de ${lineType === 'stop' ? 'stop' : 'take profit'} não está disponível.`)
+        }
+        await updatePrice(nextPrice)
       } catch (error) {
         const label = lineType === 'stop' ? 'stop' : 'take profit'
         console.error(`Erro ao atualizar ${label} pelo gráfico:`, error)
@@ -387,8 +424,12 @@ const ActiveOperationOverlay = ({
       { time: lineEndTime, value: activeTrade.entryPrice },
     ])
     if (Number.isFinite(displayedStopPrice)) {
+      const stopPoints = getTradePoints(displayedStopPrice, activeTrade)
+      const estimatedStopResult = Number.isFinite(activeTrade.quantity)
+        ? stopPoints * activeTrade.quantity
+        : null
       stopSeries.applyOptions({
-        title: `STOP ${displayedStopPrice.toFixed(2)} `,
+        title: `STOP ${displayedStopPrice.toFixed(2)} | ${formatSigned(stopPoints)} pts${estimatedStopResult == null ? '' : ` | ${formatSigned(estimatedStopResult)} est.`}`,
       })
       stopSeries.setData([
         { time: entryCandle.time, value: displayedStopPrice },
@@ -398,8 +439,12 @@ const ActiveOperationOverlay = ({
       stopSeries.setData([])
     }
     if (Number.isFinite(displayedTakeProfitPrice)) {
+      const takeProfitPoints = getTradePoints(displayedTakeProfitPrice, activeTrade)
+      const estimatedResult = Number.isFinite(activeTrade.quantity)
+        ? takeProfitPoints * activeTrade.quantity
+        : null
       takeProfitSeries.applyOptions({
-        title: `TAKE PROFIT ${displayedTakeProfitPrice.toFixed(2)}`,
+        title: `TAKE PROFIT ${displayedTakeProfitPrice.toFixed(2)} | ${formatSigned(takeProfitPoints)} pts${estimatedResult == null ? '' : ` | ${formatSigned(estimatedResult)} est.`}`,
       })
       takeProfitSeries.setData([
         { time: entryCandle.time, value: displayedTakeProfitPrice },
@@ -433,12 +478,25 @@ const ActiveOperationOverlay = ({
       </span>
       {Number.isFinite(displayedStopPrice) && (
         <span className="graphics-renko__active-operation-stop">
-          Stop {displayedStopPrice.toFixed(2)} · arraste a linha para ajustar
+          Stop {displayedStopPrice.toFixed(2)} · {formatSigned(getTradePoints(displayedStopPrice, activeTrade))} pontos
+          {Number.isFinite(activeTrade.quantity)
+            ? ` · ${formatSigned(getTradePoints(displayedStopPrice, activeTrade) * activeTrade.quantity)} estimado`
+            : ''}
+          · arraste a linha para ajustar
         </span>
       )}
       {Number.isFinite(displayedTakeProfitPrice) && (
         <span className="graphics-renko__active-operation-take-profit">
-          Take profit {displayedTakeProfitPrice.toFixed(2)} · arraste a linha para ajustar
+          Take profit {displayedTakeProfitPrice.toFixed(2)} · {formatSigned(getTradePoints(displayedTakeProfitPrice, activeTrade))} pontos
+          {Number.isFinite(activeTrade.quantity)
+            ? ` · ${formatSigned(getTradePoints(displayedTakeProfitPrice, activeTrade) * activeTrade.quantity)} estimado`
+            : ''}
+          {isTakeProfitPreview ? ' · prévia' : ' · arraste para ajustar'}
+        </span>
+      )}
+      {!Number.isFinite(displayedTakeProfitPrice) && (
+        <span className="graphics-renko__active-operation-take-profit">
+          Arraste a partir da linha de entrada para definir o take profit
         </span>
       )}
       <strong>
