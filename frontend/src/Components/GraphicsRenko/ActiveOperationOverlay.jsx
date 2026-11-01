@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { createSeriesMarkers, LineSeries, LineStyle } from 'lightweight-charts'
 import { getCandleTimeForSignal } from './tradeMarkers.js'
 import Swal from 'sweetalert2'
@@ -117,6 +117,8 @@ const ActiveOperationOverlay = ({
   const onTakeProfitChangeRef = useRef(onTakeProfitChange)
   const [draggedPrice, setDraggedPrice] = useState(null)
   const [draggedLineType, setDraggedLineType] = useState(null)
+  const [isCollapsed, setIsCollapsed] = useState(false)
+  const detailsId = useId()
   const activeTrade = getActiveTrade(signals, calculatedPosition)
   const displayedStopPrice = draggedLineType === 'stop' ? draggedPrice : activeTrade?.stopPrice ?? null
   const displayedTakeProfitPrice = ['takeProfit', 'newTakeProfit'].includes(draggedLineType)
@@ -467,41 +469,71 @@ const ActiveOperationOverlay = ({
 
   return (
     <div
-      className={`graphics-renko__active-operation${isProfitable ? ' is-profitable' : priceChange < 0 ? ' is-losing' : ''}`}
+      className={`graphics-renko__active-operation${isProfitable ? ' is-profitable' : priceChange < 0 ? ' is-losing' : ''}${isCollapsed ? ' is-collapsed' : ''}`}
       aria-live="polite"
     >
-      <strong>{activeTrade.side === 'BUY' ? 'Compra aberta' : 'Venda aberta'}</strong>
-      <span>Entrada {activeTrade.entryPrice.toFixed(2)}</span>
-      <span>Atual {currentPrice.toFixed(2)}</span>
-      <span>
-        Variação {formatSigned(priceChange)} pontos · {formatSigned(pnlPercent)}%
-      </span>
-      {Number.isFinite(displayedStopPrice) && (
-        <span className="graphics-renko__active-operation-stop">
-          Stop {displayedStopPrice.toFixed(2)} · {formatSigned(getTradePoints(displayedStopPrice, activeTrade))} pontos
-          {Number.isFinite(activeTrade.quantity)
-            ? ` · ${formatSigned(getTradePoints(displayedStopPrice, activeTrade) * activeTrade.quantity)} estimado`
-            : ''}
-          · arraste a linha para ajustar
+      <div
+        id={detailsId}
+        className="graphics-renko__active-operation-content"
+        aria-hidden={isCollapsed}
+      >
+        <strong>{activeTrade.side === 'BUY' ? 'Open purchase' : 'Sales open'}</strong>
+        <span>Entry {activeTrade.entryPrice.toFixed(2)}</span>
+        <span>Current {currentPrice.toFixed(2)}</span>
+        <span>
+          Variation {formatSigned(priceChange)} points · {formatSigned(pnlPercent)}%
         </span>
-      )}
-      {Number.isFinite(displayedTakeProfitPrice) && (
-        <span className="graphics-renko__active-operation-take-profit">
-          Take profit {displayedTakeProfitPrice.toFixed(2)} · {formatSigned(getTradePoints(displayedTakeProfitPrice, activeTrade))} pontos
-          {Number.isFinite(activeTrade.quantity)
-            ? ` · ${formatSigned(getTradePoints(displayedTakeProfitPrice, activeTrade) * activeTrade.quantity)} estimado`
-            : ''}
-          {isTakeProfitPreview ? ' · prévia' : ' · arraste para ajustar'}
-        </span>
-      )}
-      {!Number.isFinite(displayedTakeProfitPrice) && (
-        <span className="graphics-renko__active-operation-take-profit">
-          Arraste a partir da linha de entrada para definir o take profit
-        </span>
-      )}
-      <strong>
-        Resultado {pnlAmount != null ? `${formatSigned(pnlAmount)} USDT` : 'calculando'}
-      </strong>
+        {Number.isFinite(displayedStopPrice) && (
+          <span className="graphics-renko__active-operation-stop">
+            Stop {displayedStopPrice.toFixed(2)} · {formatSigned(getTradePoints(displayedStopPrice, activeTrade))} points
+            {Number.isFinite(activeTrade.quantity)
+              ? ` · ${formatSigned(getTradePoints(displayedStopPrice, activeTrade) * activeTrade.quantity)} estimated`
+              : ''}
+          </span>
+        )}
+        {Number.isFinite(displayedTakeProfitPrice) && (
+          <span className="graphics-renko__active-operation-take-profit">
+            Take profit {displayedTakeProfitPrice.toFixed(2)} · {formatSigned(getTradePoints(displayedTakeProfitPrice, activeTrade))} points
+            {Number.isFinite(activeTrade.quantity)
+              ? ` · ${formatSigned(getTradePoints(displayedTakeProfitPrice, activeTrade) * activeTrade.quantity)} estimated`
+              : ''}
+            {isTakeProfitPreview ? ' · preview' : ''}
+          </span>
+        )}
+        {!Number.isFinite(displayedTakeProfitPrice) && (
+          <span className="graphics-renko__active-operation-take-profit">
+            Drag from the entry line to set the take profit
+          </span>
+        )}
+        <strong className="graphics-renko__active-operation-result">
+          Result {pnlAmount != null ? `${formatSigned(pnlAmount)} USDT` : 'calculando'}
+        </strong>
+      </div>
+      <button
+        className="graphics-renko__active-operation-toggle"
+        type="button"
+        aria-label={isCollapsed ? 'Expand operation panel' : 'Collapse operation panel'}
+        aria-expanded={!isCollapsed}
+        aria-controls={detailsId}
+        onClick={() => setIsCollapsed(collapsed => !collapsed)}
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 16 16"
+          width="14"
+          height="14"
+          focusable="false"
+        >
+          <path
+            d={isCollapsed ? 'm3 10 5-5 5 5' : 'm3 6 5 5 5-5'}
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.8"
+          />
+        </svg>
+      </button>
     </div>
   )
 }

@@ -53,19 +53,15 @@ def normalize_vppr_data(data):
 # ===============Função de onda Ψ=============== #
 # 1. Separar ordens de compra e venda
 def wave_function(orders):
-    # Separar ordens de compra e venda
-    buy_values = [o["wave_function"] for o in orders if o["type"] == "buy"]
-    sell_values = [o["wave_function"] for o in orders if o["type"] == "sell"]
-
-    # Probabilidade de próxima ordem ser compra (valor > 0)
-    prob_buy = sum(1 for q in buy_values if q > 0) / len(buy_values) if buy_values else 0
-
-    # Probabilidade de próxima ordem ser venda (valor < 0)
-    prob_sell = sum(1 for q in sell_values if q < 0) / len(sell_values) if sell_values else 0
-
+    waves = [float(o.get("wave_function", 0.0)) for o in orders]
+    n_pos = sum(1 for w in waves if w > 0)
+    n_neg = sum(1 for w in waves if w < 0)
+    n_valid = n_pos + n_neg
+    if n_valid == 0:
+        return {"buy": 0.5, "sell": 0.5}
     return {
-        "buy": prob_buy,
-        "sell": prob_sell
+        "buy":  n_pos / n_valid,
+        "sell": n_neg / n_valid,
     }
 
 # ===============Função para calcular - Energia cinética (velocidade do preço)===============#
@@ -179,43 +175,40 @@ def calculate_planck_constant(orders, alpha=0.1):
 
 # ===============Evolução de função de onda Ψ==============#
 def evolve_wave_function(orders,
-                          window=100,
-                          min_window=10,
-                          use_energy_weight=False,
-                          h_market=1.0):
+                         window=300,
+                         min_window=1,
+                         use_energy_weight=False,
+                         h_market=1.0):
     """
-    Probabilidade simples (frequentista) de subida/queda por janela móvel.
+    Probabilidade frequentista simples de subida/queda numa janela móvel.
+    - window: tamanho da janela (default 100)
+    - psi_buy  = n_sobe / n_total_validos
+    - psi_sell = n_cai  / n_total_validos
+    - Retornos 0 (preço parado) NÃO entram no denominador
+      (evita diluir a probabilidade — senão psi_buy+psi_sell < 1)
     """
-    # ===== COERÇÃO PARA INT (corrige slice indices must be integers) =====
-    window     = int(window)
-    min_window = int(min_window)
-    n_total    = len(orders)
+    window     = max(1, int(window))
+    min_window = max(1, int(min_window))
+    if min_window > window:
+        min_window = window
 
+    n_total = len(orders)
     if n_total == 0:
         return []
 
-    if window < 1:
-        window = 1
-    if min_window < 1:
-        min_window = 1
-    if min_window > window:
-        min_window = window
-    # ======================================================================
-
-    # --- Energia por barra (opcional) ---
+    # --- Pesos de energia (opcional) ---
     if use_energy_weight:
         kinetic   = calculate_kinetic_energy(orders)
         potential = calculate_Potential_energy(orders)
         n_e = min(len(kinetic), len(potential), n_total)
         H = np.array([kinetic[i] + potential[i] for i in range(n_e)])
         h_norm = H / max(float(h_market), 1e-6)
-        h_weight = np.tanh(h_norm)
-        h_weight = np.clip(h_weight, 0.0, 1.0)
+        h_weight = np.clip(np.tanh(h_norm), 0.0, 1.0)
         h_weight = np.where(h_weight < 1e-9, 1.0, h_weight)
     else:
         h_weight = None
 
-    # --- Retorno de cada barra ---
+    # --- Retornos por barra ---
     prices = np.array([o["price"] for o in orders], dtype=float)
     retornos = np.zeros(n_total)
     for i in range(1, n_total):
@@ -223,51 +216,37 @@ def evolve_wave_function(orders,
 
     evolution = []
     for i in range(n_total):
-        # start e end agora são int com certeza
         start = max(0, i - window + 1)
         end   = i + 1
         ret_win = retornos[start:end]
 
-        mask_valid = ret_win != 0
-        n_valid = int(mask_valid.sum())
+        # --- Contagem simples: sobe / cai / fica ---
+        n_sobe = int(np.sum(ret_win > 0))
+        n_cai  = int(np.sum(ret_win < 0))
+        n_zero = int(np.sum(ret_win == 0))
+        n_valid = n_sobe + n_cai          # zeros fora do denominador
 
         if n_valid < min_window:
             psi_buy, psi_sell = 0.5, 0.5
-            n_sobe, n_cai = 0, 0
-            n_total_valid = n_valid
-        else:
-            if use_energy_weight:
-                idx_global = np.arange(start, end)
-                w = h_weight[idx_global] if len(idx_global) <= len(h_weight) \
-                    else np.ones(len(idx_global))
-                w = w[mask_valid]
-                sobe = (ret_win[mask_valid] > 0).astype(float)
-                cai  = (ret_win[mask_valid] < 0).astype(float)
-                n_sobe_w = float(np.sum(w * sobe))
-                n_cai_w  = float(np.sum(w * cai))
-                total_w  = n_sobe_w + n_cai_w
-                if total_w > 1e-12:
-                    psi_buy  = n_sobe_w / total_w
-                    psi_sell = n_cai_w  / total_w
-                else:
-                    psi_buy, psi_sell = 0.5, 0.5
-                n_sobe = int(np.sum(sobe))
-                n_cai  = int(np.sum(cai))
-                n_total_valid = n_sobe + n_cai
+        elif use_energy_weight:
+            idx_global = np.arange(start, end)
+            w = h_weight[idx_global] if len(idx_global) <= len(h_weight) \
+                else np.ones(len(idx_global))
+            w_pos = w[ret_win > 0].sum()
+            w_neg = w[ret_win < 0].sum()
+            total_w = w_pos + w_neg
+            if total_w > 1e-12:
+                psi_buy  = float(w_pos / total_w)
+                psi_sell = float(w_neg / total_w)
             else:
-                n_sobe = int(np.sum(ret_win[mask_valid] > 0))
-                n_cai  = int(np.sum(ret_win[mask_valid] < 0))
-                n_total_valid = n_sobe + n_cai
-                if n_total_valid > 0:
-                    psi_buy  = n_sobe / n_total_valid
-                    psi_sell = n_cai  / n_total_valid
-                else:
-                    psi_buy, psi_sell = 0.5, 0.5
+                psi_buy, psi_sell = 0.5, 0.5
+        else:
+            psi_buy  = n_sobe / n_valid
+            psi_sell = n_cai  / n_valid
 
+        H_i = None
         if use_energy_weight and i < len(h_weight):
             H_i = float(h_weight[i] * h_market)
-        else:
-            H_i = None
 
         evolution.append({
             "ordem": i + 1,
@@ -275,15 +254,17 @@ def evolve_wave_function(orders,
             "psi_sell": float(psi_sell),
             "n_sobe": n_sobe,
             "n_cai": n_cai,
-            "n_total": n_total_valid,
+            "n_zero": n_zero,
+            "n_total": n_valid,
             "H": H_i,
             "retorno": float(retornos[i]),
         })
 
     return evolution
 
+
 # =============== TUNELAMENTO QUÂNTICO =============== #
-def power_surges(orders, smooth=5, prominence=0.65):
+def power_surges(orders, smooth=1, prominence=0.65):
     # Calcula energias
     kinetic   = calculate_kinetic_energy(orders)
     potential = calculate_Potential_energy(orders)

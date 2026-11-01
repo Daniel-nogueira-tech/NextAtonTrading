@@ -29,7 +29,7 @@
 /* ================= WRAPPER FLUTUANTE ================= */
 .top-overlay {
     position: absolute;
-    bottom:110px;
+    bottom:30px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 20;
@@ -39,12 +39,8 @@
 }
 
 .top-overlay__panel {
-    position: absolute;
+    position: relative;
     pointer-events: auto;
-    display: flex;
-    align-items: stretch;
-    gap: 0.5rem;
-    padding: 0.5rem;
     background: linear-gradient(135deg, var(--top-bg), var(--top-bg-2));
     border: 1px solid var(--top-border);
     border-radius: 14px;
@@ -54,6 +50,57 @@
         0 0 30px rgba(124, 58, 237, 0.08),
         inset 0 1px 0 rgba(124, 58, 237, 0.08);
     animation: topOverlayFloat 3s ease-in-out infinite;
+}
+
+.top-overlay__content {
+    display: flex;
+    align-items: stretch;
+    gap: 0.5rem;
+    max-height: 320px;
+    overflow: hidden;
+    padding: 0.5rem 0.5rem 0.75rem;
+    opacity: 1;
+    transition: max-height 220ms ease, opacity 180ms ease, padding 220ms ease;
+}
+
+.top-overlay__panel.is-collapsed .top-overlay__content {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 0;
+}
+
+.top-overlay__toggle {
+    position: absolute;
+    right: 50%;
+    bottom: 0;
+    display: grid;
+    width: 28px;
+    height: 22px;
+    padding: 0;
+    transform: translate(50%, 50%);
+    place-items: center;
+    border: 1px solid rgba(161, 161, 170, 0.55);
+    border-radius: 999px;
+    background: #1b2029;
+    color: var(--top-gray-200);
+    cursor: pointer;
+    pointer-events: auto;
+    transition: background-color 160ms ease, color 160ms ease;
+}
+
+.top-overlay__toggle:hover {
+    background: #303846;
+    color: #fff;
+}
+
+.top-overlay__toggle:focus-visible {
+    outline: 2px solid #a78bfa;
+    outline-offset: 2px;
+}
+
+.top-overlay__panel.is-collapsed {
+    min-width: 44px;
 }
 
 @keyframes topOverlayFloat {
@@ -218,15 +265,23 @@
 @media (max-width: 720px) {
     .top-overlay {
         top: 8px;
+        bottom: auto;
         width: calc(100% - 16px);
     }
 
     .top-overlay__panel {
-        flex-direction: column;
         width: 100%;
+    }
+
+    .top-overlay__content {
+        flex-direction: column;
         gap: 0.4rem;
-        padding: 0.4rem;
-        border-radius: 12px;
+        padding: 0.4rem 0.4rem 0.65rem;
+    }
+
+    .top-overlay__panel.is-collapsed .top-overlay__content {
+        padding-top: 0;
+        padding-bottom: 0;
     }
 
     .top-overlay__actions {
@@ -267,5 +322,16 @@
 
     .top-overlay__stat-value {
         font-size: 0.72rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .top-overlay__panel {
+        animation: none;
+    }
+
+    .top-overlay__content,
+    .top-overlay__toggle {
+        transition: none;
     }
 }

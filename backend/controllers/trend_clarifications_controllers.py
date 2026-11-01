@@ -137,6 +137,8 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 10000):
     # Salvar dados completos antes da classificação
     for r in data:
         candles.append(_format_candle_for_response(r))
+
+    accumulated_volume = candles[0]["volume"]
     
     # Salva os dados completos em outra tabela antes de classificar
 
@@ -150,6 +152,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 10000):
         added_movement = False  # Controle para evitar duplicação
         cont += 1
         price = price
+        accumulated_volume += candles[i]["volume"]
         # === ESTADO INICIAL ===
         # Detecta início de tendência
         if state == "inicio":
@@ -1205,6 +1208,10 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 10000):
                     )
                     added_movement = True
 
+        if added_movement:
+            movements[-1]["volume"] = accumulated_volume
+            accumulated_volume = 0
+
     indicator_values = calculate_macd_ema(closes)
 
     indicators_by_time = {
@@ -1280,7 +1287,6 @@ def trend_clarifications_atr(symbols, time="15m", mode="real"):
 
 
     return results
-
 
 
 

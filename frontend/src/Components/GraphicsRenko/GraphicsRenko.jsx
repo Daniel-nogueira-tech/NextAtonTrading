@@ -925,7 +925,6 @@ const GraphicsRenko = () => {
   const [isOrderTicketOpen, setIsOrderTicketOpen] = React.useState(false);
   const [orderTicketSide, setOrderTicketSide] = React.useState('buy');
 
-  console.log(fullPrice)
   let footer = `Please pick the first day.`;
 
   React.useEffect(() => {
@@ -1120,6 +1119,8 @@ const GraphicsRenko = () => {
   const lastTrendPrimary = getLastTrendPrimaryBySymbol(activeSymbol);
   const lastVppr = getLastVpprBySymbol(activeSymbol);
   const lastAmrsi = getLastAmrsiBySymbol(activeSymbol);
+
+  console.log(lastVppr)
 
 
   // seleciona o ativo que está ativo

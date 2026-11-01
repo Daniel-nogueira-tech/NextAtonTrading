@@ -309,13 +309,10 @@ body.graphics-renko-indicator-window .graphics-renko__indicator-chart {
 
 .graphics-renko__active-operation {
   position: absolute;
-  left:10px;
-  top:60px;
+  left: 10px;
+  top: 25%;
   z-index: 3;
-  display: flex;
-  flex-direction: column;
-  text-align:left;
-  padding: 2px 5px;
+  padding: 0;
   border: 1px solid rgba(161, 161, 170, 0.3);
   border-radius: 8px;
   background: rgba(15, 18, 24, 0.9);
@@ -325,11 +322,63 @@ body.graphics-renko-indicator-window .graphics-renko__indicator-chart {
   pointer-events: none;
 }
 
+.graphics-renko__active-operation-content {
+  display: flex;
+  max-height: 320px;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 2px 8px 14px;
+  text-align: left;
+  opacity: 1;
+  transition: max-height 220ms ease, opacity 180ms ease, padding 220ms ease;
+}
+
+.graphics-renko__active-operation.is-collapsed .graphics-renko__active-operation-content {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+}
+
+.graphics-renko__active-operation-toggle {
+  position: absolute;
+  right: 50%;
+  bottom: 0;
+  display: grid;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  transform: translate(50%, 50%);
+  place-items: center;
+  border: 1px solid rgba(161, 161, 170, 0.55);
+  border-radius: 999px;
+  background: #1b2029;
+  color: #d1d4dc;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.graphics-renko__active-operation-toggle:hover {
+  background: #303846;
+  color: #fff;
+}
+
+.graphics-renko__active-operation-toggle:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+.graphics-renko__active-operation.is-collapsed {
+  min-width: 40px;
+  min-height: 1px;
+}
+
 .graphics-renko__active-operation.is-profitable {
   border-color: rgba(34, 197, 94, 0.65);
 }
 
-.graphics-renko__active-operation.is-profitable > strong:last-child {
+.graphics-renko__active-operation.is-profitable .graphics-renko__active-operation-result {
   color: #22c55e;
 }
 
@@ -337,8 +386,15 @@ body.graphics-renko-indicator-window .graphics-renko__indicator-chart {
   border-color: rgba(239, 68, 68, 0.65);
 }
 
-.graphics-renko__active-operation.is-losing > strong:last-child {
+.graphics-renko__active-operation.is-losing .graphics-renko__active-operation-result {
   color: #ef4444;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graphics-renko__active-operation-content,
+  .graphics-renko__active-operation-toggle {
+    transition: none;
+  }
 }
 
 .graphics-renko__chart canvas {

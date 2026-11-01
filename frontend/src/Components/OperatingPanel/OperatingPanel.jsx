@@ -2,8 +2,6 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { createChart, AreaSeries } from 'lightweight-charts';
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx';
-
-
 import './OperatingPanel.css';
 import PopUpConfirm from '../PopUpConfirm/PopUpConfirm.jsx';
 

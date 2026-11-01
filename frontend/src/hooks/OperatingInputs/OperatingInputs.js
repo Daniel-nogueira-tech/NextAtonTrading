@@ -683,7 +683,13 @@ export const useOperatingInputs = () => {
     }, [signalsBySymbolState, balanceAndRisk, calculatePositionSize, setResultOperations]);
 
     useEffect(() => {
-        if (price.length === 0 || trend.length === 0 || trendPrimary.length === 0 || amrsi.length === 0 || vppr.length === 0) {
+        if (
+            price.length === 0 &&
+            trend.length === 0 &&
+            trendPrimary.length === 0 &&
+            amrsi.length === 0 &&
+            vppr.length === 0
+        ) {
             console.log("⏳ Aguardando dados...");
             return;
         }
@@ -745,22 +751,8 @@ export const useOperatingInputs = () => {
             const lastAmrsi = lastAmrsiArray[lastAmrsiArray.length - 1];
             const lastVppr = lastVpprArray[lastVpprArray.length - 1];
             const lastPrice = lastPriceArray[lastPriceArray.length - 1];
-
-            // Verifica se os dados necessários existem
-            if (!lastTrend || !lastTrendPrimary || !lastPrice || !lastVppr || !lastAmrsi) {
-                console.log(`⚠️ [${symbol}] Dados insuficientes:`, {
-                    lastTrend: !!lastTrend,
-                    lastTrendPrimary: !!lastTrendPrimary,
-                    lastPrice: !!lastPrice
-                });
-                return;
-            }
-
             const previousTrendIdentity = getTrendIdentity(lastTrendRef.current[symbol]);
-            const currentTrendIdentity = getTrendIdentity(lastTrend);
-            const flags = flagsBySymbolRef.current[symbol];
 
-            // Assignar os últimos trends aos estados e refs
             if (lastTrend) {
                 newLastTrends[symbol] = lastTrend;
                 lastTrendRef.current[symbol] = lastTrend;
@@ -778,6 +770,19 @@ export const useOperatingInputs = () => {
                 newLastAmrsi[symbol] = lastAmrsi;
                 lastAmrsiRef.current[symbol] = lastAmrsi;
             }
+
+            // Keep indicator snapshots current even when trading inputs are incomplete.
+            if (!lastTrend || !lastTrendPrimary || !lastPrice || !lastVppr || !lastAmrsi) {
+                console.log(`⚠️ [${symbol}] Dados insuficientes:`, {
+                    lastTrend: !!lastTrend,
+                    lastTrendPrimary: !!lastTrendPrimary,
+                    lastPrice: !!lastPrice
+                });
+                return;
+            }
+
+            const currentTrendIdentity = getTrendIdentity(lastTrend);
+            const flags = flagsBySymbolRef.current[symbol];
 
 
             let signal = null;
@@ -1427,16 +1432,16 @@ export const useOperatingInputs = () => {
 
         // Atualiza os estados de lastTrend e lastTrendPrimary apenas se houver mudanças
         if (Object.keys(newLastTrends).length > 0) {
-            setLastTrendState({ ...newLastTrends });
+            setLastTrendState(previous => ({ ...previous, ...newLastTrends }));
         }
         if (Object.keys(newLastTrendsPrimary).length > 0) {
-            setLastTrendStatePrimary({ ...newLastTrendsPrimary });
+            setLastTrendStatePrimary(previous => ({ ...previous, ...newLastTrendsPrimary }));
         }
         if (Object.keys(newLastVppr).length > 0) {
-            setLastVpprState({ ...newLastVppr });
+            setLastVpprState(previous => ({ ...previous, ...newLastVppr }));
         }
         if (Object.keys(newLastAmrsi).length > 0) {
-            setLastAmrsiState({ ...newLastAmrsi });
+            setLastAmrsiState(previous => ({ ...previous, ...newLastAmrsi }));
         }
 
 

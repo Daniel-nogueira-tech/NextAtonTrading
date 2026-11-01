@@ -22,6 +22,8 @@ const TradingOverlayPanel = ({
 }) => {
     const { resultOperations } = React.useContext(ContextGraphics)
     const [disabledButton, setDisabledButton] = React.useState(false);
+    const [isCollapsed, setIsCollapsed] = React.useState(false)
+    const panelContentId = React.useId()
 
     const netPnl = Number(resultOperations?.results?.netPnl ?? 0)
     const balance = Number(resultOperations?.capital?.balance ?? 0)
@@ -51,69 +53,102 @@ const TradingOverlayPanel = ({
 
     return (
         <div className="top-overlay">
-            <div className="top-overlay__panel">
-                {/* ================= BOTÕES ================= */}
-                <div className="top-overlay__actions">
-                    <button
-                        type="button"
-                        className="top-overlay__btn top-overlay__btn--buy"
-                        onClick={() => handleClick("buy")}
-                        disabled={disabledButton}
-                    >
-                        Buy
-                    </button>
-                    <button
-                        type="button"
-                        className="top-overlay__btn top-overlay__btn--sell"
-                        onClick={() => handleClick("sell")}
-                        disabled={disabledButton}
-                    >
-                        Sell
-                    </button>
-                    <button
-                        type="button"
-                        className="top-overlay__btn top-overlay__btn--exit"
-                        onClick={() => handleClick("exit")}
-                        disabled={disabledButton}
-                    >
-                        Exit
-                    </button>
+            <div className={`top-overlay__panel${isCollapsed ? ' is-collapsed' : ''}`}>
+                <div
+                    id={panelContentId}
+                    className="top-overlay__content"
+                    aria-hidden={isCollapsed}
+                    inert={isCollapsed}
+                >
+                    {/* ================= BOTÕES ================= */}
+                    <div className="top-overlay__actions">
+                        <button
+                            type="button"
+                            className="top-overlay__btn top-overlay__btn--buy"
+                            onClick={() => handleClick("buy")}
+                            disabled={disabledButton}
+                        >
+                            Buy
+                        </button>
+                        <button
+                            type="button"
+                            className="top-overlay__btn top-overlay__btn--sell"
+                            onClick={() => handleClick("sell")}
+                            disabled={disabledButton}
+                        >
+                            Sell
+                        </button>
+                        <button
+                            type="button"
+                            className="top-overlay__btn top-overlay__btn--exit"
+                            onClick={() => handleClick("exit")}
+                            disabled={disabledButton}
+                        >
+                            Exit
+                        </button>
+                    </div>
+
+                    {/* ================= DADOS ================= */}
+                    <div className="top-overlay__stats">
+                        <div className="top-overlay__stat">
+                            <span className="top-overlay__stat-label">Result</span>
+                            <span
+                                className={`top-overlay__stat-value top-overlay__stat-value--${pnlState}`}
+                            >
+                                {formatSigned(netPnl)}
+                            </span>
+                        </div>
+
+                        <div className="top-overlay__stat">
+                            <span className="top-overlay__stat-label">Balance</span>
+                            <span className="top-overlay__stat-value">
+                                ${formatNumber(balance)}
+                            </span>
+                        </div>
+
+                        <div className="top-overlay__stat">
+                            <span className="top-overlay__stat-label">Risk</span>
+                            <span
+                                className={`top-overlay__stat-value top-overlay__stat-value--risk-${riskState}`}
+                            >
+                                {formatNumber(riskPct)}%
+                            </span>
+                        </div>
+
+                        <div className="top-overlay__stat">
+                            <span className="top-overlay__stat-label">Size</span>
+                            <span className="top-overlay__stat-value">
+                                {formatNumber(positionSize, 4)}
+                            </span>
+                        </div>
+                    </div>
                 </div>
 
-                {/* ================= DADOS ================= */}
-                <div className="top-overlay__stats">
-                    <div className="top-overlay__stat">
-                        <span className="top-overlay__stat-label">Result</span>
-                        <span
-                            className={`top-overlay__stat-value top-overlay__stat-value--${pnlState}`}
-                        >
-                            {formatSigned(netPnl)}
-                        </span>
-                    </div>
-
-                    <div className="top-overlay__stat">
-                        <span className="top-overlay__stat-label">Balance</span>
-                        <span className="top-overlay__stat-value">
-                            ${formatNumber(balance)}
-                        </span>
-                    </div>
-
-                    <div className="top-overlay__stat">
-                        <span className="top-overlay__stat-label">Risk</span>
-                        <span
-                            className={`top-overlay__stat-value top-overlay__stat-value--risk-${riskState}`}
-                        >
-                            {formatNumber(riskPct)}%
-                        </span>
-                    </div>
-
-                    <div className="top-overlay__stat">
-                        <span className="top-overlay__stat-label">Size</span>
-                        <span className="top-overlay__stat-value">
-                            {formatNumber(positionSize, 4)}
-                        </span>
-                    </div>
-                </div>
+                <button
+                    className="top-overlay__toggle"
+                    type="button"
+                    aria-label={isCollapsed ? 'Expand trading panel' : 'Collapse trading panel'}
+                    aria-expanded={!isCollapsed}
+                    aria-controls={panelContentId}
+                    onClick={() => setIsCollapsed(collapsed => !collapsed)}
+                >
+                    <svg
+                        aria-hidden="true"
+                        viewBox="0 0 16 16"
+                        width="14"
+                        height="14"
+                        focusable="false"
+                    >
+                        <path
+                            d={isCollapsed ? 'm3 10 5-5 5 5' : 'm3 6 5 5 5-5'}
+                            fill="none"
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="1.8"
+                        />
+                    </svg>
+                </button>
             </div>
         </div>
     )
