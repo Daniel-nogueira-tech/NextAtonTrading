@@ -309,8 +309,8 @@ body.graphics-renko-indicator-window .graphics-renko__indicator-chart {
 
 .graphics-renko__active-operation {
   position: absolute;
-  left: 10px;
-  top: 25%;
+  right: 8%;
+  top: 3%;
   z-index: 3;
   padding: 0;
   border: 1px solid rgba(161, 161, 170, 0.3);
@@ -324,7 +324,7 @@ body.graphics-renko-indicator-window .graphics-renko__indicator-chart {
 
 .graphics-renko__active-operation-content {
   display: flex;
-  max-height: 320px;
+  max-height: auto;
   flex-direction: column;
   overflow: hidden;
   padding: 2px 8px 14px;
@@ -419,8 +419,7 @@ body.graphics-renko-indicator-window .graphics-renko__indicator-chart {
   display: flex;
   align-items: start;
   justify-content: center;
-  gap: 3px;
-  z-index: 9000;
+  z-index: 10;
   background: rgba(0, 0, 0, 0);
   margin: 10px;
 }
@@ -428,12 +427,13 @@ body.graphics-renko-indicator-window .graphics-renko__indicator-chart {
 .button-simulation button {
   border-radius: 8px;
   border: solid 2px rgba(162, 0, 255, 0.178);
-  padding: 6px;
+  padding: 5px;
   background: linear-gradient(135deg, rgba(14, 14, 14, 0.39), rgba(184, 184, 184, 0.082));
   cursor: pointer;
   color: #d1d4dc;
   transition: ease 1s;
   margin-top: 4px;
+  font-size: 10px;
 }
 
 .button-simulation button:hover {
@@ -615,8 +615,8 @@ button.rdp-day_button {
 
 .loaded Button {
   display: flex;
-  font-size: 15px;
-  padding: 0px 20px 0px 20px;
+  font-size: 10px;
+  padding: 0px 10px 0px 10px;
   gap: 10px;
   background-color: #2da722b6;
 }
@@ -624,30 +624,30 @@ button.rdp-day_button {
 /*Controles de simulação*/
 .simulation-control {
   position: sticky;
-  gap: 10px;
+  gap: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: 8px;
-  padding-left: 10px;
+  margin-left: 5px;
+  padding-left: 4px;
   border: solid 1px var(--controller-speed-border);
   background-color: var(--controller-speed-background);
   border-radius: 8px;
 }
 
 .simulation-control button {
-  font-size: 12px;
+  font-size: 10px;
   color: #8b5cf6;
 }
 
 .simulation-control__speed {
   min-width: 58px;
-  padding: 8px 10px;
+  padding: 8px 5px;
   border: solid 1px rgba(162, 0, 255, 0.178);
   border-radius: 8px;
   background: linear-gradient(135deg, rgba(14, 14, 14, 0.39), rgba(170, 59, 255, 0.14));
   color: var(--renko-text);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 700;
   text-align: center;
 }
@@ -657,8 +657,8 @@ button.rdp-day_button {
   appearance: none;
   -webkit-appearance: none;
   /* remove estilo padrão no Chrome/Safari */
-  margin: 10px;
-  height: 10px;
+  margin: 5px;
+  height: 5px;
   background: var(--controller-speed-background);
   /* roxo transparente */
   border-radius: 5px;
@@ -834,7 +834,6 @@ button.rdp-day_button {
   display:flex;
   justify-content:end;
   margin-right:10px;
-
 }
 
 

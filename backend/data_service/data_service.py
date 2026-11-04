@@ -110,7 +110,7 @@ class DataService:
         symbols=None,
         symbol=None,
         modo="real",
-        time="15m",
+        time="1h",
         accumulation_period="month",
     ):
         result = get_schrodinger(

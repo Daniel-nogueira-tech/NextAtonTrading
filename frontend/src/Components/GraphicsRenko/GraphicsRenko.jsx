@@ -438,6 +438,47 @@ const buildRenkoCandles = (movements) => {
   }, [])
 }
 
+const buildLivePriceProjection = (market, candles) => {
+  const prices = Array.isArray(market?.result)
+    ? market.result
+    : Array.isArray(market?.prices)
+      ? market.prices
+      : []
+  let latestIndex = -1
+  for (let index = prices.length - 1; index >= 0; index -= 1) {
+    const point = prices[index]
+    const close = point?.Fechamento ?? point?.close ?? point?.price
+    if (close != null && close !== '' && Number.isFinite(Number(close))) {
+      latestIndex = index
+      break
+    }
+  }
+
+  if (latestIndex < 0) return { data: [], color: UP_COLOR }
+
+  const latestPrice = prices[latestIndex]
+  const value = Number(latestPrice.Fechamento ?? latestPrice.close ?? latestPrice.price)
+  const lastCandle = candles[candles.length - 1]
+  const baseTime = lastCandle?.time
+  const priceTime = latestPrice.Tempo ?? latestPrice.time
+  let time = priceTime == null
+    ? (typeof baseTime === 'number' ? baseTime + 1 : null)
+    : parseChartTime(priceTime, latestIndex)
+
+  if (time == null || !Number.isFinite(time)) return { data: [], color: UP_COLOR }
+  if (typeof baseTime === 'number' && time <= baseTime) time = baseTime + 1
+
+  const color = lastCandle && value < lastCandle.close ? DOWN_COLOR : UP_COLOR
+  const data = lastCandle
+    ? [
+      { time: lastCandle.time, value: lastCandle.close },
+      { time, value },
+    ]
+    : [{ time, value }]
+
+  return { data, color }
+}
+
 const buildLineData = (market, valueKey, seriesKey = 'result') => {
   const result = Array.isArray(market?.[seriesKey]) ? market[seriesKey] : []
 
@@ -466,62 +507,56 @@ const RETEST_LEVELS = [
   { name: 'pivot', label: 'Pivot', color: '#ffffff' },
   { name: 'stop', label: 'Stop', color: '#414141' },
 ]
-const MAX_RETEST_LEVELS = 2;
+const MAX_RETEST_LEVELS = 5;
 
-const buildRetestLevelSegments = (movements, chartEndTime) => {
-  const points = (Array.isArray(movements) ? movements : [])
-    .flatMap((movement, index) => {
-      const pivot = movement?.pivot
-      const trade = pivot?.trade
-      const time = pivot?.pivot_closeTime ?? movement?.closeTime
+const buildRetestLevelSegments = (lastTrend, chartEndTime) => {
+  const points = normalizeTrend(lastTrend)
+    .flatMap((trendPoint, index) => {
+      const time = trendPoint?.pivot_closeTime ?? trendPoint?.closeTime ?? trendPoint?.time
+      if (time == null) return []
 
-      if (!trade || typeof trade !== 'object' || time == null) return []
+      const parsedTime = parseChartTime(time, index)
+      const point = { time: parsedTime }
+      RETEST_LEVELS.forEach(({ name }) => {
+        const value = trendPoint?.[name]
+        if (value != null && value !== '' && Number.isFinite(Number(value))) {
+          point[name] = Number(value)
+        }
+      })
 
-      return [{
-        time: parseChartTime(time, index),
-        entry: trade.entry,
-        pivot: trade.pivot,
-        stop: trade.stop,
-        // 👇buy/sell para o preço de entrada
-        buy: trade.type === 'buy' ? trade.entry : undefined,
-        sell: trade.type === 'sell' ? trade.entry : undefined,
-      }]
+      return Number.isFinite(parsedTime) ? [point] : []
     })
-    .filter(point => Number.isFinite(point.time))
-    .sort((first, second) => first.time - second.time)
+    .sort((a, b) => a.time - b.time)
 
-  return RETEST_LEVELS.flatMap(({ name, label, color }) => points
-    .filter(point => point[name] != null && point[name] !== '' && Number.isFinite(Number(point[name])))
-    .reduce((uniquePoints, point) => {
-      const previousPoint = uniquePoints[uniquePoints.length - 1]
+  return RETEST_LEVELS.flatMap(({ name, label, color }) => {
+    return points
+      .filter(p => p[name] != null && Number.isFinite(Number(p[name])))
+      .reduce((unique, p) => {
+        const prev = unique[unique.length - 1]
+        if (prev?.time === p.time) unique[unique.length - 1] = p
+        else unique.push(p)
+        return unique
+      }, [])
+      .slice(-MAX_RETEST_LEVELS)
+      .flatMap((p, i, visible) => {
+        const value = Number(p[name])
+        const nextTime = visible[i + 1]?.time ?? chartEndTime
 
-      if (previousPoint?.time === point.time) {
-        uniquePoints[uniquePoints.length - 1] = point
-      } else {
-        uniquePoints.push(point)
-      }
+        if (!Number.isFinite(value) || !Number.isFinite(nextTime) || nextTime <= p.time) {
+          return []
+        }
 
-      return uniquePoints
-    }, [])
-    .slice(-MAX_RETEST_LEVELS)
-    .flatMap((point, index, visiblePoints) => {
-      const value = Number(point[name])
-      const nextTime = visiblePoints[index + 1]?.time ?? chartEndTime
-
-      if (!Number.isFinite(value) || !Number.isFinite(nextTime) || nextTime <= point.time) {
-        return []
-      }
-
-      return [{
-        key: `${name}-${point.time}`,
-        label,
-        color,
-        data: [
-          { time: point.time, value },
-          { time: nextTime, value },
-        ],
-      }]
-    }))
+        return [{
+          key: `${name}-${p.time}`,
+          label,
+          color,
+          data: [
+            { time: p.time, value },
+            { time: nextTime, value },
+          ],
+        }]
+      })
+  })
 }
 
 const getChartTimeKey = (time) => {
@@ -892,7 +927,7 @@ const GraphicsRenko = () => {
     setOrderTakeProfit,
     isTrend,
     setIsTrend,
-    dates, 
+    dates,
     setDates,
     fullPrice,
     resultOperations
@@ -901,6 +936,7 @@ const GraphicsRenko = () => {
   const chartRef = React.useRef(null);
   const analysisChartLifecycleRef = React.useRef(null);
   const candlestickSeriesRef = React.useRef(null);
+  const livePriceSeriesRef = React.useRef(null);
   const futureProjectionSeriesRef = React.useRef(null);
   const retestLevelSeriesRef = React.useRef(new Map());
   const retestLevelMarkersRef = React.useRef(new Map());
@@ -1120,7 +1156,6 @@ const GraphicsRenko = () => {
   const lastVppr = getLastVpprBySymbol(activeSymbol);
   const lastAmrsi = getLastAmrsiBySymbol(activeSymbol);
 
-  console.log(lastVppr)
 
 
   // seleciona o ativo que está ativo
@@ -1177,6 +1212,13 @@ const GraphicsRenko = () => {
   const renkoCandles = React.useMemo(() => buildRenkoCandles(
     selectedMarket?.movements || []
   ), [selectedMarket])
+
+  const selectedFullPriceMarket = React.useMemo(() => {
+    return selectMarketBySymbol(fullPrice, activeSymbol)
+  }, [fullPrice, activeSymbol])
+  const livePriceProjection = React.useMemo(() => (
+    buildLivePriceProjection(selectedFullPriceMarket, renkoCandles)
+  ), [selectedFullPriceMarket, renkoCandles])
 
   // Serie RSI
   const rsiSeries = React.useMemo(() => {
@@ -1301,6 +1343,14 @@ const GraphicsRenko = () => {
         minMove: 0.01,
       },
     })
+    livePriceSeriesRef.current = chartRef.current.addSeries(LineSeries, {
+      color: UP_COLOR,
+      lineWidth: 2,
+      lineStyle: LineStyle.Dashed,
+      priceLineVisible: true,
+      lastValueVisible: true,
+      crosshairMarkerVisible: true,
+    })
     futureProjectionSeriesRef.current = chartRef.current.addSeries(LineSeries, {
       color: 'rgba(0, 0, 0, 0)',
       lineWidth: 1,
@@ -1412,6 +1462,7 @@ const GraphicsRenko = () => {
 
       chartRef.current = null
       candlestickSeriesRef.current = null
+      livePriceSeriesRef.current = null
       futureProjectionSeriesRef.current = null
       candlestickSeriesMetaRef.current = null
 
@@ -1446,18 +1497,20 @@ const GraphicsRenko = () => {
     }
 
     updateSeriesData(candlestickSeriesRef.current, renkoCandles, candlestickSeriesMetaRef)
+    livePriceSeriesRef.current.applyOptions({
+      color: livePriceProjection.color,
+      priceLineColor: livePriceProjection.color,
+    })
+    livePriceSeriesRef.current.setData(livePriceProjection.data)
 
-    const chartEndTime = renkoCandles[renkoCandles.length - 1]?.time
-    let retestSegments = null
-    retestSegments = isTrend ?
-      retestSegments = buildRetestLevelSegments(
-        selectMarketBySymbol(trend, activeSymbol)?.movements,
-        chartEndTime
-      ) :
-      retestSegments = buildRetestLevelSegments(
-        selectMarketBySymbol(trendPrimary, activeSymbol)?.movements,
-        chartEndTime
-      )
+    const chartEndTime = Math.max(
+      renkoCandles[renkoCandles.length - 1]?.time ?? 0,
+      livePriceProjection.data[livePriceProjection.data.length - 1]?.time ?? 0,
+    )
+    const retestSegments = buildRetestLevelSegments(
+      isTrend ? lastTrend : lastTrendPrimary,
+      chartEndTime,
+    )
 
     const visibleSegmentKeys = new Set(retestSegments.map(segment => segment.key))
 
@@ -1508,7 +1561,16 @@ const GraphicsRenko = () => {
       chartRef.current.timeScale().fitContent()
     }
     hadRenkoCandlesRef.current = renkoCandles.length > 0
-  }, [renkoCandles, activeSymbol, signalsBySymbol, trend])
+  }, [
+    renkoCandles,
+    activeSymbol,
+    signalsBySymbol,
+    trend,
+    livePriceProjection,
+    isTrend,
+    lastTrend,
+    lastTrendPrimary,
+  ])
 
   React.useEffect(() => {
     if (!futureProjectionSeriesRef.current) return
@@ -1596,19 +1658,19 @@ const GraphicsRenko = () => {
   //=======================|Retorna resultaddo da operação|==========================//
   return (
     <section className="graphics-renko">
-            {isOrderTicketOpen && <OrderTicket
-              symbol={activeSymbol}
-              price={currentOrderPrice}
-              isOpen
-              initialSide={orderTicketSide}
-              orderStop={orderStop}
-              setOrderStop={setOrderStop}
-              orderTakeProfit={orderTakeProfit}
-              setOrderTakeProfit={setOrderTakeProfit}
-              onCalculateOrder={handleCalculateOrder}
-              onConfirm={handleConfirmOrder}
-              onClose={closeOrderTicket}
-            />}
+      {isOrderTicketOpen && <OrderTicket
+        symbol={activeSymbol}
+        price={currentOrderPrice}
+        isOpen
+        initialSide={orderTicketSide}
+        orderStop={orderStop}
+        setOrderStop={setOrderStop}
+        orderTakeProfit={orderTakeProfit}
+        setOrderTakeProfit={setOrderTakeProfit}
+        onCalculateOrder={handleCalculateOrder}
+        onConfirm={handleConfirmOrder}
+        onClose={closeOrderTicket}
+      />}
       <div style={{ display: "flex", justifyContent: "center" }}>
         {movementTables &&
           <MovementTables />
@@ -1623,6 +1685,9 @@ const GraphicsRenko = () => {
               <button
                 onClick={() => setIsTrend(!isTrend)}
               > {isTrend ? 'Secundary' : 'Primary'}
+              </button>
+              <button
+              > Grafico completo
               </button>
             </div>
           </div>

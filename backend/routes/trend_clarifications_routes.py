@@ -14,8 +14,8 @@ def get_trend():
         elif not symbols:
             symbols = request.args.get('symbol')
 
-        time = request.args.get('time', '15m')
-        mode = request.args.get('mode', 'real')
+        time = request.args.get('time', '1h')
+        mode = request.args.get('mode', 'real').strip()
 
         # Validações básicas dos parâmetros
         if symbols is not None and not isinstance(symbols, (str, list)):

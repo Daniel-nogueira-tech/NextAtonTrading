@@ -13,7 +13,7 @@ def schrodinger_route():
         elif not symbols:
             symbols = request.args.get("symbol")
 
-        time = request.args.get("time", "15m")
+        time = request.args.get("time", "1h")
         modo = request.args.get("modo") or request.args.get("mode", "")
         accumulation_period = request.args.get("accumulation_period", "month") # "week", "month", "all"
 

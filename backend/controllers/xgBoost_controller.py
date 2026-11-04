@@ -11,13 +11,13 @@ from data_service.data_service import data_service
 # ============================================================
 # 1. COLETA DE INDICADORES
 # ============================================================
-data_service.add_trend_primary(symbols="BTCUSDT", time="15m", mode="simulation")
-data_service.add_trend(symbols="BTCUSDT", time="15m", mode="simulation")
-data_service.add_vppr(modo="simulation", symbols="BTCUSDT", time="15m", accumulation_period="month")
+data_service.add_trend_primary(symbols="BTCUSDT", time="1h", mode="simulation")
+data_service.add_trend(symbols="BTCUSDT", time="1h", mode="simulation")
+data_service.add_vppr(modo="simulation", symbols="BTCUSDT", time="1h", accumulation_period="month")
 data_service.add_rsi(mode="simulation", symbols="BTCUSDT", period=10, media_period=20)
 data_service.add_rsi_primary(mode="simulation", symbols="BTCUSDT", period=2, media_period=20)
-data_service.add_price(mode="simulation", symbol="BTCUSDT", time="15m")
-data_service.add_Schrodinger(modo="simulation", symbols="BTCUSDT", time="15m", accumulation_period="month")
+data_service.add_price(mode="simulation", symbol="BTCUSDT", time="1h")
+data_service.add_Schrodinger(modo="simulation", symbols="BTCUSDT", time="1h", accumulation_period="month")
 
 def normalize_data():
     return data_service.indicators_dataframe()

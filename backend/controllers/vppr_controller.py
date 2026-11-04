@@ -112,7 +112,7 @@ def _calculate_vppr_macd(vppr_values):
 
 
 
-def _get_vppr_single(symbol, modo="real", time="15m", total=5000, accumulation_period="month"):
+def _get_vppr_single(symbol, modo="real", time="1h", total=5000, accumulation_period="month"):
     try:
         if modo == "simulation":
             klines = get_klines_data_simulation(symbol)
@@ -153,7 +153,7 @@ def _get_vppr_single(symbol, modo="real", time="15m", total=5000, accumulation_p
 
     return result
 
-def get_vppr(symbols=None, symbol=None, modo="real", time="15m", accumulation_period="month"):
+def get_vppr(symbols=None, symbol=None, modo="real", time="1h", accumulation_period="month"):
     default_symbols = get_stored_symbols()
 
     if modo not in ["real", "simulation"]:

@@ -10,7 +10,8 @@ def data_to_simulation():
     date_start = data.get("dateStart","").strip().upper()
     date_end = data.get("dateEnd","").strip()
     days = data.get("days", "").strip()
- 
+    time = data.get("time", "1h").strip()
+
 
     if not symbol:
         return jsonify({"Error": "The parameters symbol, dateStart, and dateEnd are required."}),400
@@ -18,18 +19,16 @@ def data_to_simulation():
     days = int(days) if days.isdigit() else None
 
     try:
-        # Baixa 15m
         download_and_save_klines(
             symbol,
-            "15m",
+            time,
             date_start,
             date_end,
             days
         )
-        # Baixa 1h
         download_and_save_klines(
             symbol,
-            "1h",
+            time,
             date_start,
             date_end,
             days

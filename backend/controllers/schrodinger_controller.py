@@ -175,18 +175,10 @@ def calculate_planck_constant(orders, alpha=0.1):
 
 # ===============Evolução de função de onda Ψ==============#
 def evolve_wave_function(orders,
-                         window=300,
+                         window=100,
                          min_window=1,
                          use_energy_weight=False,
-                         h_market=1.0):
-    """
-    Probabilidade frequentista simples de subida/queda numa janela móvel.
-    - window: tamanho da janela (default 100)
-    - psi_buy  = n_sobe / n_total_validos
-    - psi_sell = n_cai  / n_total_validos
-    - Retornos 0 (preço parado) NÃO entram no denominador
-      (evita diluir a probabilidade — senão psi_buy+psi_sell < 1)
-    """
+                         h_market=None): 
     window     = max(1, int(window))
     min_window = max(1, int(min_window))
     if min_window > window:
@@ -196,19 +188,23 @@ def evolve_wave_function(orders,
     if n_total == 0:
         return []
 
-    # --- Pesos de energia (opcional) ---
+    # --- Energia ---
+    H = None
+    h_weight = None
     if use_energy_weight:
-        kinetic   = calculate_kinetic_energy(orders)
-        potential = calculate_Potential_energy(orders)
+        kinetic   = np.array(calculate_kinetic_energy(orders))
+        potential = np.array(calculate_Potential_energy(orders))
         n_e = min(len(kinetic), len(potential), n_total)
-        H = np.array([kinetic[i] + potential[i] for i in range(n_e)])
-        h_norm = H / max(float(h_market), 1e-6)
-        h_weight = np.clip(np.tanh(h_norm), 0.0, 1.0)
-        h_weight = np.where(h_weight < 1e-9, 1.0, h_weight)
-    else:
-        h_weight = None
+        H = kinetic[:n_e] + potential[:n_e]
+        # calibra h_market com mediana de H>0
+        H_pos = H[H > 0]
+        if h_market is None:
+            h_market = float(np.median(H_pos)) if H_pos.size else 1.0
+        h_market = max(float(h_market), 1e-6)
+        h_weight = np.clip(np.tanh(H / h_market), 0.0, 1.0)
+        h_weight = np.where(h_weight < 1e-9, 1.0, h_weight)  # fallback
 
-    # --- Retornos por barra ---
+    # --- Retornos ---
     prices = np.array([o["price"] for o in orders], dtype=float)
     retornos = np.zeros(n_total)
     for i in range(1, n_total):
@@ -220,33 +216,32 @@ def evolve_wave_function(orders,
         end   = i + 1
         ret_win = retornos[start:end]
 
-        # --- Contagem simples: sobe / cai / fica ---
-        n_sobe = int(np.sum(ret_win > 0))
-        n_cai  = int(np.sum(ret_win < 0))
-        n_zero = int(np.sum(ret_win == 0))
-        n_valid = n_sobe + n_cai          # zeros fora do denominador
+        n_sobe  = int(np.sum(ret_win > 0))
+        n_cai   = int(np.sum(ret_win < 0))
+        n_zero  = int(np.sum(ret_win == 0))
+        n_valid = n_sobe + n_cai
 
         if n_valid < min_window:
             psi_buy, psi_sell = 0.5, 0.5
         elif use_energy_weight:
-            idx_global = np.arange(start, end)
-            w = h_weight[idx_global] if len(idx_global) <= len(h_weight) \
-                else np.ones(len(idx_global))
+            idx = np.arange(start, end)
+            # garante alinhamento: se H for mais curto, usa 1.0
+            w = np.ones(len(idx))
+            m = min(len(idx), len(h_weight)) if h_weight is not None else 0
+            if m > 0:
+                w[:m] = h_weight[idx[:m]]
             w_pos = w[ret_win > 0].sum()
             w_neg = w[ret_win < 0].sum()
-            total_w = w_pos + w_neg
-            if total_w > 1e-12:
-                psi_buy  = float(w_pos / total_w)
-                psi_sell = float(w_neg / total_w)
+            tot   = w_pos + w_neg
+            if tot > 1e-12:
+                psi_buy, psi_sell = float(w_pos/tot), float(w_neg/tot)
             else:
                 psi_buy, psi_sell = 0.5, 0.5
         else:
             psi_buy  = n_sobe / n_valid
             psi_sell = n_cai  / n_valid
 
-        H_i = None
-        if use_energy_weight and i < len(h_weight):
-            H_i = float(h_weight[i] * h_market)
+        H_i = float(H[i]) if (H is not None and i < len(H)) else None
 
         evolution.append({
             "ordem": i + 1,
@@ -261,10 +256,8 @@ def evolve_wave_function(orders,
         })
 
     return evolution
-
-
 # =============== TUNELAMENTO QUÂNTICO =============== #
-def power_surges(orders, smooth=1, prominence=0.65):
+def power_surges(orders, smooth=1, prominence=0.20):
     # Calcula energias
     kinetic   = calculate_kinetic_energy(orders)
     potential = calculate_Potential_energy(orders)
@@ -453,7 +446,7 @@ def get_schrodinger(
     symbols=None,
     symbol=None,
     modo=None,
-    time="15m",
+    time="1h",
     accumulation_period="month",
 ): 
     """Calcula o modelo separadamente para cada ativo recebido do VPPR."""

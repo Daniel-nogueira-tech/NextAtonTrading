@@ -4,7 +4,7 @@ import './NavBar.css'
 import { mockSymbols, searchSymbols, addMockSymbol } from './mockSymbols'
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics'
 import { Link } from 'react-router-dom'
-import 'primeicons/primeicons.css';
+
 
 
 const NavBar = () => {

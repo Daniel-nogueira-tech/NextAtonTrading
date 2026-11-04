@@ -15,7 +15,7 @@ def get_trend():
         elif not symbols:
             symbols = request.args.get('symbol')
 
-        time = request.args.get('time', '15m')
+        time = request.args.get('time', '1h').strip()
         mode = request.args.get('mode', 'real')
 
         # Validações básicas dos parâmetros
