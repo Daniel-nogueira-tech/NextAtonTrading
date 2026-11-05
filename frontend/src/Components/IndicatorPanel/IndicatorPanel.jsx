@@ -1,4 +1,5 @@
 // IndicatorPanel.jsx
+import React from 'react'
 import './IndicatorPanel.css'
 
 // =====================|Mapa de cores|=====================//
@@ -52,15 +53,98 @@ const colorMapVpprMacd = {
 }
 
 // =====================|Componente|=====================//
+const VOLUME_PROFILE_LEVELS = 20
+
+const normalizeTrendPoints = (trend, activeSymbol) => {
+    const collection = trend?.data ?? trend
+    const markets = Array.isArray(collection) ? collection : collection ? [collection] : []
+    const normalizedSymbol = String(activeSymbol || '').trim().toUpperCase()
+    const market = markets.find(item => (
+        String(item?.symbol || '').trim().toUpperCase() === normalizedSymbol
+    )) || (markets.length === 1 ? markets[0] : null)
+    const points = market?.movements ?? market?.result ?? market?.prices ?? market?.data
+    return Array.isArray(points) ? points : []
+}
+
+const getVolumePoints = (points) => points.flatMap(point => {
+    const price = Number(point?.closePrice ?? point?.Fechamento ?? point?.close ?? point?.price)
+    const volume = Number(point?.volume ?? point?.Volume)
+    return Number.isFinite(price) && Number.isFinite(volume) && volume > 0
+        ? [{ price, volume }]
+        : []
+})
+
+const getLatestClose = (fullPrice) => {
+    const priceSeries = fullPrice?.prices ?? fullPrice?.result ?? fullPrice?.data ?? []
+    for (let index = priceSeries.length - 1; index >= 0; index -= 1) {
+        const close = Number(
+            priceSeries[index]?.Fechamento ??
+            priceSeries[index]?.close ??
+            priceSeries[index]?.price ??
+            priceSeries[index]?.closePrice
+        )
+        if (Number.isFinite(close)) return close
+    }
+    return null
+}
+
+const buildVolumeProfile = (trend, fullPrice, activeSymbol, currentPrice) => {
+    const trendPoints = getVolumePoints(normalizeTrendPoints(trend, activeSymbol))
+    const priceSeries = fullPrice?.prices ?? fullPrice?.result ?? fullPrice?.data ?? []
+    const points = trendPoints.length > 0 ? trendPoints : getVolumePoints(priceSeries)
+    if (points.length === 0) return []
+
+    const prices = points.map(point => point.price)
+    if (Number.isFinite(currentPrice)) prices.push(currentPrice)
+    const minPrice = Math.min(...prices)
+    const maxPrice = Math.max(...prices)
+    const priceRange = maxPrice - minPrice
+    const binCount = priceRange === 0 ? 1 : VOLUME_PROFILE_LEVELS
+    const binSize = priceRange / binCount
+    const bins = Array.from({ length: binCount }, (_, index) => ({
+        minPrice: minPrice + index * binSize,
+        maxPrice: index === binCount - 1 ? maxPrice : minPrice + (index + 1) * binSize,
+        volume: 0,
+    }))
+
+    let currentBinIndex = -1
+    if (Number.isFinite(currentPrice)) {
+        currentBinIndex = priceRange === 0
+            ? 0
+            : Math.min(Math.floor((currentPrice - minPrice) / binSize), binCount - 1)
+    }
+
+    points.forEach(({ price, volume }) => {
+        const index = priceRange === 0
+            ? 0
+            : Math.min(Math.floor((price - minPrice) / binSize), binCount - 1)
+        bins[index].volume += volume
+    })
+
+    return bins
+        .map((bin, index) => ({ ...bin, isCurrent: index === currentBinIndex }))
+        .filter(bin => bin.volume > 0 || bin.isCurrent)
+        .reverse()
+}
+
 const IndicatorPanel = ({
     id,
     activeSymbol,
+    trend,
+    fullPrice,
     lastTrend,
     lastTrendPrimary,
     lastVppr,
     lastAmrsi,
     schrodingerIndicators,
 }) => {
+    const [activeView, setActiveView] = React.useState('indicators')
+    const currentPrice = React.useMemo(() => getLatestClose(fullPrice), [fullPrice])
+    const volumeProfile = React.useMemo(
+        () => buildVolumeProfile(trend, fullPrice, activeSymbol, currentPrice),
+        [trend, fullPrice, activeSymbol, currentPrice],
+    )
+    const maxVolume = Math.max(0, ...volumeProfile.map(bin => bin.volume))
     const kineticColor = schrodingerIndicators?.kineticTrend === 'increasing'
         ? '#f5d547'
         : '#71717a'
@@ -95,9 +179,29 @@ const IndicatorPanel = ({
     }
 
     return (
-        <section id={id} className="indicator-panel" style={signalColors}>
-            <h3 className="indicator-panel__symbol">{activeSymbol}</h3>
-            <div className="indicator-panel__grid">
+        <div className="indicator-panel-shell">
+            <div className="indicator-panel__view-switch" role="group" aria-label="Visualização do painel">
+                <button
+                    className={`indicator-panel__view-button${activeView === 'indicators' ? ' is-active' : ''}`}
+                    type="button"
+                    aria-pressed={activeView === 'indicators'}
+                    onClick={() => setActiveView('indicators')}
+                >
+                    Indicadores
+                </button>
+                <button
+                    className={`indicator-panel__view-button${activeView === 'volume' ? ' is-active' : ''}`}
+                    type="button"
+                    aria-pressed={activeView === 'volume'}
+                    onClick={() => setActiveView('volume')}
+                >
+                    Volume por Preço
+                </button>
+            </div>
+            {activeView === 'indicators' ? (
+                <section id={id} className="indicator-panel" style={signalColors}>
+                    <h3 className="indicator-panel__symbol">{activeSymbol}</h3>
+                    <div className="indicator-panel__grid">
                 {/* ===================== TREND ===================== */}
                 <div className="indicator-panel__card">
                     <header className="indicator-panel__card-header">
@@ -241,8 +345,64 @@ const IndicatorPanel = ({
                         )}
                     </div>
                 </div>
-            </div>
-        </section>
+                    </div>
+                </section>
+            ) : (
+                <section id={id} className="indicator-panel volume-profile" aria-label={`Volume por preço de ${activeSymbol}`}>
+                    <h3 className="indicator-panel__symbol">{activeSymbol} · Volume por Preço</h3>
+                    <div className="volume-profile__current-price" aria-live="polite">
+                        Preço atual: {Number.isFinite(currentPrice)
+                            ? currentPrice.toLocaleString(undefined, { maximumFractionDigits: 8 })
+                            : 'sem dados'}
+                    </div>
+                    {volumeProfile.length > 0 ? (
+                        <div className="volume-profile__levels">
+                            {volumeProfile.map((bin, index) => {
+                                const relativeVolume = bin.volume / maxVolume
+                                const volumeClass = relativeVolume >= 0.75
+                                    ? 'volume-profile__bar--high'
+                                    : relativeVolume >= 0.35
+                                        ? 'volume-profile__bar--medium'
+                                        : 'volume-profile__bar--low'
+                                const formatPrice = value => value.toLocaleString(undefined, { maximumFractionDigits: 8 })
+
+                                return (
+                                    <div
+                                        className={`volume-profile__row${bin.isCurrent ? ' volume-profile__row--current' : ''}`}
+                                        key={`${bin.minPrice}-${index}`}
+                                    >
+                                        <span className="volume-profile__price">
+                                            {bin.minPrice === bin.maxPrice
+                                                ? formatPrice(bin.minPrice)
+                                                : `${formatPrice(bin.minPrice)} – ${formatPrice(bin.maxPrice)}`}
+                                            {bin.isCurrent && <span className="volume-profile__current-label">Atual</span>}
+                                        </span>
+                                        <div className="volume-profile__bar-track">
+                                            <div
+                                                className={`volume-profile__bar ${volumeClass}`}
+                                                style={{ width: `${relativeVolume * 100}%` }}
+                                            />
+                                        </div>
+                                        <span className="volume-profile__volume">
+                                            {bin.volume.toLocaleString(undefined, { notation: 'compact', maximumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    ) : (
+                        <div className="indicator-panel--empty">
+                            <span>Sem dados de preço e volume para este ativo.</span>
+                        </div>
+                    )}
+                    <div className="volume-profile__legend" aria-label="Legenda de volume">
+                        <span><i className="volume-profile__legend-dot volume-profile__bar--high" /> Alto</span>
+                        <span><i className="volume-profile__legend-dot volume-profile__bar--medium" /> Médio</span>
+                        <span><i className="volume-profile__legend-dot volume-profile__bar--low" /> Baixo</span>
+                    </div>
+                </section>
+            )}
+        </div>
     )
 }
 

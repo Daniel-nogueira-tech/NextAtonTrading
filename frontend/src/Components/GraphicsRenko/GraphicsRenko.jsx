@@ -1960,6 +1960,8 @@ const GraphicsRenko = () => {
                 key={activeSymbol}
                 id="graphics-renko-indicator-panel"
                 activeSymbol={activeSymbol}
+                trend={trend}
+                fullPrice={selectedFullPriceMarket}
                 lastTrend={lastTrend}
                 lastTrendPrimary={lastTrendPrimary}
                 lastVppr={lastVppr}

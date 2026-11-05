@@ -241,7 +241,9 @@ body.graphics-renko-indicator-window .graphics-renko__indicator-chart {
   gap: 8px;
   width: 310px;
   min-width: 0;
-  max-height: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .graphics-renko__indicator-sidebar--collapsed {
@@ -265,8 +267,17 @@ body.graphics-renko-indicator-window .graphics-renko__indicator-chart {
 }
 
 .graphics-renko__indicator-sidebar .indicator-panel {
+  flex: 1 1 0;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.graphics-renko__indicator-sidebar .indicator-panel-shell > .indicator-panel {
+  min-height: 0;
+  max-height: 100%;
 }
 
 .graphics-renko__indicator-sidebar .indicator-panel__grid {
