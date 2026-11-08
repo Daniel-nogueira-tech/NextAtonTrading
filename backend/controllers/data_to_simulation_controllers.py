@@ -85,9 +85,14 @@ def delete_klines_data_simulation():
         cursor = conn.cursor()
         cursor.execute("DELETE FROM klines_simulation")
         conn.commit()
+
     except Exception as erro:
+        if "no such table" in str(erro):
+            return
+
         print(f"Erro ao deletar klines: {erro}")
         raise
+
     finally:
         if conn:
             conn.close()
@@ -100,9 +105,14 @@ def delete_klines_data_simulation_primary():
         cursor = conn.cursor()
         cursor.execute("DELETE FROM klines_simulation_primary")
         conn.commit()
+
     except Exception as erro:
+        if "no such table" in str(erro):
+            return
+
         print(f"Erro ao deletar klines primary: {erro}")
         raise
+
     finally:
         if conn:
             conn.close()

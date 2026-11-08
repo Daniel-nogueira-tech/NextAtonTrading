@@ -175,10 +175,20 @@ def calculate_planck_constant(orders, alpha=0.1):
 
 # ===============Evolução de função de onda Ψ==============#
 def evolve_wave_function(orders,
-                         window=100,
-                         min_window=1,
-                         use_energy_weight=False,
-                         h_market=None): 
+                         window=10,
+                         min_window=1):
+    """
+    Probabilidade frequentista simples de subida/queda numa janela móvel.
+
+    - window: tamanho da janela (default 10)
+    - min_window: mínimo de barras válidas (sobe+cai) para calcular;
+                  abaixo disso retorna 0.5 / 0.5.
+    - Barras com retorno 0 (preço parado) NÃO entram no denominador,
+      para que psi_buy + psi_sell = 1.
+
+    psi_buy  = n_sobe / (n_sobe + n_cai)
+    psi_sell = n_cai  / (n_sobe + n_cai)
+    """
     window     = max(1, int(window))
     min_window = max(1, int(min_window))
     if min_window > window:
@@ -188,23 +198,7 @@ def evolve_wave_function(orders,
     if n_total == 0:
         return []
 
-    # --- Energia ---
-    H = None
-    h_weight = None
-    if use_energy_weight:
-        kinetic   = np.array(calculate_kinetic_energy(orders))
-        potential = np.array(calculate_Potential_energy(orders))
-        n_e = min(len(kinetic), len(potential), n_total)
-        H = kinetic[:n_e] + potential[:n_e]
-        # calibra h_market com mediana de H>0
-        H_pos = H[H > 0]
-        if h_market is None:
-            h_market = float(np.median(H_pos)) if H_pos.size else 1.0
-        h_market = max(float(h_market), 1e-6)
-        h_weight = np.clip(np.tanh(H / h_market), 0.0, 1.0)
-        h_weight = np.where(h_weight < 1e-9, 1.0, h_weight)  # fallback
-
-    # --- Retornos ---
+    # --- Retornos por barra ---
     prices = np.array([o["price"] for o in orders], dtype=float)
     retornos = np.zeros(n_total)
     for i in range(1, n_total):
@@ -223,25 +217,9 @@ def evolve_wave_function(orders,
 
         if n_valid < min_window:
             psi_buy, psi_sell = 0.5, 0.5
-        elif use_energy_weight:
-            idx = np.arange(start, end)
-            # garante alinhamento: se H for mais curto, usa 1.0
-            w = np.ones(len(idx))
-            m = min(len(idx), len(h_weight)) if h_weight is not None else 0
-            if m > 0:
-                w[:m] = h_weight[idx[:m]]
-            w_pos = w[ret_win > 0].sum()
-            w_neg = w[ret_win < 0].sum()
-            tot   = w_pos + w_neg
-            if tot > 1e-12:
-                psi_buy, psi_sell = float(w_pos/tot), float(w_neg/tot)
-            else:
-                psi_buy, psi_sell = 0.5, 0.5
         else:
             psi_buy  = n_sobe / n_valid
             psi_sell = n_cai  / n_valid
-
-        H_i = float(H[i]) if (H is not None and i < len(H)) else None
 
         evolution.append({
             "ordem": i + 1,
@@ -251,7 +229,6 @@ def evolve_wave_function(orders,
             "n_cai": n_cai,
             "n_zero": n_zero,
             "n_total": n_valid,
-            "H": H_i,
             "retorno": float(retornos[i]),
         })
 
@@ -293,96 +270,6 @@ def power_surges(orders, smooth=1, prominence=0.20):
     return surge_points
 
 # ================Colapso da função de onda================#
-def collapse_wave_function(evolution_series, potential_energy, energy_kinetic, orders):
-    """
-    Colapso da função de onda adaptado ao potencial suave (gaussiano).
-    
-    Regra:
-      - Rompimento = potencial abaixo de um threshold relativo (percentil).
-      - Direção = dada pelo movimento do preço (delta).
-      - Colapso para estado definido (1,0) ou (0,1) na barra do rompimento.
-      - Caso contrário, mantém psi_buy/psi_sell evoluídos.
-    """
-    n = len(evolution_series)
-    if n == 0:
-        return []
-
-    # --- Calibra threshold de rompimento via percentil do próprio potencial ---
-    # Ignora os primeiros zeros (i < window da calculate_Potential_energy)
-    valid_pot = [p for p in potential_energy if p > 0]
-    if valid_pot:
-        # Percentil 15: ~15% das barras são "rompimento"
-        pot_threshold = float(np.percentile(valid_pot, 15))
-    else:
-        pot_threshold = 0.0
-
-    # --- Calibra threshold de energia cinética via mediana ---
-    valid_kin = [k for k in energy_kinetic if k > 0]
-    kin_percentil = np.percentile(valid_kin, 60) if valid_kin else 0.0
-
-    collapsed_series = []
-
-    for i, e in enumerate(evolution_series):
-        H         = e["H"]
-        psi_buy   = e["psi_buy"]
-        psi_sell  = e["psi_sell"]
-        buy, sell = psi_buy, psi_sell
-
-        current_kinetic   = energy_kinetic[i]
-        current_potential = potential_energy[i]
-
-        price_current  = orders[i]["price"]
-        price_previous = orders[i-1]["price"] if i > 0 else price_current
-        delta_price    = price_current - price_previous
-
-        # ---- 1) Detecta se há rompimento (potencial baixo) ----
-        # i < window já vem com potential = 0 → considera "sem janela" = não rompimento
-        is_breakout = (0 < current_potential < pot_threshold)
-
-        # ---- 2) Determina a direção pelo preço ----
-        flag_buy  = False
-        flag_sell = False
-        if is_breakout:
-            if delta_price > 0:
-                flag_buy = True
-            elif delta_price < 0:
-                flag_sell = True
-            # delta == 0 → sem direção, não colapsa
-
-        # ---- 3) Confirmação pela energia cinética (opcional) ----
-        # Só colapsa se E_kin está acima da mediana (movimento real).
-        # Se quiser colapso sempre que houver rompimento, apague este if.
-        kin_ok = (current_kinetic >= kin_percentil)
-
-        # ---- 4) Aplica o colapso ----
-        collapsed = False
-        if flag_buy and kin_ok:
-            buy, sell = 1.0, 0.0
-            collapsed = True
-        elif flag_sell and kin_ok:
-            buy, sell = 0.0, 1.0
-            collapsed = True
-
-        # ---- 5) Reporte ----
-        if collapsed and flag_buy:
-            rompimento = "alta"
-        elif collapsed and flag_sell:
-            rompimento = "baixa"
-        elif is_breakout:
-            rompimento = "sem_confirmacao"   # havia rompimento mas kin não confirmou
-        else:
-            rompimento = "nenhum"
-
-        collapsed_series.append({
-            "ordem": e["ordem"],
-            "buy": buy,
-            "sell": sell,
-            "H": H,
-            "potencial": current_potential,
-            "rompimento": rompimento,
-        })
-
-    return collapsed_series
 
 def _calculate_schrodinger(orders):
     peaks = power_surges(orders, smooth=1, prominence=0.65)
@@ -417,19 +304,10 @@ def _calculate_schrodinger(orders):
         })
 
     # Evolução da função de onda com time
-    evolution_series = evolve_wave_function(orders, h_market)
+    evolution_series = evolve_wave_function(orders, window=100)
     for i, e in enumerate(evolution_series):
         e["time"] = orders[i]["time"].strftime("%Y-%m-%d %H:%M:%S")
 
-    # Colapso da função de onda com time
-    collapsed = collapse_wave_function(
-        evolution_series, raw_potential, raw_kinetic, orders
-    )
-    for item in collapsed:
-        order_index = item["ordem"] - 1
-        if 0 <= order_index < len(orders):
-            order_time = orders[order_index]["time"]
-            item["time"] = order_time.strftime("%Y-%m-%d %H:%M:%S")
 
     return {
         "higher_probability": higher_probability,
@@ -438,7 +316,6 @@ def _calculate_schrodinger(orders):
         "h_market": float(h_market),
         "ema_volume": ema_series_with_time,
         "evolution_series": evolution_series,
-        "collapsed": collapsed,
         "power_surges": peaks,
     }
 

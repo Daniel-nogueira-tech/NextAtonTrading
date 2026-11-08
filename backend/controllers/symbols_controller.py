@@ -19,42 +19,71 @@ def save_symbols(symbol, name=None, active=True):
 
 # Função para obter todos os símbolos da tabela de símbolos
 def get_all_symbols():
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, symbol, name, active FROM symbols")
-    rows = cursor.fetchall()
+    conn = None
 
-    if not rows:
-        raise ValueError("No symbols found in the database.")
-    
-    conn.close()
+    try:
+        conn = conectar()
+        cursor = conn.cursor()
 
-    # transforma cada linha em dicionário
-    symbols = [
-        {
-            "id": row[0],
-            "symbol": row[1],
-            "name": row[2],
-            "active": bool(row[3])  # converte 0/1 para True/False
-        }
-        for row in rows
-    ]
-    return symbols
+        cursor.execute(
+            "SELECT id, symbol, name, active FROM symbols"
+        )
+
+        rows = cursor.fetchall()
+
+        if not rows:
+           return ["BTCUSDT"]
+
+        return [
+            {
+                "id": row[0],
+                "symbol": row[1],
+                "name": row[2],
+                "active": bool(row[3])
+            }
+            for row in rows
+        ]
+
+    except Exception as erro:
+        if "no such table" in str(erro):
+            print(f"Tabela symbols não existe: {erro}")
+            return ["BTCUSDT"]
+
+        raise
+
+    finally:
+        if conn:
+            conn.close()
 
 
 # Função para obter apenas símbolos armazenados
 def get_stored_symbols():
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute("SELECT symbol FROM symbols")
-    rows = cursor.fetchall()
+    conn = None
 
-    if not rows:
-        raise ValueError("No active symbols found in the database.")
+    try:
+        conn = conectar()
+        cursor = conn.cursor()
 
-    conn.close()
+        cursor.execute("SELECT symbol FROM symbols")
+        rows = cursor.fetchall()
 
-    return [row[0] for row in rows]
+        if not rows:
+            print("Nenhum símbolo encontrado. Usando BTCUSDT como padrão.")
+            return ["BTCUSDT"]
+
+        return [row[0] for row in rows]
+
+    except Exception as erro:
+        if "no such table" in str(erro):
+            print("Tabela symbols não existe. Usando BTCUSDT como padrão.")
+            return ["BTCUSDT"]
+
+        raise
+
+    finally:
+        if conn:
+            conn.close()
+
 
 # Função para remover um símbolo da tabela de símbolos
 def delete_symbol(id):

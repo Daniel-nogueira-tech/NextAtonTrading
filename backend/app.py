@@ -4,6 +4,7 @@ from routes.trend_clarifications_routes import trend_bp
 from routes.rsi_routes import rsi_bp
 from routes.vppr_routes import vppr_bp
 from models.symbols_models import create_table_symbols
+from models.data_operations_models import create_operations
 from routes.symbols_routes import symbols_bp
 from routes.trend_primary_clarifications_routes import trend_pri_bp
 from routes.price_data import price_data_bp
@@ -22,7 +23,7 @@ CORS(app)  # libera acesso do frontend
 #Cria tabelas no banco de dados
 create_table_symbols() # cria tabela para simbolos do usuário
 get_binance_symbols() # pega todos simbolos
- 
+create_operations()
 
 
 # registra as rotas

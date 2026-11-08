@@ -7,7 +7,7 @@
     --top-sell-glow: rgba(239, 68, 68, 0.35);
 
     --top-exit: #7c3aed;
-    --top-exit-glow: rgba(124, 58, 237, 0.35);
+    --top-exit-glow: rgba(205, 180, 247, 0.13);
 
     --top-positive: #22c55e;
     --top-negative: #ef4444;
@@ -19,7 +19,7 @@
 
     --top-bg: rgba(15, 15, 18, 0.85);
     --top-bg-2: rgba(26, 26, 30, 0.9);
-    --top-border: rgba(124, 58, 237, 0.2);
+    --top-border: rgba(117, 116, 119, 0.2);
     --top-gray-400: #71717a;
     --top-gray-300: #a1a1aa;
     --top-gray-200: #d4d4d8;
@@ -29,7 +29,7 @@
 /* ================= WRAPPER FLUTUANTE ================= */
 .top-overlay {
     position: absolute;
-    bottom:30px;
+    bottom: 30px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 20;
@@ -44,23 +44,72 @@
     background: linear-gradient(135deg, var(--top-bg), var(--top-bg-2));
     border: 1px solid var(--top-border);
     border-radius: 14px;
+    min-width: 44px;
     backdrop-filter: blur(16px);
+    padding: 0.2rem 0.25rem 0.2rem;
     box-shadow:
         0 15px 35px rgba(0, 0, 0, 0.55),
-        0 0 30px rgba(124, 58, 237, 0.08),
-        inset 0 1px 0 rgba(124, 58, 237, 0.08);
+        0 0 30px rgba(249, 249, 250, 0.08),
+        inset 0 1px 0 rgba(139, 137, 141, 0.08);
     animation: topOverlayFloat 3s ease-in-out infinite;
 }
 
 .top-overlay__content {
-    display: flex;
-    align-items: stretch;
-    gap: 0.5rem;
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-template-areas:
+        "auto auto"
+        "status status"
+        "actions stats";
+    align-items: center;
     max-height: 320px;
     overflow: hidden;
     padding: 0.5rem 0.5rem 0.75rem;
     opacity: 1;
     transition: max-height 220ms ease, opacity 180ms ease, padding 220ms ease;
+}
+
+.container-top-overlay__auto-toggle {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.top-overlay__auto-toggle {
+    grid-area: auto;
+    justify-self: center;
+    max-width: 180px;
+    padding: 0.1rem 0.2rem;
+    border: 1px solid rgba(161, 161, 170, 0.35);
+    border-radius: 999px;
+    background: linear-gradient(135deg, #3f3f46, #27272a);
+    color: var(--top-gray-200);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.top-overlay__auto-status {
+    grid-area: status;
+    justify-self: center;
+    color: var(--top-gray-300);
+    font-size: 0.62rem;
+    text-align: center;
+}
+
+.top-overlay__auto-toggle.is-active {
+    border-color: rgba(34, 197, 94, 0.75);
+    background: linear-gradient(135deg, #15803d, #166534);
+    color: #fff;
+    box-shadow: 0 0 14px rgba(34, 197, 94, 0.25);
+}
+
+.top-overlay__auto-toggle:focus-visible {
+    outline: 2px solid #a78bfa;
+    outline-offset: 2px;
 }
 
 .top-overlay__panel.is-collapsed .top-overlay__content {
@@ -117,6 +166,7 @@
 
 /* ================= BOTÕES ================= */
 .top-overlay__actions {
+    grid-area: actions;
     display: flex;
     gap: 0.35rem;
     padding-right: 0.5rem;
@@ -189,11 +239,12 @@
 }
 
 .top-overlay__btn--exit:hover:not(:disabled) {
-    box-shadow: 0 8px 20px rgba(124, 58, 237, 0.5);
+    box-shadow: 0 8px 20px rgba(87, 87, 87, 0.5);
 }
 
 /* ================= ESTATÍSTICAS ================= */
 .top-overlay__stats {
+    grid-area: stats;
     display: flex;
     align-items: center;
     gap: 0.65rem;
@@ -274,7 +325,12 @@
     }
 
     .top-overlay__content {
-        flex-direction: column;
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "auto"
+            "status"
+            "actions"
+            "stats";
         gap: 0.4rem;
         padding: 0.4rem 0.4rem 0.65rem;
     }

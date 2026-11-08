@@ -960,6 +960,7 @@ const GraphicsRenko = () => {
   const [isIndicatorPanelVisible, setIsIndicatorPanelVisible] = React.useState(true);
   const [isOrderTicketOpen, setIsOrderTicketOpen] = React.useState(false);
   const [orderTicketSide, setOrderTicketSide] = React.useState('buy');
+  const [isAutomaticExecutionEnabled, setIsAutomaticExecutionEnabled] = React.useState(false);
 
   let footer = `Please pick the first day.`;
 
@@ -1094,13 +1095,14 @@ const GraphicsRenko = () => {
     price: operatingPrices,
     calculateOrder,
     executeOrder,
+    automaticExecutionStatus,
     updateActiveStop,
     updateActiveTakeProfit,
     getLastTrendBySymbol,
     getLastTrendPrimaryBySymbol,
     getLastVpprBySymbol,
     getLastAmrsiBySymbol
-  } = useOperatingInputs();
+  } = useOperatingInputs(isAutomaticExecutionEnabled);
 
   const handleOpenOrderTicket = React.useCallback((side) => {
     const symbolSignals = signalsBySymbol?.[activeSymbol] || [];
@@ -1940,7 +1942,12 @@ const GraphicsRenko = () => {
             )}
 
             {/**==========================|Botão para compra e venda|============================ */}
-            <TradingOverlayPanel onOpenTicket={handleOpenOrderTicket} />
+            <TradingOverlayPanel
+              onOpenTicket={handleOpenOrderTicket}
+              isAutomaticExecutionEnabled={isAutomaticExecutionEnabled}
+              automaticExecutionStatus={automaticExecutionStatus}
+              onToggleAutomaticExecution={() => setIsAutomaticExecutionEnabled(enabled => !enabled)}
+            />
           </div>
           <aside
             className={`graphics-renko__indicator-sidebar${isIndicatorPanelVisible ? '' : ' graphics-renko__indicator-sidebar--collapsed'}`}

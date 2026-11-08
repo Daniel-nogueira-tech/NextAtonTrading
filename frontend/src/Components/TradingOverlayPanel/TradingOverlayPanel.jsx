@@ -1,7 +1,7 @@
 // TradingOverlayPanel.jsx
 import React, { useMemo } from 'react'
 import './TradingOverlayPanel.css'
-import {ContextGraphics} from '../../ContextGraphics/ContextGraphics.jsx'
+import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx'
 
 const formatNumber = (value, decimals = 2) => {
     const num = Number(value)
@@ -19,6 +19,9 @@ const formatSigned = (value, decimals = 2) => {
 const TradingOverlayPanel = ({
     current = 0,
     onOpenTicket,
+    isAutomaticExecutionEnabled = false,
+    automaticExecutionStatus = '',
+    onToggleAutomaticExecution,
 }) => {
     const { resultOperations } = React.useContext(ContextGraphics)
     const [disabledButton, setDisabledButton] = React.useState(false);
@@ -60,6 +63,22 @@ const TradingOverlayPanel = ({
                     aria-hidden={isCollapsed}
                     inert={isCollapsed}
                 >
+                                    <div className="container-top-overlay__auto-toggle">
+                    <button
+                        type="button"
+                        className={`top-overlay__auto-toggle${isAutomaticExecutionEnabled ? ' is-active' : ''}`}
+                        onClick={onToggleAutomaticExecution}
+                        aria-pressed={isAutomaticExecutionEnabled}
+                    >
+                        Automático: {isAutomaticExecutionEnabled ? 'Ativo' : 'Parado'}
+                    </button>
+                    {isAutomaticExecutionEnabled && automaticExecutionStatus && (
+                        <span className="top-overlay__auto-status" role="status">
+                            {automaticExecutionStatus}
+                        </span>
+                    )}
+                </div>
+
                     {/* ================= BOTÕES ================= */}
                     <div className="top-overlay__actions">
                         <button

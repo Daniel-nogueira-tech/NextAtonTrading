@@ -26,3 +26,16 @@ def create_operations(payloadOperation):
     )
     conn.commit()
     conn.close()
+
+def create_operations():
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS operations (
+            id INTEGER PRIMARY KEY,
+            operations TEXT
+        )
+    """)
+
+    conn.commit()
+    conn.close()
