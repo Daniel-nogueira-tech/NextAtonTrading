@@ -32,6 +32,29 @@ const ENTRY_PARTIAL_SELL = [
     'TREND_PARTIAL_SELL'
 ]
 
+const mergeIfChanged = (previous, updates) => {
+    const hasChanges = Object.entries(updates).some(([key, value]) => {
+        const previousValue = previous[key];
+        if (previousValue === value) return false;
+        if (
+            !previousValue ||
+            !value ||
+            typeof previousValue !== 'object' ||
+            typeof value !== 'object' ||
+            Array.isArray(previousValue) ||
+            Array.isArray(value)
+        ) {
+            return true;
+        }
+
+        const previousKeys = Object.keys(previousValue);
+        const nextKeys = Object.keys(value);
+        return previousKeys.length !== nextKeys.length ||
+            nextKeys.some(nextKey => previousValue[nextKey] !== value[nextKey]);
+    });
+    return hasChanges ? { ...previous, ...updates } : previous;
+};
+
 const getContextTrendMovements = (trendData, symbol) => {
     const collection = trendData?.data ?? trendData;
     const groups = Array.isArray(collection) ? collection : collection ? [collection] : [];
@@ -252,7 +275,7 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
         const high = Number(trendItem.BandHigh ?? (trendItem.pivot != null && trendItem.limite != null ? trendItem.pivot + trendItem.limite / 2 : NaN));
         return { low, high };
     };
-    console.log('isAutomaticExecutionEnabled >>>', isAutomaticExecutionEnabled)
+
     const getTrendIdentity = (trendItem) => {
         if (!trendItem) return null;
         return [trendItem.type, trendItem.time, trendItem.buy, trendItem.sell, trendItem.BandLow, trendItem.BandHigh].join('|');
@@ -874,8 +897,6 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
     const [lastVpprState, setLastVpprState] = useState({});
     const lastAmrsiRef = useRef({});
     const [lastAmrsiState, setLastAmrsiState] = useState({});
-    const lastPartialEntryRef = useRef({});
-    const [lastPartialEntryState, setLastPartialEntryState] = useState({});
     const operationCalculationIdRef = useRef(0);
     const operationResults = {};
     const pendingExitsRef = useRef(new Set());
@@ -994,7 +1015,6 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
         const newLastTrendsPrimary = {};
         const newLastVppr = {};
         const newLastAmrsi = {};
-        const newLastPartialEntry = {};
 
         localStorage.setItem("flagsBySymbol", JSON.stringify(flagsBySymbolRef.current));
 
@@ -1055,11 +1075,6 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
                 newLastAmrsi[symbol] = lastAmrsi;
                 lastAmrsiRef.current[symbol] = lastAmrsi;
             }
-            if (!lastPartialEntry) {
-                newLastPartialEntry[symbol] = lastPartialEntry;
-                lastPartialEntryRef.current[symbol] = lastPartialEntry;
-            }
-
             if (!lastTrend || !lastPrice) {
                 console.log(`⚠️ [${symbol}] Dados insuficientes:`, {
                     lastTrend: !!lastTrend,
@@ -1118,14 +1133,14 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
             if (isOutsideBand && !isTrendBlocked) {
                 flags.exceededBand = true;
                 flags.blockedTrendIdentity = currentTrendIdentity;
-                console.log(`⛔ [${symbol}] Tendência excedeu banda e ficará bloqueada até novo trend:`, {
+                /*console.log(`⛔ [${symbol}] Tendência excedeu banda e ficará bloqueada até novo trend:`, {
                     bandLow, bandHigh, price: currentPrice, trend: lastTrendMovement?.tipo,
-                });
+                });*/
                 return;
             }
 
             if (isTrendBlocked) {
-                console.log(`⛔ [${symbol}] Trend bloqueado até novo signal:`, { blockedTrendIdentity: flags.blockedTrendIdentity, currentTrendIdentity });
+               // console.log(`⛔ [${symbol}] Trend bloqueado até novo signal:`, { blockedTrendIdentity: flags.blockedTrendIdentity, currentTrendIdentity });
                 return;
             }
 
@@ -1330,11 +1345,6 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
                 // lastVppr?.vpprTrend === 'sell' &&
                 TYPE_BUY_EXIT.includes(lastTrend?.type);
 
-            console.log('stop:', lastPrice.Fechamento <= lastTrend?.stop)
-            console.log('type', TYPE_BUY_EXIT.includes(lastTrend?.type))
-            console.log("flags", flags.isOperation &&
-                flags.inputExecuted)
-
             const conditionExitSellMain =
                 lastPrice.Fechamento >= lastTrend?.stop &&
                 flags.isOperation &&
@@ -1436,16 +1446,15 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
 
 
             if (signal) {
-                if (!signalsHistoryRef.current[symbol]) {
-                    signalsHistoryRef.current[symbol] = [];
-                }
-                signalsHistoryRef.current[symbol].push({
+                const symbolHistory = signalsHistoryRef.current[symbol] || [];
+                const nextHistory = [...symbolHistory, {
                     ...signal,
                     timestamp: new Date().toISOString()
-                });
-                if (signalsHistoryRef.current[symbol].length > 100) {
-                    signalsHistoryRef.current[symbol] = signalsHistoryRef.current[symbol].slice(-100);
-                }
+                }].slice(-100);
+                signalsHistoryRef.current = {
+                    ...signalsHistoryRef.current,
+                    [symbol]: nextHistory,
+                };
 
                 signalsBySymbol[symbol] = signal;
                 flags.lastSignal = signal;
@@ -1460,26 +1469,29 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
         });
 
         if (Object.keys(signalsBySymbol).length > 0) {
-            setSignalsBySymbolState({ ...signalsHistoryRef.current });
+            setSignalsBySymbolState(previous => {
+                const next = signalsHistoryRef.current;
+                const keys = new Set([
+                    ...Object.keys(previous || {}),
+                    ...Object.keys(next),
+                ]);
+                const hasChanges = [...keys].some(key => previous?.[key] !== next[key]);
+                return hasChanges ? { ...next } : previous;
+            });
         }
 
         if (Object.keys(newLastTrends).length > 0) {
-            setLastTrendState(previous => ({ ...previous, ...newLastTrends }));
+            setLastTrendState(previous => mergeIfChanged(previous, newLastTrends));
         }
         if (Object.keys(newLastTrendsPrimary).length > 0) {
-            setLastTrendStatePrimary(previous => ({ ...previous, ...newLastTrendsPrimary }));
+            setLastTrendStatePrimary(previous => mergeIfChanged(previous, newLastTrendsPrimary));
         }
         if (Object.keys(newLastVppr).length > 0) {
-            setLastVpprState(previous => ({ ...previous, ...newLastVppr }));
+            setLastVpprState(previous => mergeIfChanged(previous, newLastVppr));
         }
         if (Object.keys(newLastAmrsi).length > 0) {
-            setLastAmrsiState(previous => ({ ...previous, ...newLastAmrsi }));
+            setLastAmrsiState(previous => mergeIfChanged(previous, newLastAmrsi));
         }
-        if (Object.keys(newLastPartialEntry).length > 0) {
-            setLastPartialEntryState(previous => ({ ...previous, ...newLastPartialEntry }));
-        }
-
-
     }, [
         trendClassification,
         trendPrimary,
@@ -1508,10 +1520,6 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
     const getLastAmrsiBySymbol = (symbol) => {
         return lastAmrsiRef.current[symbol] || null;
     }
-    const getLastPartialEntry = (symbol) => {
-        return lastPartialEntryRef.current[symbol] || null;
-    }
-
     return {
         trendClassification,
         trendPrimary,
@@ -1529,7 +1537,6 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
         getLastVpprBySymbol,
         getLastTrendBySymbol,
         getLastTrendPrimaryBySymbol,
-        getLastPartialEntry,
         calculateOrder,
         executeOrder,
         updateActiveStop,

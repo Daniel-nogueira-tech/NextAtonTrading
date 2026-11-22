@@ -1673,8 +1673,6 @@ export const useOperatingDataPrimary = (trend) => {
     retestPointsStatePrimaryRef.current = toOperationsArray(nextRetestHistory);
 
 
-    console.log('retestPointsStatePrimaryRef:', retestPointsStatePrimaryRef.current)
-
   }, [trendGroups]);
 
   return { retestPointsStatePrimaryRef };

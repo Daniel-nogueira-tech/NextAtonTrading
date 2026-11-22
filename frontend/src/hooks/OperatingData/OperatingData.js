@@ -1932,8 +1932,6 @@ export const useOperatingData = (trend) => {
     // Fluxo de parciais 
     pontsPartialRef.current = toOperationsArray(nextPartialHistory);
 
-    console.log('retestPointsStateRef:', retestPointsStateRef.current)
-    console.log('pontsPartialRef:', pontsPartialRef.current)
   }, [trendGroups]);
 
   return { retestPointsStateRef, pontsPartialRef };

@@ -1216,6 +1216,11 @@ const GraphicsRenko = () => {
   const renkoCandles = React.useMemo(() => buildRenkoCandles(
     selectedMarket?.movements || []
   ), [selectedMarket])
+  // FIX: keep projection data stable across renders unrelated to candles or drawings.
+  const futureProjectionData = React.useMemo(
+    () => buildFutureProjectionTimes(renkoCandles, analysisDrawings),
+    [renkoCandles, analysisDrawings],
+  )
 
   const selectedFullPriceMarket = React.useMemo(() => {
     return selectMarketBySymbol(fullPrice, activeSymbol)
@@ -1423,7 +1428,24 @@ const GraphicsRenko = () => {
     }
 
     let refreshFrameId = null
+    // FIX: ignore repeated chart events when the drawing viewport is unchanged.
+    let lastDrawingsViewport = null
     const refreshDrawings = () => {
+      const logicalRange = chartRef.current?.timeScale().getVisibleLogicalRange()
+      const viewport = [
+        logicalRange?.from ?? null,
+        logicalRange?.to ?? null,
+        container.clientWidth,
+        container.clientHeight,
+      ]
+      if (
+        lastDrawingsViewport &&
+        viewport.every((value, index) => value === lastDrawingsViewport[index])
+      ) {
+        return
+      }
+      lastDrawingsViewport = viewport
+
       if (refreshFrameId !== null) return
 
       refreshFrameId = requestAnimationFrame(() => {
@@ -1435,13 +1457,8 @@ const GraphicsRenko = () => {
     chartRef.current.subscribeCrosshairMove(handleCrosshairMove)
     chartRef.current.timeScale().subscribeVisibleLogicalRangeChange(refreshDrawings)
     chartRef.current.timeScale().subscribeVisibleTimeRangeChange(refreshDrawings)
+    // FIX: autoSize reports container resizes through the chart size subscription.
     chartRef.current.timeScale().subscribeSizeChange(refreshDrawings)
-
-    const containerEl = chartContainerRef.current
-    const resizeObserver = new ResizeObserver(() => {
-      refreshDrawings()
-    })
-    if (containerEl) resizeObserver.observe(containerEl)
 
     return () => {
       const chart = chartRef.current
@@ -1473,7 +1490,6 @@ const GraphicsRenko = () => {
       if (refreshFrameId !== null) {
         cancelAnimationFrame(refreshFrameId)
       }
-      resizeObserver.disconnect()
     }
   }, [])
 
@@ -1578,10 +1594,9 @@ const GraphicsRenko = () => {
 
   React.useEffect(() => {
     if (!futureProjectionSeriesRef.current) return
-    futureProjectionSeriesRef.current.setData(
-      buildFutureProjectionTimes(renkoCandles, analysisDrawings),
-    )
-  }, [renkoCandles, analysisDrawings, analysisChart, schrodinger])
+    // FIX: avoid resetting projection data on unrelated Schrodinger snapshots.
+    futureProjectionSeriesRef.current.setData(futureProjectionData)
+  }, [futureProjectionData, analysisChart])
 
   //-------------------------/Calendário/-------------------------
   // Função para formatar quando precisar salvar ou mostrar

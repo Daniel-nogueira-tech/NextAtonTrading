@@ -287,6 +287,11 @@ export const useIncrementalMarketEngine = ({
   const speedRef = React.useRef(initialSpeed)
   const stepRef = React.useRef(1)
   const statusRef = React.useRef('idle')
+  const lastPublishedSnapshotRef = React.useRef({
+    sources: null,
+    cursor: null,
+    maxSnapshotPoints: null,
+  })
 
   // Estado React para expor o cursor, status, maxCursor e controle de velocidade
   const [status, setStatus] = React.useState('idle')
@@ -323,8 +328,28 @@ export const useIncrementalMarketEngine = ({
 
   // Atualiza o cursor interno e reconstrói o snapshot.
   const publishCursor = React.useCallback((nextCursor) => {
+    const previousCursor = cursorRef.current
     cursorRef.current = nextCursor
-    setCursor(nextCursor)
+    if (previousCursor !== nextCursor) {
+      // FIX: bail out if React already has this cursor value.
+      setCursor(currentCursor => (
+        currentCursor === nextCursor ? currentCursor : nextCursor
+      ))
+    }
+
+    if (
+      lastPublishedSnapshotRef.current.sources === sourcesRef.current &&
+      lastPublishedSnapshotRef.current.cursor === nextCursor &&
+      lastPublishedSnapshotRef.current.maxSnapshotPoints === maxSnapshotPoints
+    ) {
+      return
+    }
+
+    lastPublishedSnapshotRef.current = {
+      sources: sourcesRef.current,
+      cursor: nextCursor,
+      maxSnapshotPoints,
+    }
     setSnapshot(buildSnapshot(sourcesRef.current, nextCursor, maxSnapshotPoints))
   }, [maxSnapshotPoints])
 
@@ -371,14 +396,12 @@ export const useIncrementalMarketEngine = ({
     location.reload();
 
     stopTimer()
-    cursorRef.current = 0
-    setCursor(0)
+    publishCursor(0)
     statusRef.current = 'idle'
-    setSnapshot(buildSnapshot(sourcesRef.current, 0, maxSnapshotPoints))
 
     setMaxCursor(current => current === maxCursorRef.current ? current : maxCursorRef.current)
     setEngineStatus('idle')
-  }, [maxSnapshotPoints, setEngineStatus, stopTimer])
+  }, [publishCursor, setEngineStatus, stopTimer])
 
   // Carrega novos dados no motor.
   const loadSources = React.useCallback((nextSources, options = {}) => {

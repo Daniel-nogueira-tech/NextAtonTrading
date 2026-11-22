@@ -464,7 +464,7 @@ export const ContextGraphicsProvider = ({ children }) => {
         }
     }
 
-    const sendOperationData = async (resultOperations, signalsBySymbolState) => {
+    const sendOperationData = React.useCallback(async (resultOperations, signalsBySymbolState) => {
         if (mode === 'simulation') return;
         try {
             const operations = await resultOperations;
@@ -486,7 +486,7 @@ export const ContextGraphicsProvider = ({ children }) => {
             console.error('Error sending operation data:', error);
             throw error;
         }
-    };
+    }, [mode, urlBackend]);
 
     // Função para pegar dados de resultOperations, signalsBySymbolState salvos no banco
     const getDataOperation = async () => {
@@ -586,7 +586,6 @@ export const ContextGraphicsProvider = ({ children }) => {
     }, [mode]);
 
 
-    console.log("schrodinger:", schrodinger)
     //Define o valor do contexto a ser fornecido aos componentes filhos
     const contextValue = {
         // usuário
