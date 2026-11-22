@@ -1098,6 +1098,8 @@ const GraphicsRenko = () => {
     automaticExecutionStatus,
     updateActiveStop,
     updateActiveTakeProfit,
+    removeActiveStop,
+    removeActiveTakeProfit,
     getLastTrendBySymbol,
     getLastTrendPrimaryBySymbol,
     getLastVpprBySymbol,
@@ -1741,6 +1743,8 @@ const GraphicsRenko = () => {
               timeCacheRef={signalChartTimeCacheRef}
               onStopChange={updateActiveStop}
               onTakeProfitChange={updateActiveTakeProfit}
+              onStopRemove={removeActiveStop}
+              onTakeProfitRemove={removeActiveTakeProfit}
             />
             <AnalysisDrawingOverlay
               chart={analysisChart}

@@ -34,7 +34,7 @@ def data_correlations():
 
     def download_symbol(symbol):
         try:
-            df = get_binance_data(symbol, "1h", 2019, "01")
+            df = get_binance_data(symbol, "5m", 2019, "01")
             return symbol, df
         except Exception as e:
             print(f"Erro ao baixar {symbol}: {e}")
@@ -104,8 +104,7 @@ def _get_index_data(symbol, time, mode, total, start, end):
 
 # RETORNA O INDICE
 def index_correlated(time, mode, total=10000, start=None, end=None):
-    correlated_assets = get_all_correlated_assets()
-
+    correlated_assets = get_all_correlated_assets() or {}
     selected_assets = {
         symbol: assets[assets > 0].sort_values(ascending=False).head(10)
         for symbol, assets in correlated_assets.items()
@@ -186,20 +185,26 @@ def index_correlated(time, mode, total=10000, start=None, end=None):
 
 # pega assets de correlação
 def get_all_correlated_assets():
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute("SELECT symbol, assets_json FROM correlated_assets")
-    results = cursor.fetchall()
-    conn.close()
+    try:
+       conn = conectar()
+       cursor = conn.cursor()
+       cursor.execute("SELECT symbol, assets_json FROM correlated_assets")
+       results = cursor.fetchall()
+       conn.close()
 
-    if not results:
-        return None
+       if not results:
+           return None
 
-    # Monta um dicionário {symbol: Series}
-    correlated_assets = {}
-    for symbol, assets_json in results:
-        correlated_assets[symbol] = pd.read_json(StringIO(assets_json), typ="series")
-    
+       # Monta um dicionário {symbol: Series}
+       correlated_assets = {}
+       for symbol, assets_json in results:
+           correlated_assets[symbol] = pd.read_json(StringIO(assets_json), typ="series")
+    except Exception as erro:
+        if "no such table" in str(erro):
+            print("Tabela correlated_assets não existe.")
+            return {}
+
+        raise
     return correlated_assets
 
 # RECUPERA O INDECE
@@ -221,13 +226,16 @@ def get_correlated_index(symbol=None):
 
 # DELETA OS INDICES
 def delete_correlated_index_table():
-    conn = conectar()
-    cursor = conn.cursor()
-
-    # Apaga a tabela se existir
-    cursor.execute("DELETE FROM correlated_index")
-
-    conn.commit()
-    conn.close()
-
-    print(" 'correlated_index' deletada com sucesso.")
+    try:
+        conn = conectar()
+        cursor = conn.cursor()
+        # Apaga a tabela se existir
+        cursor.execute("DELETE FROM correlated_index")
+    except Exception as erro:
+        if "no such table" in str(erro):
+            return
+        conn.commit()
+        conn.close()
+    finally:
+        if conn:
+            conn.close()

@@ -10,7 +10,7 @@ def data_to_simulation():
     date_start = data.get("dateStart","").strip().upper()
     date_end = data.get("dateEnd","").strip()
     days = data.get("days", "").strip()
-    time = data.get("time", "1h").strip()
+    time = data.get("time", "5m").strip()
 
 
     if not symbol:

@@ -13,9 +13,9 @@ def get_vppr_route():
         elif not symbols:
             symbols = request.args.get("symbol")
 
-        time = request.args.get("time", "1h")
+        time = request.args.get("time", "5m")
         modo = request.args.get("modo") or request.args.get("mode", "real")
-        accumulation_period = request.args.get("accumulation_period", "month") # "week", "month", "all"
+        accumulation_period = request.args.get("accumulation_period", "all") # "week", "month", "all"
 
         if symbols is not None and not isinstance(symbols, (str, list)):
             raise ValueError("symbols deve ser uma string ou uma lista válida")

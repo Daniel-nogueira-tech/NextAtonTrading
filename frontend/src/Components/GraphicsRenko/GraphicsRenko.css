@@ -308,6 +308,46 @@ body.graphics-renko-indicator-window .graphics-renko__indicator-chart {
   color: #4ade80;
 }
 
+.graphics-renko__active-operation-level {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.graphics-renko__active-operation-remove-level {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  padding: 0;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: rgba(15, 18, 24, 0.9);
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: auto;
+  transition: opacity 140ms ease, background-color 140ms ease;
+}
+
+.graphics-renko__active-operation-level:hover .graphics-renko__active-operation-remove-level,
+.graphics-renko__active-operation-remove-level:focus-visible {
+  opacity: 1;
+}
+
+.graphics-renko__active-operation-remove-level:hover {
+  background: rgba(60, 65, 75, 0.95);
+}
+
+.graphics-renko__active-operation-remove-level:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
 .graphics-renko__analysis-overlay {
   position: absolute;
   inset: 0;

@@ -63,21 +63,21 @@ const TradingOverlayPanel = ({
                     aria-hidden={isCollapsed}
                     inert={isCollapsed}
                 >
-                                    <div className="container-top-overlay__auto-toggle">
-                    <button
-                        type="button"
-                        className={`top-overlay__auto-toggle${isAutomaticExecutionEnabled ? ' is-active' : ''}`}
-                        onClick={onToggleAutomaticExecution}
-                        aria-pressed={isAutomaticExecutionEnabled}
-                    >
-                        Automático: {isAutomaticExecutionEnabled ? 'Ativo' : 'Parado'}
-                    </button>
-                    {isAutomaticExecutionEnabled && automaticExecutionStatus && (
-                        <span className="top-overlay__auto-status" role="status">
-                            {automaticExecutionStatus}
-                        </span>
-                    )}
-                </div>
+                    <div className="container-top-overlay__auto-toggle">
+                        <button
+                            type="button"
+                            className={`top-overlay__auto-toggle${isAutomaticExecutionEnabled ? ' is-active' : ''}`}
+                            onClick={onToggleAutomaticExecution}
+                            aria-pressed={isAutomaticExecutionEnabled}
+                        >
+                            Automático: {isAutomaticExecutionEnabled ? 'Ativo' : 'Parado'}
+                        </button>
+                        {isAutomaticExecutionEnabled && automaticExecutionStatus && (
+                            <span className="top-overlay__auto-status" role="status">
+                                {automaticExecutionStatus}
+                            </span>
+                        )}
+                    </div>
 
                     {/* ================= BOTÕES ================= */}
                     <div className="top-overlay__actions">

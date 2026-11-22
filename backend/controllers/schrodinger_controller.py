@@ -234,7 +234,7 @@ def evolve_wave_function(orders,
 
     return evolution
 # =============== TUNELAMENTO QUÂNTICO =============== #
-def power_surges(orders, smooth=1, prominence=0.20):
+def power_surges(orders, smooth=1, prominence=0.80):
     # Calcula energias
     kinetic   = calculate_kinetic_energy(orders)
     potential = calculate_Potential_energy(orders)
@@ -323,7 +323,7 @@ def get_schrodinger(
     symbols=None,
     symbol=None,
     modo=None,
-    time="1h",
+    time="5m",
     accumulation_period="month",
 ): 
     """Calcula o modelo separadamente para cada ativo recebido do VPPR."""

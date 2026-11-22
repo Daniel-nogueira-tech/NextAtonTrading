@@ -82,6 +82,7 @@ export const ContextGraphicsProvider = ({ children }) => {
     // Indicadores para operações
     const vpprDataRef = useRef([]);
     const retestPointsStateRef = useRef([]);
+    const pontsPartialRef = useRef([]);
     const retestPointsStatePrimaryRef = useRef([]);
     const amrsiDataRef = useRef([]);
     const schrodingerDataRef = useRef([]);
@@ -660,6 +661,8 @@ export const ContextGraphicsProvider = ({ children }) => {
         retestPointsStatePrimaryRef,
         // classificação secundaria
         retestPointsStateRef,
+        // Pontos de parcial
+        pontsPartialRef,
         // Amrsi
         amrsiDataRef,
         // schrodinger

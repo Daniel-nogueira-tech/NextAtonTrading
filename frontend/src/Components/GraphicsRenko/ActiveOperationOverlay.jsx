@@ -61,13 +61,21 @@ const getActiveTrade = (signals = [], calculatedPosition = null) => {
   )
 
   const stopPrice = normalizePrice(
-    position?.stopPrice,
-    activeTrade.signal.stop,
-    activeTrade.signal.stopPrice,
-    activeTrade.signal.expectedPriceStop,
+    activeTrade.signal.stopRemoved
+      ? null
+      : position?.stopPrice,
+    activeTrade.signal.stopRemoved
+      ? null
+      : activeTrade.signal.stop,
+    activeTrade.signal.stopRemoved
+      ? null
+      : activeTrade.signal.stopPrice,
+    activeTrade.signal.stopRemoved
+      ? null
+      : activeTrade.signal.expectedPriceStop,
   )
   const takeProfitPrice = normalizePrice(
-    activeTrade.signal.takeProfit,
+    activeTrade.signal.takeProfitRemoved ? null : activeTrade.signal.takeProfit,
   )
 
   const quantity = normalizePrice(
@@ -101,6 +109,8 @@ const ActiveOperationOverlay = ({
   timeCacheRef,
   onStopChange,
   onTakeProfitChange,
+  onStopRemove,
+  onTakeProfitRemove,
 }) => {
   const lineSeriesRef = useRef(null)
   const stopSeriesRef = useRef(null)
@@ -115,6 +125,8 @@ const ActiveOperationOverlay = ({
   const dragLineTypeRef = useRef(null)
   const onStopChangeRef = useRef(onStopChange)
   const onTakeProfitChangeRef = useRef(onTakeProfitChange)
+  const onStopRemoveRef = useRef(onStopRemove)
+  const onTakeProfitRemoveRef = useRef(onTakeProfitRemove)
   const [draggedPrice, setDraggedPrice] = useState(null)
   const [draggedLineType, setDraggedLineType] = useState(null)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -146,7 +158,18 @@ const ActiveOperationOverlay = ({
     takeProfitPriceRef.current = displayedTakeProfitPrice
     onStopChangeRef.current = onStopChange
     onTakeProfitChangeRef.current = onTakeProfitChange
-  }, [activeTrade, currentPrice, displayedStopPrice, displayedTakeProfitPrice, onStopChange, onTakeProfitChange])
+    onStopRemoveRef.current = onStopRemove
+    onTakeProfitRemoveRef.current = onTakeProfitRemove
+  }, [
+    activeTrade,
+    currentPrice,
+    displayedStopPrice,
+    displayedTakeProfitPrice,
+    onStopChange,
+    onTakeProfitChange,
+    onStopRemove,
+    onTakeProfitRemove,
+  ])
 
   useEffect(() => {
     if (!chart) return undefined
@@ -467,6 +490,33 @@ const ActiveOperationOverlay = ({
 
   if (!activeTrade || !Number.isFinite(currentPrice)) return null
 
+  const removeLevel = async (event, level) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const handler = level === 'stop'
+      ? onStopRemoveRef.current
+      : onTakeProfitRemoveRef.current
+    if (typeof handler !== 'function') {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Remoção indisponível',
+        text: 'Não foi possível remover este nível da operação.',
+      })
+      return
+    }
+
+    try {
+      await handler()
+    } catch (error) {
+      console.error(`Erro ao remover ${level} pelo gráfico:`, error)
+      await Swal.fire({
+        icon: 'error',
+        title: `Não foi possível remover ${level === 'stop' ? 'o stop' : 'o take profit'}`,
+        text: error instanceof Error ? error.message : 'Ocorreu um erro ao atualizar a operação.',
+      })
+    }
+  }
+
   return (
     <div
       className={`graphics-renko__active-operation${isProfitable ? ' is-profitable' : priceChange < 0 ? ' is-losing' : ''}${isCollapsed ? ' is-collapsed' : ''}`}
@@ -484,21 +534,47 @@ const ActiveOperationOverlay = ({
           Variation {formatSigned(priceChange)} points · {formatSigned(pnlPercent)}%
         </span>
         {Number.isFinite(displayedStopPrice) && (
-          <span className="graphics-renko__active-operation-stop">
-            Stop {displayedStopPrice.toFixed(2)} · {formatSigned(getTradePoints(displayedStopPrice, activeTrade))} points
-            {Number.isFinite(activeTrade.quantity)
-              ? ` · ${formatSigned(getTradePoints(displayedStopPrice, activeTrade) * activeTrade.quantity)} estimated`
-              : ''}
-          </span>
+          <div className="graphics-renko__active-operation-level graphics-renko__active-operation-stop">
+            <span>
+              Stop {displayedStopPrice.toFixed(2)} · {formatSigned(getTradePoints(displayedStopPrice, activeTrade))} points
+              {Number.isFinite(activeTrade.quantity)
+                ? ` · ${formatSigned(getTradePoints(displayedStopPrice, activeTrade) * activeTrade.quantity)} estimated`
+                : ''}
+            </span>
+            <button
+              className="graphics-renko__active-operation-remove-level"
+              type="button"
+              aria-label="Remove stop loss"
+              title="Remove stop loss"
+              onPointerDown={event => event.stopPropagation()}
+              onClick={event => removeLevel(event, 'stop')}
+            >
+              ×
+            </button>
+          </div>
         )}
         {Number.isFinite(displayedTakeProfitPrice) && (
-          <span className="graphics-renko__active-operation-take-profit">
-            Take profit {displayedTakeProfitPrice.toFixed(2)} · {formatSigned(getTradePoints(displayedTakeProfitPrice, activeTrade))} points
-            {Number.isFinite(activeTrade.quantity)
-              ? ` · ${formatSigned(getTradePoints(displayedTakeProfitPrice, activeTrade) * activeTrade.quantity)} estimated`
-              : ''}
-            {isTakeProfitPreview ? ' · preview' : ''}
-          </span>
+          <div className="graphics-renko__active-operation-level graphics-renko__active-operation-take-profit">
+            <span>
+              Take profit {displayedTakeProfitPrice.toFixed(2)} · {formatSigned(getTradePoints(displayedTakeProfitPrice, activeTrade))} points
+              {Number.isFinite(activeTrade.quantity)
+                ? ` · ${formatSigned(getTradePoints(displayedTakeProfitPrice, activeTrade) * activeTrade.quantity)} estimated`
+                : ''}
+              {isTakeProfitPreview ? ' · preview' : ''}
+            </span>
+            {!isTakeProfitPreview && (
+              <button
+                className="graphics-renko__active-operation-remove-level"
+                type="button"
+                aria-label="Remove take profit"
+                title="Remove take profit"
+                onPointerDown={event => event.stopPropagation()}
+                onClick={event => removeLevel(event, 'takeProfit')}
+              >
+                ×
+              </button>
+            )}
+          </div>
         )}
         {!Number.isFinite(displayedTakeProfitPrice) && (
           <span className="graphics-renko__active-operation-take-profit">

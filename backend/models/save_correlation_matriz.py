@@ -1,6 +1,41 @@
 import json
 from config_db import conectar
 
+def create_corr_matrix():
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS correlation_matrix (
+            id INTEGER PRIMARY KEY,
+            matrix_json TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+def  create_correlated_assets():
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS correlated_assets (
+            symbol TEXT PRIMARY KEY,
+            assets_json TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+def create_correlated_index():
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS correlation_matrix (
+            id INTEGER PRIMARY KEY,
+            matrix_json TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+## ---------------------------
 def save_corr_matrix(corr_matrix):
     conn = conectar()
     cursor = conn.cursor()

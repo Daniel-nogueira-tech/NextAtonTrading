@@ -97,6 +97,7 @@ const normalizeSymbol = (symbol) => {
 
 const MovementTables = () => {
     const { trend, trendPrimary, activeSymbol, isTrend, setIsTrend } = React.useContext(ContextGraphics)
+    console.log('>>>>>>>>>>>',trend)
     const [currentPage, setCurrentPage] = useState(1)
 
     const itemsPerPage = 25

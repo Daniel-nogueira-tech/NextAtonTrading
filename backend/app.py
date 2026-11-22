@@ -5,6 +5,8 @@ from routes.rsi_routes import rsi_bp
 from routes.vppr_routes import vppr_bp
 from models.symbols_models import create_table_symbols
 from models.data_operations_models import create_operations
+from models.save_correlation_matriz import create_corr_matrix,create_correlated_assets,create_correlated_index
+
 from routes.symbols_routes import symbols_bp
 from routes.trend_primary_clarifications_routes import trend_pri_bp
 from routes.price_data import price_data_bp
@@ -24,7 +26,10 @@ CORS(app)  # libera acesso do frontend
 create_table_symbols() # cria tabela para simbolos do usuário
 get_binance_symbols() # pega todos simbolos
 create_operations()
-
+create_corr_matrix()
+create_correlated_assets()
+create_correlated_index()
+data_correlations()
 
 # registra as rotas
 app.register_blueprint(trend_bp)

@@ -78,7 +78,7 @@ def _trend_clarifications_atr_single(symbol, time, mode , total = 15000):
     if not atrs:
         raise ValueError("ATR não pôde ser calculado.")
 
-    verify_time_multiply = 10 #4
+    verify_time_multiply = 17 #17
     atr_period = 182
 
 

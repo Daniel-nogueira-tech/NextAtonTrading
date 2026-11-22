@@ -5,7 +5,7 @@ data_correlations_bp = Blueprint('correlations', __name__)
 
 @data_correlations_bp.route('/api/data_correlations', methods=['POST','GET'])
 def get_data_correlations():
-    time = request.args.get('time','1h')
+    time = request.args.get('time','5m')
     mode = request.args.get('mode', 'simulation')
     start = request.args.get('start','2019-01')
     end = request.args.get('end','2019-12')
