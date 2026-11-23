@@ -125,6 +125,107 @@ test('reset returns playback to the beginning without discarding loaded sources'
   assert.equal(engine.getFeed('fullPrice')[0].prices.length, 0)
 })
 
+test('reset clears persisted signal and operation state', () => {
+  const engine = createEngine()
+  const previousLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+  const storedKeys = new Set(['signalsBySymbolState', 'resultOperations', 'flagsBySymbol'])
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: { removeItem: key => storedKeys.delete(key) },
+  })
+
+  try {
+    engine.reset()
+    assert.equal(storedKeys.size, 0)
+  } finally {
+    if (previousLocalStorage) {
+      Object.defineProperty(globalThis, 'localStorage', previousLocalStorage)
+    } else {
+      delete globalThis.localStorage
+    }
+  }
+})
+
+// MIG-F2-4: verify incremental time slicing keeps the bounded window correct when the cursor rewinds.
+test('preserves bounded feed slices as the cursor advances and rewinds', async () => {
+  const engine = createEngine({ initialSpeed: 10, maxSnapshotPoints: 2 })
+  const fullPrice = [{
+    symbol: 'BTCUSDT',
+    prices: Array.from({ length: 6 }, (_, index) => ({
+      time: 1700000000 + index,
+      close: index + 10,
+    })),
+  }]
+  const rsi = [{
+    symbol: 'BTCUSDT',
+    result: Array.from({ length: 6 }, (_, index) => ({
+      time: 1700000000 + index,
+      value: index + 40,
+    })),
+  }]
+  engine.loadSources({ fullPrice, rsi })
+  engine.setStep(4)
+
+  const completed = waitForStatus(engine, 'completed')
+  engine.play()
+  await completed
+  assert.deepEqual(engine.getFeed('fullPrice')[0].prices.map(point => point.close), [14, 15])
+  assert.deepEqual(engine.getFeed('rsi')[0].result.map(point => point.value), [44, 45])
+
+  engine.setStep(1)
+  const firstTickAfterRewind = pauseAtCursor(engine, 1)
+  engine.play()
+  await firstTickAfterRewind
+  await waitForPublish()
+  assert.deepEqual(engine.getFeed('fullPrice')[0].prices.map(point => point.close), [10])
+  assert.deepEqual(engine.getFeed('rsi')[0].result.map(point => point.value), [40])
+})
+
+// MIG-F2-5: sparse peak events must not mask progress in dense Schrödinger indicator series.
+test('publishes Schrödinger progress while the last power surge remains unchanged', async () => {
+  const engine = createEngine({ initialSpeed: 150 })
+  const fullPrice = [{
+    symbol: 'BTCUSDT',
+    prices: Array.from({ length: 4 }, (_, index) => ({
+      time: 1700000000 + index,
+      close: index + 10,
+    })),
+  }]
+  const denseSeries = key => Array.from({ length: 4 }, (_, index) => ({
+    time: 1700000000 + index,
+    [key]: index,
+  }))
+  engine.loadSources({
+    fullPrice,
+    schrodinger: [{
+      symbol: 'BTCUSDT',
+      power_surges: [{ time: 1700000000, power_surges_price: 10, energia: 1 }],
+      energy_kinetic: denseSeries('value'),
+      potential_energy: denseSeries('value'),
+      evolution_series: denseSeries('psi_buy'),
+    }],
+  })
+
+  const firstTick = pauseAtCursor(engine, 1)
+  engine.play()
+  await firstTick
+  await waitForPublish()
+  const firstFeed = engine.getFeed('schrodinger')
+  assert.equal(firstFeed[0].energy_kinetic.length, 1)
+
+  const secondTick = pauseAtCursor(engine, 2)
+  engine.play()
+  await secondTick
+  await waitForPublish()
+  const secondFeed = engine.getFeed('schrodinger')
+
+  assert.notEqual(secondFeed, firstFeed)
+  assert.equal(secondFeed[0].power_surges.length, 1)
+  assert.equal(secondFeed[0].energy_kinetic.length, 2)
+  assert.equal(secondFeed[0].potential_energy.length, 2)
+  assert.equal(secondFeed[0].evolution_series.length, 2)
+})
+
 test('updateSources merges timestamped series when replaceMode is false', async () => {
   const engine = createEngine({ initialSpeed: 10 })
   engine.loadSources(sampleSources(2))

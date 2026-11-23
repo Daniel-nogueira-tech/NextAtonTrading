@@ -1,23 +1,22 @@
-import { useState } from 'react'
+import { lazy, Suspense } from 'react'
 import './App.css'
-import { Route, Routes, useLocation } from 'react-router-dom'
-import Home from './Pages/Home'
-import OperatingPanel from './Components/OperatingPanel/OperatingPanel'
-import Login from './Components/Login/Login'
+import { Route, Routes } from 'react-router-dom'
+
+const Home = lazy(() => import('./Pages/Home'))
+const OperatingPanel = lazy(() => import('./Components/OperatingPanel/OperatingPanel'))
+const Login = lazy(() => import('./Components/Login/Login'))
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
+    <Suspense fallback={<div role="status">Carregando...</div>}>
       <div>
         <Routes>
-          <Route path="/" element={<Home />} />   
+          <Route path="/" element={<Home />} />
           <Route path="/OperatingPanel" element={<OperatingPanel />} />
           <Route path="/Login" element={<Login />} />
         </Routes>
       </div>
-    </>
+    </Suspense>
   )
 }
 

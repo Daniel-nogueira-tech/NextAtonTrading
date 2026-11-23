@@ -148,21 +148,6 @@ const mergeSources = (currentSources, nextSources, useReplaceMode = false) => (
   }, {})
 )
 
-const getSymbolClockMap = (fullPrice, cursor) => (
-  normalizeCollection(fullPrice).reduce((clockMap, item) => {
-    const seriesKey = getItemSeriesKey(item)
-    const series = seriesKey ? item[seriesKey] : []
-    const currentPoint = series[Math.max(0, cursor - 1)]
-    const currentTime = getTimeValue(currentPoint)
-
-    if (item?.symbol && currentTime != null) {
-      clockMap[item.symbol] = currentTime
-    }
-
-    return clockMap
-  }, {})
-)
-
 const limitWindow = (series, maxSnapshotPoints) => {
   if (!Array.isArray(series) || series.length <= maxSnapshotPoints) {
     return series
@@ -170,17 +155,42 @@ const limitWindow = (series, maxSnapshotPoints) => {
   return series.slice(series.length - maxSnapshotPoints)
 }
 
-const sliceSeriesByTime = (series, currentTime, maxSnapshotPoints) => {
+const sliceSeriesByTime = (
+  series,
+  currentTime,
+  maxSnapshotPoints,
+  seriesEndCache,
+  cacheKey,
+) => {
   if (currentTime == null) return []
 
-  let end = 0
-  while (end < series.length) {
-    const pointTime = getTimeValue(series[end])
-    if (pointTime == null || pointTime > currentTime) break
-    end += 1
+  const cached = seriesEndCache.get(cacheKey)
+  const canAdvance = cached?.series === series
+    && cached.currentTime != null
+    && currentTime >= cached.currentTime
+  let end
+
+  if (canAdvance) {
+    end = cached.end
+    while (end < series.length) {
+      const pointTime = getTimeValue(series[end])
+      if (pointTime == null || pointTime > currentTime) break
+      end += 1
+    }
+  } else {
+    let low = 0
+    let high = series.length
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2)
+      const pointTime = getTimeValue(series[middle])
+      if (pointTime != null && pointTime <= currentTime) low = middle + 1
+      else high = middle
+    }
+    end = low
   }
 
-  return limitWindow(series.slice(0, end), maxSnapshotPoints)
+  seriesEndCache.set(cacheKey, { series, currentTime, end })
+  return series.slice(Math.max(0, end - maxSnapshotPoints), end)
 }
 
 const sliceFeed = (
@@ -191,6 +201,8 @@ const sliceFeed = (
   isFullPrice = false,
   feedName = '',
   sliceCache = null,
+  sliceFullPrice = null,
+  seriesEndCache = null,
 ) => {
   if (!payload) return null
 
@@ -199,6 +211,7 @@ const sliceFeed = (
     if (seriesKeys.length === 0) return item
 
     if (isFullPrice) {
+      if (sliceFullPrice) return sliceFullPrice(item, cursor, maxSnapshotPoints)
       const primarySeriesKey = getItemSeriesKey(item)
       return seriesKeys.reduce((snapshotItem, seriesKey) => ({
         ...snapshotItem,
@@ -217,7 +230,14 @@ const sliceFeed = (
         sliceCache.delete(cacheKey)
         sliceCache.set(cacheKey, series)
       } else {
-        series = sliceSeriesByTime(item[seriesKey], currentTime, maxSnapshotPoints)
+        const seriesCacheKey = `${feedName}:${item?.symbol ?? itemIndex}:${seriesKey}`
+        series = sliceSeriesByTime(
+          item[seriesKey],
+          currentTime,
+          maxSnapshotPoints,
+          seriesEndCache,
+          seriesCacheKey,
+        )
         if (sliceCache) {
           sliceCache.set(cacheKey, series)
           if (sliceCache.size > 200) {
@@ -232,8 +252,16 @@ const sliceFeed = (
   })
 }
 
-const buildSnapshot = (sources, cursor, maxSnapshotPoints, sliceCache = null) => {
-  const clockMap = getSymbolClockMap(sources.fullPrice, cursor)
+const buildSnapshot = (
+  sources,
+  cursor,
+  maxSnapshotPoints,
+  sliceCache = null,
+  getSymbolClockMapCached = () => ({}),
+  sliceFullPrice = null,
+  seriesEndCache = null,
+) => {
+  const clockMap = getSymbolClockMapCached(sources.fullPrice, cursor)
 
   return Object.keys(DEFAULT_FEEDS).reduce((snapshot, feedName) => {
     snapshot[feedName] = sliceFeed(
@@ -244,6 +272,8 @@ const buildSnapshot = (sources, cursor, maxSnapshotPoints, sliceCache = null) =>
       feedName === 'fullPrice',
       feedName,
       sliceCache,
+      sliceFullPrice,
+      seriesEndCache,
     )
     return snapshot
   }, {})
@@ -261,6 +291,35 @@ const reuseFeedReference = (previousFeed, nextFeed) => {
     return previousFeed === nextFeed ? previousFeed : nextFeed
   }
   if (previousFeed.length !== nextFeed.length) return nextFeed
+
+  // MIG-F2-5: account for every timeline in multi-series feeds, including sparse Schrödinger peaks.
+  const identitiesMatch = previousFeed.every((previousItem, index) => {
+    const nextItem = nextFeed[index]
+    if (!previousItem || !nextItem || typeof previousItem !== 'object' || typeof nextItem !== 'object') {
+      return false
+    }
+
+    if (previousItem.symbol !== nextItem.symbol) return false
+    const previousSeriesKeys = getItemSeriesKeys(previousItem)
+    const nextSeriesKeys = getItemSeriesKeys(nextItem)
+    if (
+      previousSeriesKeys.length !== nextSeriesKeys.length
+      || previousSeriesKeys.some((seriesKey, keyIndex) => seriesKey !== nextSeriesKeys[keyIndex])
+    ) {
+      return false
+    }
+
+    return previousSeriesKeys.every((seriesKey) => {
+      const previousSeries = previousItem[seriesKey]
+      const nextSeries = nextItem[seriesKey]
+      const previousLastPoint = previousSeries[previousSeries.length - 1]
+      const nextLastPoint = nextSeries[nextSeries.length - 1]
+      return previousSeries.length === nextSeries.length
+        && getTimeValue(previousLastPoint) === getTimeValue(nextLastPoint)
+    })
+  })
+
+  if (identitiesMatch) return previousFeed
 
   const itemsMatch = previousFeed.every((previousItem, index) => {
     const nextItem = nextFeed[index]
@@ -315,7 +374,78 @@ export const createMarketEngine = ({
   let snapshotPending = true
   let version = 0
   let sliceCache = new Map()
-  let snapshot = buildSnapshot(sources, cursor, maxSnapshotPoints)
+  // MIG-F2-4: advance feed-series bounds from the previous cursor instead of rescanning history.
+  let seriesEndCache = new Map()
+  // MIG-F2-1: cache each symbol's price slice to append only newly visible points per cursor.
+  let fullPriceCacheBySymbol = new Map()
+  // MIG-F2-2: cache each symbol's clock value so a tick does not rescan its full price series.
+  let clockMapCache = new Map()
+
+  const sliceFullPrice = (item, currentCursor, currentMaxSnapshotPoints) => {
+    const primarySeriesKey = getItemSeriesKey(item)
+    if (!primarySeriesKey) return item
+
+    const series = item[primarySeriesKey]
+    const cacheKey = item.symbol ?? item
+    const cached = fullPriceCacheBySymbol.get(cacheKey)
+    if (cached?.cursor === currentCursor && cached.series === series) return cached.item
+
+    const sliced = cached
+      && cached.series === series
+      && currentCursor > cached.cursor
+      ? limitWindow(
+        cached.sliced.concat(series.slice(cached.cursor, currentCursor)),
+        currentMaxSnapshotPoints,
+      )
+      : limitWindow(series.slice(0, currentCursor), currentMaxSnapshotPoints)
+    const slicedItem = {
+      ...item,
+      [primarySeriesKey]: sliced,
+    }
+    fullPriceCacheBySymbol.set(cacheKey, {
+      cursor: currentCursor,
+      series,
+      sliced,
+      item: slicedItem,
+    })
+    return slicedItem
+  }
+
+  const getSymbolClockMapCached = (fullPrice, currentCursor) => (
+    normalizeCollection(fullPrice).reduce((clockMap, item) => {
+      if (!item?.symbol) return clockMap
+
+      const cached = clockMapCache.get(item.symbol)
+      const currentTime = cached?.cursor === currentCursor
+        ? cached.time
+        : getTimeValue(getPriceSeries(item)[Math.max(0, currentCursor - 1)])
+
+      if (cached?.cursor !== currentCursor) {
+        clockMapCache.set(item.symbol, { cursor: currentCursor, time: currentTime })
+      }
+      if (currentTime != null) clockMap[item.symbol] = currentTime
+      return clockMap
+    }, {})
+  )
+
+  const invalidateSnapshotCaches = () => {
+    sliceCache.clear()
+    seriesEndCache.clear()
+    // MIG-F2-1: prevent stale price slices after source replacement, merge, or reset.
+    fullPriceCacheBySymbol.clear()
+    // MIG-F2-2: prevent stale per-symbol clocks after source replacement, merge, or reset.
+    clockMapCache.clear()
+  }
+
+  let snapshot = buildSnapshot(
+    sources,
+    cursor,
+    maxSnapshotPoints,
+    sliceCache,
+    getSymbolClockMapCached,
+    sliceFullPrice,
+    seriesEndCache,
+  )
   const listeners = new Set()
   const feedCache = { ...snapshot }
 
@@ -326,7 +456,15 @@ export const createMarketEngine = ({
       if (destroyed) return
 
       if (snapshotPending) {
-        const nextSnapshot = buildSnapshot(sources, cursor, maxSnapshotPoints, sliceCache)
+        const nextSnapshot = buildSnapshot(
+          sources,
+          cursor,
+          maxSnapshotPoints,
+          sliceCache,
+          getSymbolClockMapCached,
+          sliceFullPrice,
+          seriesEndCache,
+        )
         let snapshotChanged = false
         Object.keys(DEFAULT_FEEDS).forEach((feedName) => {
           nextSnapshot[feedName] = reuseFeedReference(
@@ -401,7 +539,13 @@ export const createMarketEngine = ({
   const reset = () => {
     if (destroyed) return
     stopTimer()
-    sliceCache.clear()
+    invalidateSnapshotCaches()
+    // MIG-F2-3: keep reset from retaining persisted signals and operation results.
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('signalsBySymbolState')
+      localStorage.removeItem('resultOperations')
+      localStorage.removeItem('flagsBySymbol')
+    }
     cursor = 0
     status = 'idle'
     markSnapshotPending()
@@ -411,7 +555,7 @@ export const createMarketEngine = ({
   const loadSources = (nextSources, options = {}) => {
     if (destroyed) return
     stopTimer()
-    sliceCache.clear()
+    invalidateSnapshotCaches()
     sources = { ...DEFAULT_FEEDS, ...nextSources }
     maxCursor = getMaxCursor(sources)
     cursor = 0
@@ -435,7 +579,7 @@ export const createMarketEngine = ({
     const useReplaceMode = options.replaceMode !== false
 
     sources = mergeSources(sources, nextSources, useReplaceMode)
-    sliceCache.clear()
+    invalidateSnapshotCaches()
     maxCursor = getMaxCursor(sources)
     cursor = options.followLatest && wasFollowingLatest
       ? maxCursor
@@ -510,7 +654,7 @@ export const createMarketEngine = ({
       cancelFrame(pendingFrame)
       pendingFrame = null
       listeners.clear()
-      sliceCache.clear()
+      invalidateSnapshotCaches()
     },
     getSnapshotVersion: () => version,
   }
