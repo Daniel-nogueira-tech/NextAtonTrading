@@ -1089,6 +1089,12 @@ const GraphicsRenko = () => {
   } = React.useContext(ContextGraphics)
   const chartContainerRef = React.useRef(null);
   const chartRef = React.useRef(null);
+  const primaryChartContainerRef = React.useRef(null);
+  const primaryChartRef = React.useRef(null);
+  const primaryCandlestickSeriesRef = React.useRef(null);
+  const primaryCandlestickSeriesMetaRef = React.useRef(null);
+  const hadPrimaryRenkoCandlesRef = React.useRef(false);
+  const lastPrimaryChartSymbolRef = React.useRef(activeSymbol);
   const analysisChartLifecycleRef = React.useRef(null);
   const candlestickSeriesRef = React.useRef(null);
   const livePriceSeriesRef = React.useRef(null);
@@ -1307,9 +1313,6 @@ const GraphicsRenko = () => {
   //===================//===================//
 
 
-  // alterna entre dados classificados de primário e secundário
-  const trendCurrent = isTrend ? trend : trendPrimary;
-
   // Pega o sinal para o (Painel)
   const lastTrend = getLastTrendBySymbol(activeSymbol);
   const lastTrendPrimary = getLastTrendPrimaryBySymbol(activeSymbol);
@@ -1320,8 +1323,12 @@ const GraphicsRenko = () => {
 
   // seleciona o ativo que está ativo
   const selectedMarket = React.useMemo(() => {
-    return selectMarketBySymbol(trendCurrent, activeSymbol)
-  }, [trendCurrent, activeSymbol])
+    return selectMarketBySymbol(trend, activeSymbol)
+  }, [trend, activeSymbol])
+
+  const selectedTrendPrimaryMarket = React.useMemo(() => {
+    return selectMarketBySymbol(trendPrimary, activeSymbol)
+  }, [trendPrimary, activeSymbol])
 
   const selectedRsiMarket = React.useMemo(() => {
     return selectMarketBySymbol(rsi, activeSymbol)
@@ -1372,6 +1379,9 @@ const GraphicsRenko = () => {
   const renkoCandles = React.useMemo(() => buildRenkoCandles(
     selectedMarket?.movements || []
   ), [selectedMarket])
+  const primaryRenkoCandles = React.useMemo(() => buildRenkoCandles(
+    selectedTrendPrimaryMarket?.movements || []
+  ), [selectedTrendPrimaryMarket])
   // FIX: keep projection data stable across renders unrelated to candles or drawings.
   const futureProjectionData = React.useMemo(
     () => buildFutureProjectionTimes(renkoCandles, analysisDrawings),
@@ -1443,6 +1453,99 @@ const GraphicsRenko = () => {
     },
   ]), [selectedVpprMarket])
 
+  React.useEffect(() => {
+    if (isTrend || !primaryChartContainerRef.current) return undefined
+
+    const container = primaryChartContainerRef.current
+    const chart = createChart(container, {
+      width: container.clientWidth,
+      height: container.clientHeight,
+      autoSize: true,
+      layout: {
+        background: { type: ColorType.Solid, color: 'transparent' },
+        textColor: '#d1d4dc',
+        fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      },
+      grid: {
+        vertLines: { color: 'rgba(42, 46, 57, 0.45)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.45)' },
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: {
+          color: 'rgba(117, 134, 150, 0.65)',
+          width: 1,
+          labelBackgroundColor: '#2A2E39',
+        },
+        horzLine: {
+          color: 'rgba(117, 134, 150, 0.65)',
+          width: 1,
+          labelBackgroundColor: '#2A2E39',
+        },
+      },
+      rightPriceScale: {
+        autoScale: true,
+        borderColor: 'rgba(117, 134, 150, 0.22)',
+        scaleMargins: {
+          top: 0.12,
+          bottom: 0.16,
+        },
+      },
+      timeScale: {
+        borderColor: 'rgba(117, 134, 150, 0.22)',
+        timeVisible: true,
+        secondsVisible: false,
+        rightOffset: 5,
+      },
+      localization: {
+        priceFormatter: (price) => Number(price).toFixed(2),
+      },
+    })
+
+    primaryChartRef.current = chart
+    primaryCandlestickSeriesRef.current = chart.addSeries(CandlestickSeries, {
+      upColor: UP_COLOR,
+      downColor: DOWN_COLOR,
+      borderUpColor: UP_COLOR,
+      borderDownColor: DOWN_COLOR,
+      wickUpColor: UP_COLOR,
+      wickDownColor: DOWN_COLOR,
+      priceFormat: {
+        type: 'price',
+        precision: 2,
+        minMove: 0.01,
+      },
+    })
+    primaryCandlestickSeriesMetaRef.current = { current: null }
+
+    return () => {
+      chart.remove()
+      primaryChartRef.current = null
+      primaryCandlestickSeriesRef.current = null
+      primaryCandlestickSeriesMetaRef.current = null
+      hadPrimaryRenkoCandlesRef.current = false
+    }
+  }, [isTrend])
+
+  React.useEffect(() => {
+    const chart = primaryChartRef.current
+    const series = primaryCandlestickSeriesRef.current
+    const meta = primaryCandlestickSeriesMetaRef.current
+    if (isTrend || !chart || !series || !meta) return
+
+    if (lastPrimaryChartSymbolRef.current !== activeSymbol) {
+      series.setData([])
+      meta.current = null
+      hadPrimaryRenkoCandlesRef.current = false
+      lastPrimaryChartSymbolRef.current = activeSymbol
+    }
+
+    updateSeriesData(series, primaryRenkoCandles, meta)
+    if (primaryRenkoCandles.length > 0 && !hadPrimaryRenkoCandlesRef.current) {
+      chart.timeScale().fitContent()
+    }
+    hadPrimaryRenkoCandlesRef.current = primaryRenkoCandles.length > 0
+  }, [primaryRenkoCandles, activeSymbol, isTrend])
 
   React.useEffect(() => {
     if (!chartContainerRef.current) return
@@ -1683,10 +1786,7 @@ const GraphicsRenko = () => {
       renkoCandles[renkoCandles.length - 1]?.time ?? 0,
       livePriceProjection.data[livePriceProjection.data.length - 1]?.time ?? 0,
     )
-    const retestSegments = buildRetestLevelSegments(
-      isTrend ? lastTrend : lastTrendPrimary,
-      chartEndTime,
-    )
+    const retestSegments = buildRetestLevelSegments(lastTrend, chartEndTime)
 
     const visibleSegmentKeys = new Set(retestSegments.map(segment => segment.key))
 
@@ -1743,9 +1843,7 @@ const GraphicsRenko = () => {
     signalsBySymbol,
     trend,
     livePriceProjection,
-    isTrend,
     lastTrend,
-    lastTrendPrimary,
   ])
 
   React.useEffect(() => {
@@ -1831,9 +1929,6 @@ const GraphicsRenko = () => {
                 onClick={() => setIsTrend(!isTrend)}
               > {isTrend ? 'Secundary' : 'Primary'}
               </button>
-              <button
-              > Grafico completo
-              </button>
             </div>
           </div>
 
@@ -1871,6 +1966,7 @@ const GraphicsRenko = () => {
               setSelectedAnalysisDrawing(null)
             }}
           />
+          <div className={`graphics-renko__charts${isTrend ? '' : ' graphics-renko__charts--comparison'}`}>
           <div className="graphics-renko__chart" ref={chartContainerRef}>
             <ActiveOperationOverlay
               chart={analysisChart}
@@ -1900,7 +1996,7 @@ const GraphicsRenko = () => {
               selectedDrawingIndex={selectedAnalysisDrawing}
               onDrawingPointerDown={handleAnalysisDrawingPointerDown}
             />
-            <div className='button-simulation'>
+            <div className='button-simulation' hidden={!isTrend}>
               <button
                 className="simulation-mode-toggle"
                 onClick={buttonSimulation}
@@ -2008,12 +2104,25 @@ const GraphicsRenko = () => {
             )}
 
             {/**==========================|Botão para compra e venda|============================ */}
-            <TradingOverlayPanel
-              onOpenTicket={handleOpenOrderTicket}
-              isAutomaticExecutionEnabled={isAutomaticExecutionEnabled}
-              automaticExecutionStatus={automaticExecutionStatus}
-              onToggleAutomaticExecution={() => setIsAutomaticExecutionEnabled(enabled => !enabled)}
-            />
+            <div className="graphics-renko__trading-overlay" hidden={!isTrend}>
+              <TradingOverlayPanel
+                onOpenTicket={handleOpenOrderTicket}
+                isAutomaticExecutionEnabled={isAutomaticExecutionEnabled}
+                automaticExecutionStatus={automaticExecutionStatus}
+                onToggleAutomaticExecution={() => setIsAutomaticExecutionEnabled(enabled => !enabled)}
+              />
+            </div>
+          </div>
+          {!isTrend && (
+            <div className="graphics-renko__chart graphics-renko__primary-chart" ref={primaryChartContainerRef}>
+              <div className="graphics-renko__chart-title">Index</div>
+              {primaryRenkoCandles.length === 0 && (
+                <div className="graphics-renko__empty">
+                  No trendPrimary history available for this asset.
+                </div>
+              )}
+            </div>
+          )}
           </div>
           <aside
             className={`graphics-renko__indicator-sidebar${isIndicatorPanelVisible ? '' : ' graphics-renko__indicator-sidebar--collapsed'}`}
