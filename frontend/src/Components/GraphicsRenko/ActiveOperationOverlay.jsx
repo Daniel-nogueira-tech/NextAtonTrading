@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { memo, useEffect, useId, useRef, useState } from 'react'
 import { createSeriesMarkers, LineSeries, LineStyle } from 'lightweight-charts'
 import { getCandleTimeForSignal } from './tradeMarkers.js'
 import Swal from 'sweetalert2'
@@ -99,7 +99,27 @@ const getTradePoints = (price, trade) => (
   (price - trade.entryPrice) * (trade.side === 'BUY' ? 1 : -1)
 )
 
-const ActiveOperationOverlay = ({
+const getCandleHash = (candles) => {
+  const values = Array.isArray(candles) ? candles : []
+  return `${values.length}:${values.at(-1)?.time ?? ''}`
+}
+
+const areActiveOperationOverlayPropsEqual = (previous, next) => (
+  previous.chart === next.chart &&
+  previous.chartLifecycleRef === next.chartLifecycleRef &&
+  previous.chartContainerRef === next.chartContainerRef &&
+  getCandleHash(previous.candles) === getCandleHash(next.candles) &&
+  previous.signals === next.signals &&
+  previous.calculatedPosition === next.calculatedPosition &&
+  previous.timeCacheRef === next.timeCacheRef &&
+  previous.onStopChange === next.onStopChange &&
+  previous.onTakeProfitChange === next.onTakeProfitChange &&
+  previous.onStopRemove === next.onStopRemove &&
+  previous.onTakeProfitRemove === next.onTakeProfitRemove
+)
+
+// MIG-F3: preserve the operation overlay across unchanged candle hashes and props.
+const ActiveOperationOverlay = memo(({
   chart,
   chartLifecycleRef,
   chartContainerRef,
@@ -612,6 +632,6 @@ const ActiveOperationOverlay = ({
       </button>
     </div>
   )
-}
+}, areActiveOperationOverlayPropsEqual)
 
 export default ActiveOperationOverlay

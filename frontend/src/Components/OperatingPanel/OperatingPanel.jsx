@@ -123,16 +123,7 @@ const OperatingPanel = () => {
 
   // Confirmação da ação
   const confirmAction = () => {
-    switch (actionType) {
-      case 'logout':
-        logoutUser()
-        break
-      case 'delete':
-        console.log('Item excluído')
-        break
-      default:
-        console.log('Ação confirmada')
-    }
+    if (actionType === 'logout') logoutUser()
 
     closePopup()
   }

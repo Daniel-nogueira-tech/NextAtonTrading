@@ -1,6 +1,7 @@
 import { useContext } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics';
+import { useEngineFeed } from '../../engine/useEngine.js';
 
 const normalizeAmrsiData = (rsi) => {
     if (!rsi) return [];
@@ -99,7 +100,9 @@ const getPriceAtSignalTime = (series, signalTime) => {
 };
 
 export const useAmrsiData = (rsi) => {
-    const { amrsiDataRef, fullPrice } = useContext(ContextGraphics)
+    const { amrsiDataRef } = useContext(ContextGraphics)
+    // MIGR-F4: read prices from the external engine because they are no longer in ContextGraphics.
+    const fullPrice = useEngineFeed('fullPrice')
 
     const amrsiHistoryRef = useRef({});
     const symbolsStateRef = useRef({});
@@ -193,7 +196,6 @@ export const useAmrsiData = (rsi) => {
                     const alreadyExists = nextAmrsiHistory[symbol].some(s => s.id === signalId);
 
                     if (!alreadyExists) {
-                        //   console.log(`🚀 SINAL AMRSI [${symbol}]: ${signalType} | RSI_MA: ${amrsi.toFixed(2)} | price: ${signalPrice}`);
 
                         nextAmrsiHistory[symbol].push({
                             id: signalId,

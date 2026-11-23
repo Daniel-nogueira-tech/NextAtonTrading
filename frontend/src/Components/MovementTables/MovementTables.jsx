@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import './MovementTables.css'
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx'
+import { useEngineFeed } from '../../engine/useEngine.js'
 
 const MOVIMENTOS = [
     'Secondary rally',
@@ -96,8 +97,10 @@ const normalizeSymbol = (symbol) => {
 }
 
 const MovementTables = () => {
-    const { trend, trendPrimary, activeSymbol, isTrend, setIsTrend } = React.useContext(ContextGraphics)
-    console.log('>>>>>>>>>>>',trend)
+    // MIGR-F4: consume trend data from the external store rather than the UI context.
+    const trend = useEngineFeed('trend')
+    const trendPrimary = useEngineFeed('trendPrimary')
+    const { activeSymbol, isTrend } = React.useContext(ContextGraphics)
     const [currentPage, setCurrentPage] = useState(1)
 
     const itemsPerPage = 25

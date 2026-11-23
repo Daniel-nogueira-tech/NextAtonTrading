@@ -1,6 +1,7 @@
 import React from 'react';
 import axios from 'axios';
-import { useIncrementalMarketEngine } from '../hooks/useIncrementalMarketEngine.js';
+import { createMarketEngine } from '../engine/MarketEngine.js';
+import { MarketEngineProvider } from '../engine/useEngine.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useRef } from 'react';
 
@@ -59,7 +60,6 @@ const getNextFiveMinuteBoundaryDelay = () => {
     return Math.max(1000, nextBoundary.getTime() - now.getTime());
 }
 
-
 export const ContextGraphicsProvider = ({ children }) => {
     const urlBackend = import.meta.env.VITE_BACKEND_URL;
     const urlBackendSite = import.meta.env.VITE_BACKEND_URL_SITE;
@@ -72,7 +72,6 @@ export const ContextGraphicsProvider = ({ children }) => {
     const [download, setDownload] = React.useState(false);
     const [loading, setLoading] = React.useState(() => readStoredJson("loading", true));
     const [movementTables, setMovementTables] = React.useState(false);
-    const [fullSources, setFullSources] = React.useState(null);
     const [dates, setDates] = React.useState(() => {
         const saved = localStorage.getItem("dates");
         return saved ? JSON.parse(saved).map(d => new Date(d)) : null;
@@ -147,34 +146,21 @@ export const ContextGraphicsProvider = ({ children }) => {
     // alternar entre dados de tendência primários e secundários
     const [isTrend, setIsTrend] = React.useState(true);
 
-    const incrementalEngine = useIncrementalMarketEngine({
+    // MIGR-F5: make the external store the sole market engine and remove the transition-only hook.
+    const [marketEngine] = React.useState(() => createMarketEngine({
         initialSpeed: mode === 'simulation' ? 500 : 50,
         maxSnapshotPoints: 500,
-    });
-    const {
-        snapshot,
-        status: engineStatus,
-        cursor: engineCursor,
-        maxCursor: engineMaxCursor,
-        speed: engineSpeed,
-        step: engineStep,
-        loadSources,
-        updateSources,
-        play,
-        pause,
-        continue: continueEngine,
-        reset,
-        setSpeed,
-        isRunning,
-        setStep,
-    } = incrementalEngine;
-
-    const fullPrice = snapshot.fullPrice;
-    const trendPrimary = snapshot.trendPrimary;
-    const trend = snapshot.trend;
-    const vppr = snapshot.vppr;
-    const rsi = snapshot.rsi;
-    const schrodinger = snapshot.schrodinger
+    }));
+    const marketEngineMountedRef = useRef(false);
+    React.useEffect(() => {
+        marketEngineMountedRef.current = true;
+        return () => {
+            marketEngineMountedRef.current = false;
+            queueMicrotask(() => {
+                if (!marketEngineMountedRef.current) marketEngine.destroy();
+            });
+        };
+    }, [marketEngine]);
 
     // Salva dados no localStorage
     React.useEffect(() => {
@@ -253,7 +239,6 @@ export const ContextGraphicsProvider = ({ children }) => {
 
     // Envia as datas para baixar dados para simular
     const dateToSimulation = async (dates) => {
-        console.log(dates)
         if (mode !== 'simulation' || !dates) {
             return
         };
@@ -346,15 +331,15 @@ export const ContextGraphicsProvider = ({ children }) => {
             }
 
 
-            setFullSources(nextSources);
-
             if (preserveEngine) {
-                updateSources(nextSources, {
+                const updateOptions = {
                     autoContinue: mode === 'real',
                     followLatest: mode === 'real',
-                });
+                };
+                marketEngine.updateSources(nextSources, updateOptions);
             } else {
-                loadSources(nextSources, { autoStart: mode === 'real' });
+                const loadOptions = { autoStart: mode === 'real' };
+                marketEngine.loadSources(nextSources, loadOptions);
             }
         } catch (error) {
             console.error("Erro ao carregar dados", error)
@@ -422,7 +407,7 @@ export const ContextGraphicsProvider = ({ children }) => {
             return;
         };*/
         try {
-            const { data } = await axios.get(`${urlBackendSite}/api/auth/is-auth`, {
+            await axios.get(`${urlBackendSite}/api/auth/is-auth`, {
                 withCredentials: true,
             });
 
@@ -434,11 +419,8 @@ export const ContextGraphicsProvider = ({ children }) => {
                    UserData();
                }*/
 
-            console.log("Authentication check:", data.success);
         } catch (error) {
-            /* console.error("Error checking authentication:", error);
-             setIsAuthenticated(false);
-             navigate("/Login");*/
+            console.error("Error checking authentication:", error);
         }
     };
 
@@ -563,7 +545,6 @@ export const ContextGraphicsProvider = ({ children }) => {
     // Configura o refresh automático dos dados a cada 5 minutos no modo real
     React.useEffect(() => {
         if (mode !== 'real') return undefined;
-        if (incrementalEngine.status === 'loading') return undefined; // Evita configurar o refresh enquanto os dados estão carregando
 
         let refreshTimeout = null;
         let cancelled = false;
@@ -587,6 +568,7 @@ export const ContextGraphicsProvider = ({ children }) => {
 
 
     //Define o valor do contexto a ser fornecido aos componentes filhos
+    // MIGR-F4: keep market feeds out of ContextGraphics so only engine subscribers rerender on ticks.
     const contextValue = {
         // usuário
         loginUser,
@@ -614,33 +596,6 @@ export const ContextGraphicsProvider = ({ children }) => {
         updateSymbolStatus,
 
         // Indicadores simulação
-        trend,
-        fullTrend: fullSources?.trend ?? trend,
-        trendPrimary,
-        fullTrendPrimary: fullSources?.trendPrimary ?? trendPrimary,
-        fullPrice,
-        fullPriceComplete: fullSources?.fullPrice ?? fullPrice,
-        vppr,
-        fullVppr: fullSources?.vppr ?? vppr,
-        rsi,
-        fullRsi: fullSources?.rsi ?? rsi,
-        schrodinger,
-        fullSchrodinger: fullSources?.schrodinger ?? schrodinger,
-        incrementalEngine: {
-            status: engineStatus,
-            cursor: engineCursor,
-            maxCursor: engineMaxCursor,
-            speed: engineSpeed,
-            step: engineStep,
-            isRunning,
-            play,
-            pause,
-            continue: continueEngine,
-            reset,
-            setSpeed,
-            setStep,
-            updateSources,
-        },
         // Simulação
         dateToSimulation,
         // Carregamento
@@ -697,10 +652,10 @@ export const ContextGraphicsProvider = ({ children }) => {
     }
 
     return (
-        <>
+        <MarketEngineProvider engine={marketEngine}>
             <ContextGraphics.Provider value={contextValue}>
                 {children}
             </ContextGraphics.Provider>
-        </>
+        </MarketEngineProvider>
     )
 }

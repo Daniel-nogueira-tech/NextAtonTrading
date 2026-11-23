@@ -3,6 +3,15 @@ import React from 'react'
 import { createPortal } from 'react-dom'
 import './GraphicsRenko.css'
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx'
+import {
+  useEngineControls,
+  useEngineCursor,
+  useEngineFeed,
+  useEngineMaxCursor,
+  useEngineSpeed,
+  useEngineStatus,
+  useEngineStep,
+} from '../../engine/useEngine.js'
 import { CandlestickSeries, ColorType, CrosshairMode, LineSeries, LineStyle, createChart, createSeriesMarkers } from 'lightweight-charts'
 
 import { DayPicker } from 'react-day-picker';
@@ -30,6 +39,8 @@ const DOWN_COLOR = '#fc5b5b'
 const MIN_ENGINE_SPEED = 100
 const MAX_ENGINE_SPEED = 5000
 const DEFAULT_ENGINE_SPEED = 500
+// MIG-F3: keep empty signal props stable for the memoized active-operation overlay.
+const EMPTY_SIGNALS = []
 
 const FIBONACCI_LEVELS = [0, 0.382, 0.5, 0.618, 1]
 const FUTURE_PROJECTION_DAYS = 60
@@ -59,7 +70,45 @@ const buildFutureProjectionTimes = (candles, drawings) => {
     .map(time => ({ time }))
 }
 
-const AnalysisDrawingOverlay = ({
+const getOverlayArrayHash = (items, getLastTime) => {
+  const values = Array.isArray(items) ? items : []
+  const lastTime = values.length > 0 ? getLastTime(values[values.length - 1]) : null
+  return `${values.length}:${lastTime ?? ''}`
+}
+
+const getDrawingHash = drawings => getOverlayArrayHash(
+  drawings,
+  drawing => drawing?.points?.at(-1)?.time,
+)
+const hasSameDrawings = (previous, next) => {
+  const previousDrawings = Array.isArray(previous) ? previous : []
+  const nextDrawings = Array.isArray(next) ? next : []
+  return getDrawingHash(previousDrawings) === getDrawingHash(nextDrawings)
+    && previousDrawings.length === nextDrawings.length
+    && previousDrawings.every((drawing, index) => drawing === nextDrawings[index])
+}
+const getEnergySurgeHash = energySurges => getOverlayArrayHash(
+  energySurges,
+  surge => surge?.time,
+)
+const getCandleHash = candles => getOverlayArrayHash(candles, candle => candle?.time)
+
+const areAnalysisDrawingOverlayPropsEqual = (previous, next) => (
+  previous.chart === next.chart &&
+  previous.series === next.series &&
+  hasSameDrawings(previous.drawings, next.drawings) &&
+  getEnergySurgeHash(previous.energySurges) === getEnergySurgeHash(next.energySurges) &&
+  getCandleHash(previous.candles) === getCandleHash(next.candles) &&
+  previous.draft === next.draft &&
+  previous.preview === next.preview &&
+  previous.renderVersion === next.renderVersion &&
+  previous.activeTool === next.activeTool &&
+  previous.selectedDrawingIndex === next.selectedDrawingIndex &&
+  previous.onDrawingPointerDown === next.onDrawingPointerDown
+)
+
+// MIG-F3: skip overlay renders when drawing, energy, and candle hashes remain unchanged.
+const AnalysisDrawingOverlay = React.memo(({
   chart,
   series,
   drawings,
@@ -77,20 +126,6 @@ const AnalysisDrawingOverlay = ({
   const toCoordinates = (point) => {
     const rawX = chart.timeScale().timeToCoordinate(point.time)
     const y = series.priceToCoordinate(point.price)
-
-    // LOG apenas quando o ponto está na zona estendida (time > lastCandle)
-    if (typeof point.time === 'number' && window.__lastCandleTime && point.time > window.__lastCandleTime) {
-      console.log('[toCoord]', {
-        time: point.time,
-        rawX,
-        lastCandle: window.__lastCandleTime,
-        barSpacing: chart.timeScale().options().barSpacing,
-        rightOffset: chart.timeScale().options().rightOffset,
-        visibleRange: chart.timeScale().getVisibleRange(),
-        logicalRange: chart.timeScale().getVisibleLogicalRange(),
-      })
-    }
-
     return { x: rawX, y }
   }
   const renderDrawing = (drawing, key, drawingIndex = null, isPreview = false) => {
@@ -351,7 +386,7 @@ const AnalysisDrawingOverlay = ({
       {draft && renderDrawing({ ...draft, points: draftPoints }, 'drawing-preview', null, true)}
     </svg>
   )
-}
+}, areAnalysisDrawingOverlayPropsEqual)
 
 const normalizeTrend = (trend) => {
   if (!trend) return []
@@ -651,7 +686,8 @@ const hasInvalidDateRange = (range) => {
   return Number.isFinite(start) && Number.isFinite(end) && start > end
 }
 
-const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
+// MIG-F2: memoize indicator charts so unrelated legacy-context ticks don't rerender them.
+const IndicatorChart = React.memo(({ title, emptyMessage, series, resetKey }) => {
   const containerRef = React.useRef(null)
   const chartRef = React.useRef(null)
   const popupRef = React.useRef(null)
@@ -664,6 +700,14 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
   const visibleSeries = React.useMemo(() => {
     return series.filter(item => item.data.length > 0)
   }, [series])
+  // FIX: identify meaningful series changes without depending on recreated arrays.
+  const seriesHash = React.useMemo(() => (
+    series.map(item => {
+      const lastPoint = item.data[item.data.length - 1]
+      return `${item.name}:${item.data.length}:${getChartTimeKey(lastPoint?.time) ?? ''}`
+    }).join('|')
+  ), [series])
+  const visibleSeriesRef = React.useRef(visibleSeries)
 
   const restoreToPanel = () => {
     popupRef.current?.close()
@@ -766,10 +810,14 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
     }
   }, [popupWindow])
 
+  React.useEffect(() => {
+    visibleSeriesRef.current = visibleSeries
+  }, [visibleSeries])
 
   React.useEffect(() => {
     const chart = chartRef.current
     if (!chart) return
+    const currentVisibleSeries = visibleSeriesRef.current
 
     if (lastResetKeyRef.current !== resetKey) {
       seriesMapRef.current.forEach((lineSeries) => {
@@ -782,7 +830,7 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
       lastResetKeyRef.current = resetKey
     }
 
-    const visibleNames = new Set(visibleSeries.map(item => item.name))
+    const visibleNames = new Set(currentVisibleSeries.map(item => item.name))
 
     seriesMapRef.current.forEach((lineSeries, name) => {
       if (!visibleNames.has(name)) {
@@ -792,7 +840,7 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
       }
     })
 
-    visibleSeries.forEach((item) => {
+    currentVisibleSeries.forEach((item) => {
       let lineSeries = seriesMapRef.current.get(item.name)
 
       if (!lineSeries) {
@@ -818,7 +866,7 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
     // ── Aplica margem à direita (rightOffset) proporcional aos dados ──
     const applyRightOffset = () => {
       // Pega a série "principal" do painel (a primeira visível que tem dados)
-      const base = visibleSeries[0]?.data
+      const base = currentVisibleSeries[0]?.data
       if (!base || base.length < 2) {
         chart.timeScale().applyOptions({ rightOffset: 20 })
         return
@@ -840,7 +888,7 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
       }
     }
 
-    if (visibleSeries.length > 0 && !hadVisibleSeriesRef.current) {
+    if (currentVisibleSeries.length > 0 && !hadVisibleSeriesRef.current) {
       chart.timeScale().fitContent()
       // ⚠️ fitContent() zera o rightOffset — reaplicar em seguida
       applyRightOffset()
@@ -849,8 +897,8 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
       applyRightOffset()
     }
 
-    hadVisibleSeriesRef.current = visibleSeries.length > 0
-  }, [visibleSeries, resetKey, popupWindow])
+    hadVisibleSeriesRef.current = currentVisibleSeries.length > 0
+  }, [seriesHash, resetKey, popupWindow])
 
   const indicatorPanel = (
     <div className="graphics-renko__indicator-panel">
@@ -901,16 +949,125 @@ const IndicatorChart = ({ title, emptyMessage, series, resetKey }) => {
       {createPortal(indicatorPanel, popupWindow.document.body)}
     </>
   )
-}
+})
+
+// MIG-F3: isolate simulation-state subscriptions so status changes do not rerender GraphicsRenko.
+const SimulationControls = React.memo(({ loading, mode, setLoading }) => {
+  const status = useEngineStatus()
+  const cursor = useEngineCursor()
+  const maxCursor = useEngineMaxCursor()
+  const speed = useEngineSpeed()
+  const step = useEngineStep()
+  const controls = useEngineControls()
+  const isRunning = status === 'running'
+  const currentSpeed = Number(speed) || DEFAULT_ENGINE_SPEED
+
+  if (!loading || mode !== 'simulation') return null
+
+  return (
+    <div
+      className="simulation-control"
+      role="group"
+      aria-label={`Simulation progress ${cursor} of ${maxCursor}`}
+    >
+      {!isRunning ? (
+        <button
+          type="button"
+          onClick={controls.play}
+          disabled={isRunning}
+          title="Play"
+        >
+          Play
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={controls.pause}
+          disabled={!isRunning}
+          title="Pause"
+        >
+          Pause
+        </button>
+      )}
+
+      <button
+        type="button"
+        onClick={controls.continue}
+        disabled={isRunning || status === 'completed'}
+        title="Continue"
+      >
+        Continue
+      </button>
+      <button
+        id="button-reset"
+        type="button"
+        onClick={controls.reset}
+        title="Reset"
+      >
+        Reset
+      </button>
+      <button
+        type="button"
+        onClick={() => setLoading(false)}
+        title="Liberar seleção e download de datas"
+      >
+        Reset loading
+      </button>
+      <span className="separates-speed" />
+      <div className="controlle-speed-container">
+        <div className="controlle-speed">
+          <button
+            type="button"
+            onClick={() => controls.setSpeed(Math.max(
+              MIN_ENGINE_SPEED,
+              Math.round(currentSpeed / 2),
+            ))}
+            disabled={currentSpeed <= MIN_ENGINE_SPEED}
+            title="Decrease speed"
+          >
+            -
+          </button>
+          <span className="simulation-control__speed">{currentSpeed}ms</span>
+          <button
+            type="button"
+            onClick={() => controls.setSpeed(Math.min(
+              MAX_ENGINE_SPEED,
+              Math.round(currentSpeed * 2),
+            ))}
+            disabled={currentSpeed >= MAX_ENGINE_SPEED}
+            title="Increase speed"
+          >
+            +
+          </button>
+        </div>
+
+        <div className="controlle-step">
+          <label htmlFor="slider">Step: {Number(step) || 1}</label>
+          <input
+            type="range"
+            id="slider"
+            name="slider"
+            min="1"
+            max="20"
+            value={Number(step) || 1}
+            onChange={event => controls.setStep(Number(event.target.value))}
+          />
+        </div>
+      </div>
+    </div>
+  )
+})
 
 const GraphicsRenko = () => {
+  // MIG-F3: market feeds are read directly from the external engine rather than the legacy context.
+  const trend = useEngineFeed('trend')
+  const trendPrimary = useEngineFeed('trendPrimary')
+  const rsi = useEngineFeed('rsi')
+  const vppr = useEngineFeed('vppr')
+  const schrodinger = useEngineFeed('schrodinger')
+  const fullPrice = useEngineFeed('fullPrice')
   const {
-    trend,
-    trendPrimary,
-    schrodinger,
     activeSymbol,
-    rsi,
-    vppr,
     setMode,
     mode,
     dateToSimulation,
@@ -920,7 +1077,6 @@ const GraphicsRenko = () => {
     setLoading,
     movementTables,
     setMovementTables,
-    incrementalEngine,
     orderStop,
     setOrderStop,
     orderTakeProfit,
@@ -929,7 +1085,6 @@ const GraphicsRenko = () => {
     setIsTrend,
     dates,
     setDates,
-    fullPrice,
     resultOperations
   } = React.useContext(ContextGraphics)
   const chartContainerRef = React.useRef(null);
@@ -1061,7 +1216,8 @@ const GraphicsRenko = () => {
     }
   }, [])
 
-  const handleAnalysisDrawingPointerDown = (drawingIndex, pointIndex, event) => {
+  // MIG-F3: keep the overlay handler stable until its drawing data changes.
+  const handleAnalysisDrawingPointerDown = React.useCallback((drawingIndex, pointIndex, event) => {
     const chart = chartRef.current
     const series = candlestickSeriesRef.current
     const bounds = chartContainerRef.current?.getBoundingClientRect()
@@ -1082,7 +1238,7 @@ const GraphicsRenko = () => {
       pointIndex,
       startPoint: { x, y, time, price },
     }
-  }
+  }, [analysisDrawings])
 
   //===================/ Chama os hooks /===================//
   useOperatingData(trend);
@@ -1644,36 +1800,6 @@ const GraphicsRenko = () => {
     window.location.reload();
   };
 
-  const increaseSimulationSpeed = () => {
-    const currentSpeed = Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED
-    incrementalEngine?.setSpeed(Math.max(MIN_ENGINE_SPEED, Math.round(currentSpeed / 2)))
-  }
-
-  const decreaseSimulationSpeed = () => {
-    const currentSpeed = Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED
-    incrementalEngine?.setSpeed(Math.min(MAX_ENGINE_SPEED, Math.round(currentSpeed * 2)))
-  }
-
-  const resetSimulation = () => {
-    incrementalEngine?.reset()
-  }
-
-  const handleStepChange = (event) => {
-    const nextStep = Number(event.target.value)
-    incrementalEngine?.setStep(nextStep)
-  }
-
-  const speedLabel = React.useMemo(() => {
-    const currentSpeed = Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED
-    return `${currentSpeed}ms`
-  }, [incrementalEngine?.speed])
-
-  const stepLabel = React.useMemo(() => {
-    return Number(incrementalEngine?.step) || 1
-  }, [incrementalEngine?.step])
-
-
-
   //=======================|Retorna resultaddo da operação|==========================//
   return (
     <section className="graphics-renko">
@@ -1751,7 +1877,7 @@ const GraphicsRenko = () => {
               chartLifecycleRef={analysisChartLifecycleRef}
               chartContainerRef={chartContainerRef}
               candles={renkoCandles}
-              signals={signalsBySymbol?.[activeSymbol] || []}
+              signals={signalsBySymbol?.[activeSymbol] || EMPTY_SIGNALS}
               calculatedPosition={(resultOperations?.positions?.open || []).find(
                 position => position.symbol === activeSymbol,
               )}
@@ -1868,90 +1994,11 @@ const GraphicsRenko = () => {
               }
 
               {/*-----------------/Botão de controle/-----------------*/}
-              {loading && mode === "simulation" &&
-
-                <div className='simulation-control'>
-
-                  {!incrementalEngine.isRunning ? (
-                    <button
-                      type="button"
-                      onClick={incrementalEngine?.play}
-                      disabled={incrementalEngine?.isRunning}
-                      title="Play"
-                    >
-                      Play
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={incrementalEngine?.pause}
-                      disabled={!incrementalEngine?.isRunning}
-                      title="Pause"
-                    >
-                      Pause
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={incrementalEngine?.continue}
-                    disabled={incrementalEngine?.isRunning || incrementalEngine?.status === 'completed'}
-                    title="Continue"
-                  >
-                    Continue
-                  </button>
-                  <button
-                    id='button-reset'
-                    type="button"
-                    onClick={resetSimulation}
-                    title="Reset"
-                  >
-                    Reset
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLoading(false)}
-                    title="Liberar seleção e download de datas"
-                  >
-                    Reset loading
-                  </button>
-                  <span className='separates-speed'></span>
-                  <div className='controlle-speed-container'>
-                    <div className='controlle-speed'>
-                      <button
-                        type="button"
-                        onClick={decreaseSimulationSpeed}
-                        disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) >= MAX_ENGINE_SPEED}
-                        title="Decrease speed"
-                      >
-                        -
-                      </button>
-                      <span className="simulation-control__speed">{speedLabel}</span>
-                      <button
-                        type="button"
-                        onClick={increaseSimulationSpeed}
-                        disabled={(Number(incrementalEngine?.speed) || DEFAULT_ENGINE_SPEED) <= MIN_ENGINE_SPEED}
-                        title="Increase speed"
-                      >
-                        +
-                      </button>
-                    </div>
-
-                    <div className='controlle-step'>
-                      <label htmlFor="slider">Step: {stepLabel}</label>
-                      <input
-                        type="range"
-                        id="slider"
-                        name="slider"
-                        min="1"
-                        max="10"
-                        value={stepLabel}
-                        onChange={handleStepChange}
-                      />
-                    </div>
-                  </div>
-                </div>
-              }
+              <SimulationControls
+                loading={loading}
+                mode={mode}
+                setLoading={setLoading}
+              />
 
             </div>
             {renkoCandles.length === 0 && (

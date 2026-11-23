@@ -128,22 +128,6 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState, ba
         const actualRisk = roundDecimal(quantityPerEntry * stopDistancePoints);
         const riskPercentage = (actualRisk / balance) * 100;
 
-        console.log('✅ Resultado final:', {
-            symbol,
-            count,
-            side: isLong ? 'LONG' : isShort ? 'SHORT' : 'UNKNOWN',
-            entryPrice,
-            stop: stopPoint,
-            stopDistance: stopDistancePoints.toFixed(2),
-            stopPercent: ((stopDistancePoints / entryPrice) * 100).toFixed(2) + '%',
-            positionSize: adjustedQty.toFixed(8),
-            totalValue: (adjustedQty * entryPrice).toFixed(2),
-            riskAmount: actualRisk.toFixed(2),
-            riskPercentage: riskPercentage.toFixed(2) + '%',
-            balance,
-        });
-
-
         //==================================|Calcula resultado das operações|=====================================//
         const operations = [];
         const perSymbol = {};
@@ -381,97 +365,6 @@ export const calculatePositionSize = async (lastSignal, signalsBySymbolState, ba
         const openRisk = roundDecimal(openPositions.reduce((sum, position) => sum + position.risk, 0));
 
         const probabilityData = calculateProbabilityDistribution(operations, entryPrice);
-
-        console.log('📊 Resultado das operações', {
-            // === DADOS PRINCIPAIS ===
-            symbol,
-            side: isLong ? 'LONG' : isShort ? 'SHORT' : 'UNKNOWN',
-            count: count || 0,
-
-            // === CONFIGURAÇÃO DA OPERAÇÃO ===  
-            config: {
-                entryPrice: roundDecimal(entryPrice),
-                stop: stopPoint,
-                stopDistance: {
-                    points: roundDecimal(stopDistancePoints),
-                    percent: roundDecimal((stopDistancePoints / entryPrice) * 100, 2),
-                }
-            },
-
-            // === DISTRIBUIÇÃO DE PROBABILIDADES ===
-            probabilityDistribution: {
-                distribution: probabilityData.distribution,
-                summary: probabilityData.summary,
-                rawReturns: probabilityData.rawReturns,
-            },
-
-            // === GESTÃO DE CAPITAL ===
-            capital: {
-                balance,
-                riskPerTrade: balanceAndRisk.risk * 100,
-                positionSize: roundDecimal(adjustedQty),
-                positionValue: totalPositionValue,
-                risk: {
-                    amount: roundDecimal(actualRisk),
-                    percentage: roundDecimal(riskPercentage, 2),
-                }
-            },
-
-            // === INFORMAÇÕES DO ATIVO ===
-            assetInfo: {
-                minQty,
-                maxQty,
-                stepSize,
-                tickSize: Number(symbolInfor?.tickSize || 0),
-                minNotional: Number(symbolInfor?.minNotional || 0)
-            },
-
-            // === HISTÓRICO DE OPERAÇÕES ===
-            history: {
-                operations: operations.map(operation => ({
-                    ...operation,
-                    entryPrice: roundDecimal(operation.entryPrice),
-                    stopPrice: roundDecimal(operation.stopPrice),
-                    exitPrice: roundDecimal(operation.exitPrice),
-                    quantity: roundDecimal(operation.quantity),
-                    pnl: roundDecimal(operation.pnl),
-                    risk: roundDecimal(operation.risk),
-                    rr: roundDecimal(operation.rr, 4),
-                })),
-                summary: {
-                    totalOperations: operations.length,
-                    wins: operations.filter((item) => item.pnl > 0).length,
-                    losses: operations.filter((item) => item.pnl < 0).length,
-                    winRate: operations.length
-                        ? roundDecimal((operations.filter(o => o.pnl > 0).length / operations.length) * 100, 2)
-                        : 0
-                },
-            },
-
-            // === RESULTADOS ===
-            results: {
-                netPnl: roundDecimal(netPnl),
-                totalProfit: roundDecimal(totalProfit),
-                totalLoss: roundDecimal(totalLoss),
-                avgRisk: roundDecimal(avgRisk),
-                totalRisk: roundDecimal(totalRisk),
-                avgRr: roundDecimal(avgRr, 4),
-
-            },
-
-            // === POSIÇÕES ATUAIS ===
-            positions: {
-                open: openPositions,
-                openRisk,
-                closed: closedPositionResultsArray,
-                perSymbol,
-                hasOpen: Object.keys(perSymbol).length > 0,
-                sizePerEntry: roundDecimal(quantityPerEntry),
-                valuePerEntry,
-                realizedPnl: roundDecimal(netPnl),
-                totalOperationResult,
-            },
-        });
 
         return {
             // === DADOS PRINCIPAIS ===

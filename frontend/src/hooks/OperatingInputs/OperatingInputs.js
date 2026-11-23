@@ -1,6 +1,7 @@
 // useOperatingInputs.js
 import { useMemo, useEffect, useContext, useRef, useState, useCallback } from 'react';
 import { ContextGraphics } from '../../ContextGraphics/ContextGraphics.jsx';
+import { useEngineFeed } from '../../engine/useEngine.js';
 import { calculatePositionSize as calculatePositionSizeFromSignals } from '../CalculateOperation/CalculateOperation.js'
 import { parseDecimal } from '../../utils/parseDecimal.js'
 
@@ -255,7 +256,40 @@ const normalizeItem = (item, keys) => {
 };
 
 export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
-    const { sendOperationData: sendOperationDataToContext, signalsBySymbolState, setSignalsBySymbolState, retestPointsStateRef, pontsPartialRef, retestPointsStatePrimaryRef, amrsiDataRef, vpprDataRef, fullPrice, buttonOperation, setButtonOperation, setResultOperations, resultOperations, activeSymbol, balanceAndRisk, setOrderStop, setOrderTakeProfit, trend } = useContext(ContextGraphics);
+    // MIGR-F4: subscribe only to the market feeds used by the signal calculation.
+    const trend = useEngineFeed('trend');
+    const fullPrice = useEngineFeed('fullPrice');
+    const vpprFeed = useEngineFeed('vppr');
+    const rsiFeed = useEngineFeed('rsi');
+    const {
+        sendOperationData: sendOperationDataToContext,
+        signalsBySymbolState,
+        setSignalsBySymbolState,
+        retestPointsStateRef,
+        pontsPartialRef,
+        retestPointsStatePrimaryRef,
+        amrsiDataRef,
+        vpprDataRef,
+        buttonOperation,
+        setButtonOperation,
+        setResultOperations,
+        resultOperations,
+        activeSymbol,
+        balanceAndRisk,
+        setOrderStop,
+        setOrderTakeProfit,
+    } = useContext(ContextGraphics);
+    // FIX: avoid rerendering when the requested operation-button flags are unchanged.
+    const setButtonOperationSafe = useCallback((next) => {
+        setButtonOperation(previous => (
+            previous.buy === next.buy &&
+            previous.sell === next.sell &&
+            previous.exit === next.exit
+                ? previous
+                : next
+        ));
+    }, [setButtonOperation]);
+
     const balance = parseDecimal(balanceAndRisk?.balance);
     const risk = Number(balanceAndRisk?.risk);
     const hasValidTradingFunds = Number.isFinite(balance) &&
@@ -312,12 +346,12 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
 
     const vppr = useMemo(
         () => normalizeCollection(vpprDataRef.current, "VPPR", ["type", "vpprTrend", "time", "major", "volumeEmaSignal"], "signals"),
-        [vpprDataRef.current]
+        [vpprDataRef.current, vpprFeed]
     );
 
     const amrsi = useMemo(
         () => normalizeCollection(amrsiDataRef.current, "AMRSI", ["type", "time"], "signals"),
-        [amrsiDataRef.current]
+        [amrsiDataRef.current, rsiFeed]
     );
 
     const flagsBySymbolRef = useRef(JSON.parse(localStorage.getItem("flagsBySymbol")) || {});
@@ -617,7 +651,7 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
         flagsBySymbolRef.current[symbol] = flags;
         localStorage.setItem('flagsBySymbol', JSON.stringify(flagsBySymbolRef.current));
         setSignalsBySymbolState(history);
-        setButtonOperation({ buy: false, sell: false, exit: false });
+        setButtonOperationSafe({ buy: false, sell: false, exit: false });
         setResultOperations(result);
         if (nextOrderTakeProfit !== undefined) setOrderTakeProfit(nextOrderTakeProfit);
         if (action === 'exit') setOrderStop('');
@@ -628,7 +662,7 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
         calculatePositionSize,
         price,
         sendOperationData,
-        setButtonOperation,
+        setButtonOperationSafe,
         setResultOperations,
         setSignalsBySymbolState,
         setOrderTakeProfit,
@@ -996,7 +1030,6 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
             amrsi.length === 0 &&
             vppr.length === 0
         ) {
-            console.log("⏳ Aguardando dados...");
             return;
         }
 
@@ -1076,11 +1109,6 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
                 lastAmrsiRef.current[symbol] = lastAmrsi;
             }
             if (!lastTrend || !lastPrice) {
-                console.log(`⚠️ [${symbol}] Dados insuficientes:`, {
-                    lastTrend: !!lastTrend,
-                    lastTrendPrimary: !!lastTrendPrimary,
-                    lastPrice: !!lastPrice
-                });
                 return;
             }
 
@@ -1133,14 +1161,10 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
             if (isOutsideBand && !isTrendBlocked) {
                 flags.exceededBand = true;
                 flags.blockedTrendIdentity = currentTrendIdentity;
-                /*console.log(`⛔ [${symbol}] Tendência excedeu banda e ficará bloqueada até novo trend:`, {
-                    bandLow, bandHigh, price: currentPrice, trend: lastTrendMovement?.tipo,
-                });*/
                 return;
             }
 
             if (isTrendBlocked) {
-               // console.log(`⛔ [${symbol}] Trend bloqueado até novo signal:`, { blockedTrendIdentity: flags.blockedTrendIdentity, currentTrendIdentity });
                 return;
             }
 
@@ -1245,8 +1269,6 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
                     pendingPartialEntriesRef.current.add(partialKey);
                 }
                 pendingAutomaticOrdersRef.current.add(symbolKey);
-                console.log(`🔒 [${symbolKey}] pending ADD (${side})`);
-
                 let timeoutId;
                 const timeoutPromise = new Promise((_, reject) => {
                     timeoutId = setTimeout(
@@ -1296,8 +1318,7 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
                         currentFlags.lastProcessedMovement = currentMovementIdentity;
                         localStorage.setItem('flagsBySymbol', JSON.stringify(flagsBySymbolRef.current));
                     }
-                    setButtonOperation({ buy: false, sell: false, exit: false });
-                    console.log(`✅ [${symbolKey}] ENTRADA ${side.toUpperCase()} EXECUTADA`);
+                    setButtonOperationSafe({ buy: false, sell: false, exit: false });
                 } catch (error) {
                     console.error(`❌ [${symbolKey}] erro na entrada ${side}:`, error);
                 } finally {
@@ -1306,7 +1327,6 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
                     if (partialEntryIdentity) {
                         pendingPartialEntriesRef.current.delete(`${symbolKey}:${partialEntryIdentity}`);
                     }
-                    console.log(`🔓 [${symbolKey}] pending DELETE (${side})`);
                 }
             };
 
@@ -1423,8 +1443,7 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
                             flags.isOperation = false;
                         }
 
-                        setButtonOperation({ buy: false, sell: false, exit: false });
-                        console.log(`🚪 [${symbol}] SAÍDA ${side} executada via executeOrder (${reason})`);
+                        setButtonOperationSafe({ buy: false, sell: false, exit: false });
                     } catch (error) {
                         console.error(`Erro ao encerrar ${symbol} (${side}, ${reason}):`, error);
                     } finally {
@@ -1475,7 +1494,17 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
                     ...Object.keys(previous || {}),
                     ...Object.keys(next),
                 ]);
-                const hasChanges = [...keys].some(key => previous?.[key] !== next[key]);
+                // FIX: compare signal history contents instead of recreated object/array references.
+                const hasChanges = [...keys].some(key => {
+                    const previousHistory = previous?.[key] || [];
+                    const nextHistory = next[key] || [];
+                    if (previousHistory.length !== nextHistory.length) return true;
+
+                    const previousLast = previousHistory[previousHistory.length - 1];
+                    const nextLast = nextHistory[nextHistory.length - 1];
+                    return previousLast?.timestamp !== nextLast?.timestamp ||
+                        previousLast?.action !== nextLast?.action;
+                });
                 return hasChanges ? { ...next } : previous;
             });
         }
@@ -1503,7 +1532,7 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
         isAutomaticExecutionEnabled,
         hasValidTradingFunds,
         calculatePositionSize,
-        setButtonOperation,
+        setButtonOperationSafe,
         setSignalsBySymbolState,
         sendOperationData,
     ]);
