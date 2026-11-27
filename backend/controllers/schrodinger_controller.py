@@ -234,7 +234,7 @@ def evolve_wave_function(orders,
 
     return evolution
 # =============== TUNELAMENTO QUÂNTICO =============== #
-def power_surges(orders, smooth=1, prominence=0.80):
+def power_surges(orders, smooth=1, prominence=0.20):
     # Calcula energias
     kinetic   = calculate_kinetic_energy(orders)
     potential = calculate_Potential_energy(orders)

@@ -32,6 +32,9 @@ const ENTRY_PARTIAL_SELL = [
     'PARTIAL_SELL',
     'TREND_PARTIAL_SELL'
 ]
+const REACT_EXIT = [
+    'Reação Natural'
+]
 
 const mergeIfChanged = (previous, updates) => {
     const hasChanges = Object.entries(updates).some(([key, value]) => {
@@ -132,6 +135,7 @@ const getIndicatorDirection = (type) => {
     if (!normalizedType || normalizedType.includes('EXIT')) return null;
     if (normalizedType.includes('BUY')) return 'BUY';
     if (normalizedType.includes('SELL')) return 'SELL';
+    if (normalizedType.includes('Reação Natural')) return 'EXIT_REACT';
     if (normalizedType.includes(TYPE_BUY_EXIT)) return 'EXIT_BUY';
     if (normalizedType.includes(TYPE_SELL_EXIT)) return 'EXIT_SELL';
     return null;
@@ -283,8 +287,8 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
     const setButtonOperationSafe = useCallback((next) => {
         setButtonOperation(previous => (
             previous.buy === next.buy &&
-            previous.sell === next.sell &&
-            previous.exit === next.exit
+                previous.sell === next.sell &&
+                previous.exit === next.exit
                 ? previous
                 : next
         ));
@@ -1081,6 +1085,7 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
             const lastVpprArray = vppr.find(item => item.symbol === symbol)?.result || [];
             const lastPriceArray = price.find(item => item.symbol === symbol)?.result || [];
             const lastPartialEntryArray = partialEntry.find(item => item.symbol === symbol)?.result || [];
+            const lasttrendReactArray = trend.find(item => item.symbol === symbol)?.movements || [];
 
             const lastTrend = lastTrendArray[lastTrendArray.length - 1];
             const lastTrendPrimary = lastTrendPrimaryArray[lastTrendPrimaryArray.length - 1];
@@ -1088,6 +1093,7 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
             const lastVppr = lastVpprArray[lastVpprArray.length - 1];
             const lastPrice = lastPriceArray[lastPriceArray.length - 1];
             const lastPartialEntry = lastPartialEntryArray[lastPartialEntryArray.length - 1];
+            const lastTrendReact = lasttrendReactArray[lasttrendReactArray.length - 1];
             const previousTrendIdentity = getTrendIdentity(lastTrendRef.current[symbol]);
 
 
@@ -1111,6 +1117,9 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
             if (!lastTrend || !lastPrice) {
                 return;
             }
+            if (!lastTrendReact) {
+                return;
+            }
 
 
             const currentTrendIdentity = getTrendIdentity(lastTrend);
@@ -1119,7 +1128,9 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
             const openPosition = getOpenPosition(signalsHistoryRef.current?.[symbol] || []);
             const primaryDirection = getIndicatorDirection(lastTrendPrimary?.type);
             const vpprDirection = getIndicatorDirection(lastVppr?.vpprTrend);
+            const vpprEmaDirection = getIndicatorDirection(lastVppr?.volumeEmaSignal);
             const amrsiDirection = getIndicatorDirection(lastAmrsi?.type);
+            const reactExit = getIndicatorDirection(lastTrendReact.tipe);
 
             let signal = null;
 
@@ -1183,45 +1194,51 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
             const entryStop = Number(lastTrend?.stop);
 
 
-
             // ─── Condições técnicas (sem clique, sem modo) ─────────────────────────────
             const technicalBuyCondition =
                 hasValidTradingFunds &&
                 isNewMovement &&
                 directionAllowsBuy &&
+                flags.numberEntries <= 5 &&
                 Number.isFinite(currentPrice) &&
                 Number.isFinite(buyTriggerPrice) &&
                 Number.isFinite(entryStop) &&
-                primaryDirection === 'BUY' &&
+                // primaryDirection === 'BUY' &&
                 TYPE_RALLY_BUY.includes(lastTrend?.type) &&
                 entryStop < currentPrice &&
-                currentPrice >= buyTriggerPrice
+                currentPrice >= buyTriggerPrice &&
+                !TYPE_BUY_EXIT.includes(lastTrend?.type)
 
             const technicalSellCondition =
                 hasValidTradingFunds &&
                 isNewMovement &&
                 directionAllowsSell &&
+                flags.numberEntries <= 5 &&
                 Number.isFinite(currentPrice) &&
                 Number.isFinite(sellTriggerPrice) &&
                 Number.isFinite(entryStop) &&
-                primaryDirection === 'SELL' &&
+                //primaryDirection === 'SELL' &&
                 TYPE_RALLY_SELL.includes(lastTrend?.type) &&
                 entryStop > currentPrice &&
-                currentPrice <= sellTriggerPrice
+                currentPrice <= sellTriggerPrice &&
+                !TYPE_SELL_EXIT.includes(lastTrend?.type)
+
 
             const entryPartialBuy =
                 hasValidTradingFunds &&
                 Number.isFinite(currentPrice) &&
                 Number.isFinite(lastPartialEntry?.partialBuy) &&
                 ENTRY_PARTIAL_BUY.includes(lastPartialEntry?.type) &&
-                currentPrice >= lastPartialEntry?.partialBuy
+                currentPrice >= lastPartialEntry?.partialBuy 
+
 
             const entryPartialSell =
                 hasValidTradingFunds &&
                 Number.isFinite(currentPrice) &&
                 Number.isFinite(lastPartialEntry?.partialSell) &&
                 ENTRY_PARTIAL_SELL.includes(lastPartialEntry?.type) &&
-                currentPrice <= lastPartialEntry?.partialSell
+                currentPrice <= lastPartialEntry?.partialSell 
+
 
             const partialBuyIdentity = entryPartialBuy
                 ? ['PARTIAL_BUY', lastPartialEntry?.type, lastPartialEntry?.time, lastPartialEntry?.partialBuy].join('|')
@@ -1361,17 +1378,33 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
                 lastPrice.Fechamento <= lastTrend?.stop &&
                 flags.isOperation &&
                 flags.inputExecuted &&
-                primaryDirection === 'EXIT_BUY'
-                // lastVppr?.vpprTrend === 'sell' &&
+                primaryDirection === 'EXIT_BUY' &&
+                vpprDirection === 'SELL' &&
+                vpprEmaDirection === 'SELL' &&
                 TYPE_BUY_EXIT.includes(lastTrend?.type);
 
             const conditionExitSellMain =
                 lastPrice.Fechamento >= lastTrend?.stop &&
                 flags.isOperation &&
                 flags.inputExecuted &&
-                primaryDirection === 'EXIT_SELL'
-                // lastVppr?.vpprTrend === 'buy' &&
+                primaryDirection === 'EXIT_SELL' &&
+                vpprDirection === 'BUY' &&
+                vpprEmaDirection === 'BUY' &&
                 TYPE_SELL_EXIT.includes(lastTrend?.type);
+
+            const conditionExitBuyRsiAndVppr =
+                lastAmrsi?.type === 'OVERBOUGHT' &&
+                vpprDirection === 'SELL' &&
+                vpprEmaDirection === 'SELL'
+
+
+            const conditionExitSellRsiAndVppr =
+                lastAmrsi?.type == 'OVERSOLD' &&
+                vpprDirection === 'BUY' &&
+                vpprEmaDirection === 'BUY'
+
+            console.log(REACT_EXIT.includes(lastTrendReact?.tipo))
+            console.log('lastTrendReact:', lastTrendReact)
 
             // Saídas por stop/take (independem de indicador)
             const activeEntryForExit = getOpenPosition(signalsHistoryRef.current?.[symbol] || []);
@@ -1399,11 +1432,11 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
             if (flags.inputExecuted && flags.isOperation && flags.numberEntries > 0 && activeSide) {
                 const canExitBuy =
                     activeSide === 'BUY' &&
-                    (conditionExitBuyMain || stopHit || takeHit);
+                    (conditionExitBuyMain || stopHit || takeHit || conditionExitBuyRsiAndVppr);
 
                 const canExitSell =
                     activeSide === 'SELL' &&
-                    (conditionExitSellMain || stopHit || takeHit);
+                    (conditionExitSellMain || stopHit || takeHit || conditionExitSellRsiAndVppr);
 
                 // Manual: exige clique em "exit". Automático: dispara sozinho.
                 const conditionExitBuyManual =

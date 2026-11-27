@@ -29,7 +29,7 @@ const normalizeTrendGroups = (trend) => {
 }
 
 // limita o tamanho dos arrays de estado para evitar crescimento indefinido
-const MAX_HISTORY = 500
+const MAX_HISTORY = 10
 const pushBounded = (arr, item) => {
   arr.push(item)
   if (arr.length > MAX_HISTORY) arr.splice(0, arr.length - MAX_HISTORY)
@@ -747,28 +747,31 @@ export const useOperatingData = (trend) => {
       // **Último topo em uma Alta
       if (ultimoTopo) {
         const isNovoTopo = !state.ultimoTopoAnterior ||
-          ultimoTopo.closePrice !== state.ultimoTopoAnterior.closePrice ||
+          ultimoTopo.closePrice !== state.ultimoTopoAnterior.closePrice &&
           ultimoTopo.index !== state.ultimoTopoAnterior.index
+
         if (isNovoTopo) {
-          pushBounded(state.penultimoValor, ultimoTopo) // 🔧 CORRIGIDO: array limitado
+          pushBounded(state.penultimoValor, ultimoTopo)
           state.ultimoTopoAnterior = ultimoTopo
         }
       }
 
       if (ultimoFundo) {
-        const isNovoTopo = !state.ultimoFundoAnterior ||
-          ultimoFundo.closePrice !== state.ultimoFundoAnterior.closePrice ||
+        const isNovoFundo = !state.ultimoFundoAnterior ||
+          ultimoFundo.closePrice !== state.ultimoFundoAnterior.closePrice &&
           ultimoFundo.index !== state.ultimoFundoAnterior.index
-        if (isNovoTopo) {
+        if (isNovoFundo) {
           pushBounded(state.penultimoValorFundo, ultimoFundo)
           state.ultimoFundoAnterior = ultimoFundo
         }
       }
+      console.log('penultimoValorFundo',state.penultimoValorFundo)
+
 
       // **Último Pivo depois de uma invesão de tendência
       if (inversion) {
         const isNovoPivo = !state.ultimoPivoReversao ||
-          inversion.closePrice !== state.ultimoPivoReversao.closePrice ||
+          inversion.closePrice !== state.ultimoPivoReversao.closePrice &&
           inversion.index !== state.ultimoPivoReversao.index
         if (isNovoPivo) {
           pushBounded(state.pivoReversion, inversion)
@@ -779,7 +782,7 @@ export const useOperatingData = (trend) => {
       // **Último pivo de uma rally
       if (rallyPivo) {
         const isNovoRally = !state.ultimoPivoAnteriorRally ||
-          rallyPivo.closePrice !== state.ultimoPivoAnteriorRally.closePrice ||
+          rallyPivo.closePrice !== state.ultimoPivoAnteriorRally.closePrice &&
           rallyPivo.index !== state.ultimoPivoAnteriorRally.index
         if (isNovoRally) {
           pushBounded(state.rallyPivot, rallyPivo)
@@ -790,7 +793,7 @@ export const useOperatingData = (trend) => {
       // **Último pivo de uma rally sec
       if (rallySec) {
         const isNovoRallySec = !state.ultimoPivoAnteriorRallySec ||
-          rallySec.closePrice !== state.ultimoPivoAnteriorRallySec.closePrice ||
+          rallySec.closePrice !== state.ultimoPivoAnteriorRallySec.closePrice &&
           rallySec.index !== state.ultimoPivoAnteriorRallySec.index
         if (isNovoRallySec) {
           pushBounded(state.rallyPivotSec, rallySec)
@@ -801,7 +804,7 @@ export const useOperatingData = (trend) => {
       // **Último pivo de (Breakout)
       if (trend) {
         const isNewTrend = !state.trendFound ||
-          trend.closePrice !== state.trendFound.closePrice ||
+          trend.closePrice !== state.trendFound.closePrice &&
           trend.index !== state.trendFound.index
         if (isNewTrend) {
           pushBounded(state.trendPivotToRetest, trend)
@@ -812,7 +815,7 @@ export const useOperatingData = (trend) => {
       // **Primeiro ponto de retorno de um rally natural em um (Breakout)
       if (rallyNaturalReturn) {
         const isNewrallyNaturalReturn = !state.rallyFound ||
-          rallyNaturalReturn.closePrice !== state.rallyFound.closePrice ||
+          rallyNaturalReturn.closePrice !== state.rallyFound.closePrice &&
           rallyNaturalReturn.index !== state.rallyFound.index
         if (isNewrallyNaturalReturn) {
           pushBounded(state.rallyPivotToReturn, rallyNaturalReturn)
@@ -823,7 +826,7 @@ export const useOperatingData = (trend) => {
       // **Último pivo em um rally sec dentro de uma consolidação
       if (pivotRallySec2) {
         const isNewrallySec = !state.rallySec2Found ||
-          pivotRallySec2.closePrice !== state.rallySec2Found.closePrice ||
+          pivotRallySec2.closePrice !== state.rallySec2Found.closePrice &&
           pivotRallySec2.index !== state.rallySec2Found.index
         if (isNewrallySec) {
           pushBounded(state.rallyPivotToSec2, pivotRallySec2)
@@ -834,7 +837,7 @@ export const useOperatingData = (trend) => {
       // **Último pivo rally secundário
       if (pivotRetestRallyNaturalToReactSec) {
         const isNewPivoRallySec = !state.ultimoPivoSecFound ||
-          pivotRetestRallyNaturalToReactSec.closePrice !== state.ultimoPivoSecFound.closePrice ||
+          pivotRetestRallyNaturalToReactSec.closePrice !== state.ultimoPivoSecFound.closePrice &&
           pivotRetestRallyNaturalToReactSec.index !== state.ultimoPivoSecFound.index
         if (isNewPivoRallySec) {
           pushBounded(state.penultimopivoRallySec, pivotRetestRallyNaturalToReactSec)
@@ -845,7 +848,7 @@ export const useOperatingData = (trend) => {
       // **Último Rally Natural
       if (rallyNatural) {
         const isNovoRally = !state.ultimoRallyNatural ||
-          rallyNatural.closePrice !== state.ultimoRallyNatural.closePrice ||
+          rallyNatural.closePrice !== state.ultimoRallyNatural.closePrice &&
           rallyNatural.index !== state.ultimoRallyNatural.index
         if (isNovoRally) {
           pushBounded(state.rallyNaturalHistory, rallyNatural)
@@ -855,7 +858,7 @@ export const useOperatingData = (trend) => {
         // **Último Rally Secundário
         if (rallySecundario) {
           const isNovoRallySec = !state.ultimoRallySecundario ||
-            rallySecundario.closePrice !== state.ultimoRallySecundario.closePrice ||
+            rallySecundario.closePrice !== state.ultimoRallySecundario.closePrice &&
             rallySecundario.index !== state.ultimoRallySecundario.index
           if (isNovoRallySec) {
             pushBounded(state.rallySecundarioHistory, rallySecundario)
@@ -866,7 +869,7 @@ export const useOperatingData = (trend) => {
 
       if (trendEntry) {
         const isNovotrendEntry = !state.lastTrendEntry ||
-          trendEntry.closePrice !== state.lastTrendEntry.closePrice ||
+          trendEntry.closePrice !== state.lastTrendEntry.closePrice &&
           trendEntry.index !== state.lastTrendEntry.index
         if (isNovotrendEntry) {
           pushBounded(state.lastTrendEntryHistory, trendEntry)
@@ -880,7 +883,7 @@ export const useOperatingData = (trend) => {
       let pivo = ct ?
         state.penultimoValor[state.penultimoValor.length - 2] :
         state.penultimoValorFundo[state.penultimoValorFundo.length - 2];
-
+console.log('>>>>>>',state.penultimoValorFundo)
       // **Reteste de pivo para saída
       let TrendPivot = ct ?
         state.penultimoValor[state.penultimoValor.length - 1] :
@@ -935,16 +938,16 @@ export const useOperatingData = (trend) => {
         }
         return id;
       }
-
+console.log('>>',pivo)
       // ======================|RETESTE DE TENDÊNCIA|====================== //
-      if (pivo && naturalReaction && canExecuteReaction && !state.executeTrendRally) {
-        const limite = pivo.limite;
+      if ((pivo || TrendPivot) && naturalReaction && canExecuteReaction && !state.executeTrendRally) {
+        const limite = pivo?.limite;
         const tolerance = limite / 2.5;
-        const high = pivo.closePrice + tolerance;
-        const low = pivo.closePrice - tolerance;
+        const high = pivo?.closePrice + tolerance;
+        const low = pivo?.closePrice - tolerance;
 
-        const buyPoint = pivo.closePrice + limite / 2;
-        const sellPoint = pivo.closePrice - limite / 2;
+        const buyPoint = pivo?.closePrice + limite / 2;
+        const sellPoint = pivo?.closePrice - limite / 2;
 
         const eventId = buildEventId(pivo, naturalReaction);
         if (eventId && state.lastTrendRetestId !== eventId) {

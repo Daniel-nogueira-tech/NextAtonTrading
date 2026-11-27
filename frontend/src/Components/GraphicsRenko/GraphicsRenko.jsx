@@ -314,74 +314,66 @@ const AnalysisDrawingOverlay = React.memo(({
   // ===============================|Mostra no Gráfico os pontos de maior energia|=============================== //
   return (
     <svg className="graphics-renko__analysis-overlay" aria-hidden="true" data-render-version={renderVersion}>
-      {energySurges.map((surge, index) => {
-        if (
-          surge?.time == null ||
-          surge?.power_surges_price == null ||
-          surge?.energia == null
-        ) return null
+      {
+        (energySurges ?? []).slice(-5).map((surge, index) => {
+          if (
+            surge?.time == null ||
+            surge?.power_surges_price == null ||
+            surge?.energia == null
+          ) return null
 
-        const time = parseChartTime(surge?.time, index)
-        const price = Number(surge?.power_surges_price)
-        const energy = Number(surge?.energia)
-        if (!Number.isFinite(time) || !Number.isFinite(price) || !Number.isFinite(energy)) return null
+          const time = parseChartTime(surge?.time, index)
+          const price = Number(surge?.power_surges_price)
+          const energy = Number(surge?.energia)
+          if (!Number.isFinite(time) || !Number.isFinite(price) || !Number.isFinite(energy)) return null
 
-        let x = chart.timeScale().timeToCoordinate(time)
-        if (!Number.isFinite(x) && candles.length > 0) {
-          const nearestCandle = candles.reduce((nearest, candle) => (
-            Math.abs(candle.time - time) < Math.abs(nearest.time - time) ? candle : nearest
-          ))
-          x = chart.timeScale().timeToCoordinate(nearestCandle.time)
-        }
-        const y = series.priceToCoordinate(price)
-        if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+          let x = chart.timeScale().timeToCoordinate(time)
+          if (!Number.isFinite(x) && candles.length > 0) {
+            const nearestCandle = candles.reduce((nearest, candle) => (
+              Math.abs(candle.time - time) < Math.abs(nearest.time - time) ? candle : nearest
+            ))
+            x = chart.timeScale().timeToCoordinate(nearestCandle.time)
+          }
+          const y = series.priceToCoordinate(price)
+          if (!Number.isFinite(x) || !Number.isFinite(y)) return null
 
-        return (
-          <g key={`${time}-${surge?.ordem ?? index}`} pointerEvents="none">
-            <title>
-              {`Energy: ${surge.energia} | Order: ${surge.ordem ?? '—'} | Price: ${price}`}
-            </title>
-            <svg viewBox="0 0 200 200" width="100" height="100" x={x - 50} y={y - 50} pointerEvents="none">
-              <g className="atom">
-                {/* Órbitas */}
-                <ellipse className="atom-orbit atom-orbit--1" cx="100" cy="100" rx="40" ry="20" />
-                <ellipse className="atom-orbit atom-orbit--2" cx="100" cy="100" rx="34" ry="34" />
-                <ellipse className="atom-orbit atom-orbit--3" cx="100" cy="100" rx="20" ry="40" />
+          return (
+            <g key={`${time}-${surge?.ordem ?? index}`} pointerEvents="none">
+              <title>
+                {`Energy: ${surge.energia} | Order: ${surge.ordem ?? '—'} | Price: ${price}`}
+              </title>
+              <svg viewBox="0 0 200 200" width="100" height="100" x={x - 50} y={y - 50} pointerEvents="none">
+                <g className="atom">
 
-
-                {/* Núcleo */}
-                <circle
-                  className="energy-surge"
-                  cx="100"
-                  cy="100"
-                  r="10"
-                  fill="#b464ffaf"
-                  stroke="#fff"
-                  strokeWidth="1.5"
-                />
-
-                {/* Elétrons */}
-                <circle className="atom-electron atom-electron--1" cx="100" cy="100" r="3" fill="#fff" />
-                <circle className="atom-electron atom-electron--2" cx="100" cy="100" r="3" fill="#e0b0ff" />
-                <circle className="atom-electron atom-electron--3" cx="100" cy="100" r="3" fill="#fff" />
-                <circle className="atom-electron atom-electron--4" cx="100" cy="100" r="3" fill="#fff" />
-              </g>
-            </svg>
-            <text
-              x={x + 8}
-              y={y - 8}
-              fill="#ff3030"
-              fontSize="11"
-              fontWeight="700"
-              stroke="#101820"
-              strokeWidth="3"
-              paintOrder="stroke"
-            >
-              {energy.toFixed(4)}
-            </text>
-          </g>
-        )
-      })}
+                  {/* Núcleo */}
+                  <circle
+                    className="energy-surge"
+                    cx="100"
+                    cy="100"
+                    r="10"
+                    fill="#b464ffaf"
+                    stroke="#fff"
+                    strokeWidth="1.5"
+                  />
+                  
+                </g>
+              </svg>
+              <text
+                x={x + 8}
+                y={y - 8}
+                fill="#ff3030"
+                fontSize="11"
+                fontWeight="700"
+                stroke="#101820"
+                strokeWidth="3"
+                paintOrder="stroke"
+              >
+                {energy.toFixed(4)}
+              </text>
+            </g>
+          )
+        })
+      }
       {drawings.map((drawing, index) => renderDrawing(drawing, `drawing-${index}`, index))}
       {draft && renderDrawing({ ...draft, points: draftPoints }, 'drawing-preview', null, true)}
     </svg>
@@ -1967,162 +1959,162 @@ const GraphicsRenko = () => {
             }}
           />
           <div className={`graphics-renko__charts${isTrend ? '' : ' graphics-renko__charts--comparison'}`}>
-          <div className="graphics-renko__chart" ref={chartContainerRef}>
-            <ActiveOperationOverlay
-              chart={analysisChart}
-              chartLifecycleRef={analysisChartLifecycleRef}
-              chartContainerRef={chartContainerRef}
-              candles={renkoCandles}
-              signals={signalsBySymbol?.[activeSymbol] || EMPTY_SIGNALS}
-              calculatedPosition={(resultOperations?.positions?.open || []).find(
-                position => position.symbol === activeSymbol,
-              )}
-              timeCacheRef={signalChartTimeCacheRef}
-              onStopChange={updateActiveStop}
-              onTakeProfitChange={updateActiveTakeProfit}
-              onStopRemove={removeActiveStop}
-              onTakeProfitRemove={removeActiveTakeProfit}
-            />
-            <AnalysisDrawingOverlay
-              chart={analysisChart}
-              series={analysisSeries}
-              drawings={analysisDrawings}
-              energySurges={energySurges}
-              candles={renkoCandles}
-              draft={analysisDraft}
-              preview={analysisPreview}
-              renderVersion={analysisRenderVersion}
-              activeTool={activeAnalysisTool}
-              selectedDrawingIndex={selectedAnalysisDrawing}
-              onDrawingPointerDown={handleAnalysisDrawingPointerDown}
-            />
-            <div className='button-simulation' hidden={!isTrend}>
-              <button
-                className="simulation-mode-toggle"
-                onClick={buttonSimulation}
-              >
-                {mode === "simulation" ? "Simulation" : "Real time"}
-              </button>
-
-
-              {/*-----------------/Calendário/-----------------*/}
-              {mode === "simulation" &&
-                <div
-                  className="card-dates flex justify-content-center "
-                  onClick={(event) => event.stopPropagation()}
-                  onMouseDown={(event) => event.stopPropagation()}
-                >
-
-                  {loading === false &&
-                    <div style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                    >
-                      <DayPicker animate
-                        autoFocus
-                        classNames={{
-                          selected: 'meu-dia-selecionado',
-                          range_start: 'meu-range-inicio',
-                          range_end: 'meu-range-fim',
-                          today: 'meu-hoje',
-                        }}
-
-
-                        captionLayout="dropdown"
-                        startMonth={new Date(2018, 0)}
-                        navLayout="around"
-                        mode="range"
-                        footer={footer}
-                        min={1}
-                        selected={dates && Array.isArray(dates) && dates.length === 2
-                          ? { from: dates[0], to: dates[1] }
-                          : undefined}
-                        onSelect={(range) => {
-                          // Converte { from, to } de volta para o array [Date, Date]
-                          if (range?.from && range?.to) {
-                            handleDatesChange([range.from, range.to]);
-                          } else if (range?.from) {
-                            // Se só o "from" foi selecionado, passa um array com um item
-                            // para o seu handleDatesChange lidar (como no Calendar antigo)
-                            handleDatesChange([range.from, null]);
-                          } else {
-                            handleDatesChange(null);
-                          }
-                        }}
-                      />
-
-                      {dateErro && <p style={{ color: "red" }}>{dateErro}</p>}
-
-                      {formattedDatesObj?.dateStart && formattedDatesObj?.dateEnd && !dateErro &&
-                        <div className={download ? 'loading' : 'download'}>
-                          <button
-                            type="button"
-                            className="p-button"
-                            aria-label="Baixar simulação"
-                            disabled={loading || download}
-                            onClick={handleSubmitDate}
-                          >
-                            <span aria-live="polite">
-                              {download ? "Loading..." : "⤓ download"}
-                            </span>
-                          </button>
-                        </div>
-                      }
-                    </div>
-                  }
-                  { /**Mostra que foi caregado */}
-                  {loading === true &&
-                    <div className="loaded">
-                      <button
-                        type="button"
-                        className="p-button"
-                        aria-label="Baixar simulação"
-                        disabled={loading || download}
-                      >
-                        <span aria-hidden="true">⤓</span>
-                      </button>
-                    </div>
-                  }
-                </div>
-              }
-
-              {/*-----------------/Botão de controle/-----------------*/}
-              <SimulationControls
-                loading={loading}
-                mode={mode}
-                setLoading={setLoading}
+            <div className="graphics-renko__chart" ref={chartContainerRef}>
+              <ActiveOperationOverlay
+                chart={analysisChart}
+                chartLifecycleRef={analysisChartLifecycleRef}
+                chartContainerRef={chartContainerRef}
+                candles={renkoCandles}
+                signals={signalsBySymbol?.[activeSymbol] || EMPTY_SIGNALS}
+                calculatedPosition={(resultOperations?.positions?.open || []).find(
+                  position => position.symbol === activeSymbol,
+                )}
+                timeCacheRef={signalChartTimeCacheRef}
+                onStopChange={updateActiveStop}
+                onTakeProfitChange={updateActiveTakeProfit}
+                onStopRemove={removeActiveStop}
+                onTakeProfitRemove={removeActiveTakeProfit}
               />
+              <AnalysisDrawingOverlay
+                chart={analysisChart}
+                series={analysisSeries}
+                drawings={analysisDrawings}
+                energySurges={energySurges}
+                candles={renkoCandles}
+                draft={analysisDraft}
+                preview={analysisPreview}
+                renderVersion={analysisRenderVersion}
+                activeTool={activeAnalysisTool}
+                selectedDrawingIndex={selectedAnalysisDrawing}
+                onDrawingPointerDown={handleAnalysisDrawingPointerDown}
+              />
+              <div className='button-simulation' hidden={!isTrend}>
+                <button
+                  className="simulation-mode-toggle"
+                  onClick={buttonSimulation}
+                >
+                  {mode === "simulation" ? "Simulation" : "Real time"}
+                </button>
 
+
+                {/*-----------------/Calendário/-----------------*/}
+                {mode === "simulation" &&
+                  <div
+                    className="card-dates flex justify-content-center "
+                    onClick={(event) => event.stopPropagation()}
+                    onMouseDown={(event) => event.stopPropagation()}
+                  >
+
+                    {loading === false &&
+                      <div style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                      >
+                        <DayPicker animate
+                          autoFocus
+                          classNames={{
+                            selected: 'meu-dia-selecionado',
+                            range_start: 'meu-range-inicio',
+                            range_end: 'meu-range-fim',
+                            today: 'meu-hoje',
+                          }}
+
+
+                          captionLayout="dropdown"
+                          startMonth={new Date(2018, 0)}
+                          navLayout="around"
+                          mode="range"
+                          footer={footer}
+                          min={1}
+                          selected={dates && Array.isArray(dates) && dates.length === 2
+                            ? { from: dates[0], to: dates[1] }
+                            : undefined}
+                          onSelect={(range) => {
+                            // Converte { from, to } de volta para o array [Date, Date]
+                            if (range?.from && range?.to) {
+                              handleDatesChange([range.from, range.to]);
+                            } else if (range?.from) {
+                              // Se só o "from" foi selecionado, passa um array com um item
+                              // para o seu handleDatesChange lidar (como no Calendar antigo)
+                              handleDatesChange([range.from, null]);
+                            } else {
+                              handleDatesChange(null);
+                            }
+                          }}
+                        />
+
+                        {dateErro && <p style={{ color: "red" }}>{dateErro}</p>}
+
+                        {formattedDatesObj?.dateStart && formattedDatesObj?.dateEnd && !dateErro &&
+                          <div className={download ? 'loading' : 'download'}>
+                            <button
+                              type="button"
+                              className="p-button"
+                              aria-label="Baixar simulação"
+                              disabled={loading || download}
+                              onClick={handleSubmitDate}
+                            >
+                              <span aria-live="polite">
+                                {download ? "Loading..." : "⤓ download"}
+                              </span>
+                            </button>
+                          </div>
+                        }
+                      </div>
+                    }
+                    { /**Mostra que foi caregado */}
+                    {loading === true &&
+                      <div className="loaded">
+                        <button
+                          type="button"
+                          className="p-button"
+                          aria-label="Baixar simulação"
+                          disabled={loading || download}
+                        >
+                          <span aria-hidden="true">⤓</span>
+                        </button>
+                      </div>
+                    }
+                  </div>
+                }
+
+                {/*-----------------/Botão de controle/-----------------*/}
+                <SimulationControls
+                  loading={loading}
+                  mode={mode}
+                  setLoading={setLoading}
+                />
+
+              </div>
+              {renkoCandles.length === 0 && (
+                <div className="graphics-renko__empty">
+                  Waiting for enough movement to form the blocks.
+                </div>
+              )}
+
+              {/**==========================|Botão para compra e venda|============================ */}
+              <div className="graphics-renko__trading-overlay" hidden={!isTrend}>
+                <TradingOverlayPanel
+                  onOpenTicket={handleOpenOrderTicket}
+                  isAutomaticExecutionEnabled={isAutomaticExecutionEnabled}
+                  automaticExecutionStatus={automaticExecutionStatus}
+                  onToggleAutomaticExecution={() => setIsAutomaticExecutionEnabled(enabled => !enabled)}
+                />
+              </div>
             </div>
-            {renkoCandles.length === 0 && (
-              <div className="graphics-renko__empty">
-                Waiting for enough movement to form the blocks.
+            {!isTrend && (
+              <div className="graphics-renko__chart graphics-renko__primary-chart" ref={primaryChartContainerRef}>
+                <div className="graphics-renko__chart-title">Index</div>
+                {primaryRenkoCandles.length === 0 && (
+                  <div className="graphics-renko__empty">
+                    No trendPrimary history available for this asset.
+                  </div>
+                )}
               </div>
             )}
-
-            {/**==========================|Botão para compra e venda|============================ */}
-            <div className="graphics-renko__trading-overlay" hidden={!isTrend}>
-              <TradingOverlayPanel
-                onOpenTicket={handleOpenOrderTicket}
-                isAutomaticExecutionEnabled={isAutomaticExecutionEnabled}
-                automaticExecutionStatus={automaticExecutionStatus}
-                onToggleAutomaticExecution={() => setIsAutomaticExecutionEnabled(enabled => !enabled)}
-              />
-            </div>
-          </div>
-          {!isTrend && (
-            <div className="graphics-renko__chart graphics-renko__primary-chart" ref={primaryChartContainerRef}>
-              <div className="graphics-renko__chart-title">Index</div>
-              {primaryRenkoCandles.length === 0 && (
-                <div className="graphics-renko__empty">
-                  No trendPrimary history available for this asset.
-                </div>
-              )}
-            </div>
-          )}
           </div>
           <aside
             className={`graphics-renko__indicator-sidebar${isIndicatorPanelVisible ? '' : ' graphics-renko__indicator-sidebar--collapsed'}`}

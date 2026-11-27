@@ -80,7 +80,7 @@ export const useVpprData = (vppr) => {
                 if (state.vpprHistory.length > 12) state.vpprHistory.shift();
 
                 // ====================== BANDAS DE TENDÊNCIA ======================
-                const percentage = Math.abs(vpprEma) * 0.05;
+                const percentage = Math.abs(vpprEma) * 0.001; // Bandas acima ou abaixo do ema vppr
                 const bandTop = vpprEma + percentage;
                 const bandBottom = vpprEma - percentage;
 
@@ -234,8 +234,8 @@ export const useVpprData = (vppr) => {
                     //============================================//============================================//
 
                     // Decisão de sinal 
-                    const MIN_CHANGE = 0.003; // 0.3% mínima
-                    const MIN_SLOPE = 0.0005; // 0.005% mínima
+                    const MIN_CHANGE = 0.03; // 0.3% mínima
+                    const MIN_SLOPE = 0.001; // 0.005% mínima
 
                     let signal = 'Volume Stable';
                     let direction = 'neutral';
