@@ -5,6 +5,11 @@ import { useEngineFeed } from '../../engine/useEngine.js';
 import { calculatePositionSize as calculatePositionSizeFromSignals } from '../CalculateOperation/CalculateOperation.js'
 import { parseDecimal } from '../../utils/parseDecimal.js'
 
+// MEM-FIX-3: keep verbose signal logs opt-in and disabled in production builds.
+const DEBUG = import.meta.env?.DEV === true
+    && typeof window !== 'undefined'
+    && Boolean(window.__DEBUG_SIGNALS)
+
 const TYPE_BUY_EXIT = ['PIVOT_EXIT_BUY_TREND', 'PIVOT_EXIT_BUY_SEC'];
 const TYPE_SELL_EXIT = ['PIVOT_EXIT_SELL_TREND', 'PIVOT_EXIT_SELL_SEC'];
 const TYPE_RALLY_BUY = [
@@ -1403,8 +1408,10 @@ export const useOperatingInputs = (isAutomaticExecutionEnabled = false) => {
                 vpprDirection === 'BUY' &&
                 vpprEmaDirection === 'BUY'
 
-            console.log(REACT_EXIT.includes(lastTrendReact?.tipo))
-            console.log('lastTrendReact:', lastTrendReact)
+            if (DEBUG) {
+                console.log(REACT_EXIT.includes(lastTrendReact?.tipo))
+                console.log('lastTrendReact:', lastTrendReact)
+            }
 
             // Saídas por stop/take (independem de indicador)
             const activeEntryForExit = getOpenPosition(signalsHistoryRef.current?.[symbol] || []);

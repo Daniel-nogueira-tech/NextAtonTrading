@@ -765,8 +765,6 @@ export const useOperatingData = (trend) => {
           state.ultimoFundoAnterior = ultimoFundo
         }
       }
-      console.log('penultimoValorFundo',state.penultimoValorFundo)
-
 
       // **Último Pivo depois de uma invesão de tendência
       if (inversion) {
@@ -883,7 +881,7 @@ export const useOperatingData = (trend) => {
       let pivo = ct ?
         state.penultimoValor[state.penultimoValor.length - 2] :
         state.penultimoValorFundo[state.penultimoValorFundo.length - 2];
-console.log('>>>>>>',state.penultimoValorFundo)
+
       // **Reteste de pivo para saída
       let TrendPivot = ct ?
         state.penultimoValor[state.penultimoValor.length - 1] :
@@ -938,7 +936,7 @@ console.log('>>>>>>',state.penultimoValorFundo)
         }
         return id;
       }
-console.log('>>',pivo)
+
       // ======================|RETESTE DE TENDÊNCIA|====================== //
       if ((pivo || TrendPivot) && naturalReaction && canExecuteReaction && !state.executeTrendRally) {
         const limite = pivo?.limite;

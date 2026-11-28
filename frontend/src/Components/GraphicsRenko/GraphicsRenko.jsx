@@ -635,7 +635,8 @@ const updateSeriesData = (seriesApi, data, metaRef) => {
   ) {
     seriesApi.setData(nextData)
   } else if (nextLength === previous.length) {
-    if (nextLastTime === previous.lastTime && nextData[nextLength - 1]) {
+    // MEM-FIX-4: update the latest bar in place when only its timestamp/value advances.
+    if (nextLastTime >= previous.lastTime && nextData[nextLength - 1]) {
       seriesApi.update(nextData[nextLength - 1])
     } else {
       seriesApi.setData(nextData)

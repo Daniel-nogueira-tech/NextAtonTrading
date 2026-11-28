@@ -165,8 +165,8 @@ const sliceSeriesByTime = (
   if (currentTime == null) return []
 
   const cached = seriesEndCache.get(cacheKey)
-  const canAdvance = cached?.series === series
-    && cached.currentTime != null
+  // MEM-FIX-1: source replacement clears this cache, so scalar boundaries are safe to reuse.
+  const canAdvance = cached?.currentTime != null
     && currentTime >= cached.currentTime
   let end
 
@@ -189,7 +189,12 @@ const sliceSeriesByTime = (
     end = low
   }
 
-  seriesEndCache.set(cacheKey, { series, currentTime, end })
+  // MEM-FIX-1: retain only the scalar boundary so cached entries do not keep whole series alive.
+  seriesEndCache.set(cacheKey, { currentTime, end })
+  if (seriesEndCache.size > 300) {
+    const oldestKey = seriesEndCache.keys().next().value
+    if (oldestKey !== undefined) seriesEndCache.delete(oldestKey)
+  }
   return series.slice(Math.max(0, end - maxSnapshotPoints), end)
 }
 
@@ -211,7 +216,7 @@ const sliceFeed = (
     if (seriesKeys.length === 0) return item
 
     if (isFullPrice) {
-      if (sliceFullPrice) return sliceFullPrice(item, cursor, maxSnapshotPoints)
+      if (sliceFullPrice) return sliceFullPrice(item, cursor, maxSnapshotPoints, itemIndex)
       const primarySeriesKey = getItemSeriesKey(item)
       return seriesKeys.reduce((snapshotItem, seriesKey) => ({
         ...snapshotItem,
@@ -380,13 +385,16 @@ export const createMarketEngine = ({
   let fullPriceCacheBySymbol = new Map()
   // MIG-F2-2: cache each symbol's clock value so a tick does not rescan its full price series.
   let clockMapCache = new Map()
+  // MEM-FIX-2: skip time-feed rebuilds until the full-price clock advances.
+  let lastClockMapKey = ''
 
-  const sliceFullPrice = (item, currentCursor, currentMaxSnapshotPoints) => {
+  const sliceFullPrice = (item, currentCursor, currentMaxSnapshotPoints, itemIndex = 0) => {
     const primarySeriesKey = getItemSeriesKey(item)
     if (!primarySeriesKey) return item
 
     const series = item[primarySeriesKey]
-    const cacheKey = item.symbol ?? item
+    // MEM-FIX-1: use stable primitive keys so cache entries never retain source items.
+    const cacheKey = item?.symbol || `idx:${itemIndex}`
     const cached = fullPriceCacheBySymbol.get(cacheKey)
     if (cached?.cursor === currentCursor && cached.series === series) return cached.item
 
@@ -408,12 +416,17 @@ export const createMarketEngine = ({
       sliced,
       item: slicedItem,
     })
+    if (fullPriceCacheBySymbol.size > 100) {
+      const oldestKey = fullPriceCacheBySymbol.keys().next().value
+      if (oldestKey !== undefined) fullPriceCacheBySymbol.delete(oldestKey)
+    }
     return slicedItem
   }
 
-  const getSymbolClockMapCached = (fullPrice, currentCursor) => (
-    normalizeCollection(fullPrice).reduce((clockMap, item) => {
-      if (!item?.symbol) return clockMap
+  const getSymbolClockMapCached = (fullPrice, currentCursor) => {
+    const items = normalizeCollection(fullPrice)
+    const clockMap = items.reduce((result, item) => {
+      if (!item?.symbol) return result
 
       const cached = clockMapCache.get(item.symbol)
       const currentTime = cached?.cursor === currentCursor
@@ -423,10 +436,14 @@ export const createMarketEngine = ({
       if (cached?.cursor !== currentCursor) {
         clockMapCache.set(item.symbol, { cursor: currentCursor, time: currentTime })
       }
-      if (currentTime != null) clockMap[item.symbol] = currentTime
-      return clockMap
+      if (currentTime != null) result[item.symbol] = currentTime
+      return result
     }, {})
-  )
+    // MEM-FIX-1: bound stale symbol clocks if source symbol sets have changed.
+    const symbolCount = new Set(items.map(item => item?.symbol).filter(Boolean)).size
+    if (clockMapCache.size > symbolCount * 2) clockMapCache.clear()
+    return clockMap
+  }
 
   const invalidateSnapshotCaches = () => {
     sliceCache.clear()
@@ -435,6 +452,8 @@ export const createMarketEngine = ({
     fullPriceCacheBySymbol.clear()
     // MIG-F2-2: prevent stale per-symbol clocks after source replacement, merge, or reset.
     clockMapCache.clear()
+    // MEM-FIX-2: source changes force a full rebuild even if their timestamps are unchanged.
+    lastClockMapKey = null
   }
 
   let snapshot = buildSnapshot(
@@ -456,15 +475,36 @@ export const createMarketEngine = ({
       if (destroyed) return
 
       if (snapshotPending) {
-        const nextSnapshot = buildSnapshot(
-          sources,
-          cursor,
-          maxSnapshotPoints,
-          sliceCache,
-          getSymbolClockMapCached,
-          sliceFullPrice,
-          seriesEndCache,
-        )
+        const nextClockMap = getSymbolClockMapCached(sources.fullPrice, cursor)
+        const clockMapKey = Object.keys(nextClockMap)
+          .sort()
+          .map(symbol => `${symbol}:${nextClockMap[symbol]}`)
+          .join('|')
+        // MEM-FIX-2: unchanged price clocks need only a cheap fullPrice slice update.
+        const nextSnapshot = clockMapKey === lastClockMapKey
+          ? {
+            ...feedCache,
+            fullPrice: sliceFeed(
+              sources.fullPrice,
+              cursor,
+              nextClockMap,
+              maxSnapshotPoints,
+              true,
+              'fullPrice',
+              sliceCache,
+              sliceFullPrice,
+              seriesEndCache,
+            ),
+          }
+          : buildSnapshot(
+            sources,
+            cursor,
+            maxSnapshotPoints,
+            sliceCache,
+            () => nextClockMap,
+            sliceFullPrice,
+            seriesEndCache,
+          )
         let snapshotChanged = false
         Object.keys(DEFAULT_FEEDS).forEach((feedName) => {
           nextSnapshot[feedName] = reuseFeedReference(
@@ -474,6 +514,8 @@ export const createMarketEngine = ({
           if (feedCache[feedName] !== nextSnapshot[feedName]) snapshotChanged = true
           feedCache[feedName] = nextSnapshot[feedName]
         })
+        // MEM-FIX-2: remember the clock after publishing all feeds for it.
+        lastClockMapKey = clockMapKey
         if (snapshotChanged) {
           snapshot = nextSnapshot
           version += 1

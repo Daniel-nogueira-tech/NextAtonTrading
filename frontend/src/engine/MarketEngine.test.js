@@ -226,6 +226,39 @@ test('publishes Schrödinger progress while the last power surge remains unchang
   assert.equal(secondFeed[0].evolution_series.length, 2)
 })
 
+// MEM-FIX-2: a repeated clock timestamp updates price slices without rebuilding time-based feeds.
+test('skips time-feed rebuilds when cursor advances within the same clock timestamp', async () => {
+  const engine = createEngine({ initialSpeed: 150 })
+  engine.loadSources({
+    fullPrice: [{
+      symbol: 'BTCUSDT',
+      prices: [
+        { time: 1700000000, close: 10 },
+        { time: 1700000000, close: 11 },
+      ],
+    }],
+    rsi: [{
+      symbol: 'BTCUSDT',
+      result: [{ time: 1700000000, value: 45 }],
+    }],
+  })
+
+  const firstTick = pauseAtCursor(engine, 1)
+  engine.play()
+  await firstTick
+  await waitForPublish()
+  const rsiFeed = engine.getFeed('rsi')
+  assert.equal(engine.getFeed('fullPrice')[0].prices.length, 1)
+
+  const secondTick = pauseAtCursor(engine, 2)
+  engine.play()
+  await secondTick
+  await waitForPublish()
+
+  assert.equal(engine.getFeed('fullPrice')[0].prices.length, 2)
+  assert.equal(engine.getFeed('rsi'), rsiFeed)
+})
+
 test('updateSources merges timestamped series when replaceMode is false', async () => {
   const engine = createEngine({ initialSpeed: 10 })
   engine.loadSources(sampleSources(2))
